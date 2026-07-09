@@ -1,0 +1,154 @@
+// Pure helpers for summarising, filtering and sorting the flattened task list.
+// Each "item" is { key, task, receivedAt } as produced by extractTasks().
+
+export function parseDueDate(value) {
+  if (!value) return null;
+  // Due_Date arrives as "2026-07-10" (date only) — pin to local midnight.
+  const withTime = value.length === 10 ? `${value}T00:00:00` : value;
+  const d = new Date(withTime);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+export function startOfToday() {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+export function isCompleted(task) {
+  return (task.Status || '').toLowerCase() === 'completed';
+}
+
+// Bucket a task by its due date: overdue | today | upcoming | completed | no-date
+export function classifyDue(task) {
+  const completed = isCompleted(task);
+  const due = parseDueDate(task.Due_Date);
+
+  if (completed) return { due, completed, diffDays: null, bucket: 'completed' };
+  if (!due) return { due: null, completed, diffDays: null, bucket: 'no-date' };
+
+  const diffDays = Math.round((due - startOfToday()) / 86400000);
+  let bucket;
+  if (diffDays < 0) bucket = 'overdue';
+  else if (diffDays === 0) bucket = 'today';
+  else bucket = 'upcoming';
+
+  return { due, completed, diffDays, bucket };
+}
+
+export function computeSummary(items) {
+  const s = {
+    total: items.length,
+    overdue: 0,
+    today: 0,
+    week: 0,
+    status: {},
+    priority: {},
+    byOwner: {},
+  };
+
+  for (const { task } of items) {
+    const { bucket, diffDays } = classifyDue(task);
+
+    if (bucket === 'overdue') s.overdue += 1;
+    if (bucket === 'today') s.today += 1;
+    // Due within the next 7 days (today through +6), not completed.
+    if (diffDays !== null && diffDays >= 0 && diffDays <= 6) s.week += 1;
+
+    const st = task.Status || 'Unknown';
+    s.status[st] = (s.status[st] || 0) + 1;
+
+    const pr = task.Priority || 'Unknown';
+    s.priority[pr] = (s.priority[pr] || 0) + 1;
+
+    const owner = (task.Owner && task.Owner.name) || 'Unassigned';
+    s.byOwner[owner] = (s.byOwner[owner] || 0) + 1;
+  }
+
+  return s;
+}
+
+const PRIORITY_RANK = { high: 0, normal: 1, low: 2 };
+
+function priorityRank(task) {
+  const p = (task.Priority || '').toLowerCase();
+  return p in PRIORITY_RANK ? PRIORITY_RANK[p] : 99;
+}
+
+function createdTime(task) {
+  const d = task.Created_Time ? new Date(task.Created_Time) : null;
+  return d && !isNaN(d.getTime()) ? d.getTime() : 0;
+}
+
+function sortComparator(sortBy) {
+  if (sortBy === 'priority') {
+    return (a, b) => priorityRank(a.task) - priorityRank(b.task);
+  }
+  if (sortBy === 'created') {
+    return (a, b) => createdTime(b.task) - createdTime(a.task);
+  }
+  // Default: due date ascending, tasks without a due date last.
+  return (a, b) => {
+    const da = parseDueDate(a.task.Due_Date);
+    const db = parseDueDate(b.task.Due_Date);
+    if (!da && !db) return 0;
+    if (!da) return 1;
+    if (!db) return -1;
+    return da - db;
+  };
+}
+
+export function applyFilters(items, f) {
+  let out = items;
+
+  if (f.tab && f.tab !== 'all') {
+    out = out.filter(({ task }) => classifyDue(task).bucket === f.tab);
+  }
+  if (f.status) {
+    out = out.filter(({ task }) => (task.Status || '') === f.status);
+  }
+  if (f.priority) {
+    out = out.filter(({ task }) => (task.Priority || '') === f.priority);
+  }
+  if (f.owner) {
+    const owner = f.owner.toLowerCase();
+    out = out.filter(
+      ({ task }) => (task.Owner?.email || '').toLowerCase() === owner
+    );
+  }
+  if (f.search) {
+    const q = f.search.toLowerCase();
+    out = out.filter(({ task }) => {
+      const contact = (task.Who_Id?.name || '').toLowerCase();
+      const subject = (task.Subject || '').toLowerCase();
+      return contact.includes(q) || subject.includes(q);
+    });
+  }
+  if (f.dueFrom) {
+    const from = parseDueDate(f.dueFrom);
+    out = out.filter(({ task }) => {
+      const d = parseDueDate(task.Due_Date);
+      return d && from && d >= from;
+    });
+  }
+  if (f.dueTo) {
+    const to = parseDueDate(f.dueTo);
+    out = out.filter(({ task }) => {
+      const d = parseDueDate(task.Due_Date);
+      return d && to && d <= to;
+    });
+  }
+
+  return [...out].sort(sortComparator(f.sortBy));
+}
+
+export const DEFAULT_FILTERS = {
+  tab: 'all',
+  status: '',
+  priority: '',
+  owner: '',
+  search: '',
+  dueFrom: '',
+  dueTo: '',
+  sortBy: 'dueDate',
+};

@@ -1,0 +1,15 @@
+services:
+  app:
+    build: .
+    image: followup-dashboard:latest
+    container_name: followup-dashboard
+    restart: unless-stopped
+    ports:
+      - "7007:7007"
+    # Secrets/config are read at runtime from backend/.env (not baked into the image).
+    env_file:
+      - ./backend/.env
+    # These override anything in .env (compose `environment` wins over `env_file`).
+    environment:
+      - NODE_ENV=production
+      - PORT=7007

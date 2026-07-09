@@ -1,0 +1,21 @@
+# Dependencies (reinstalled inside the image)
+**/node_modules
+
+# Secrets — provide these at runtime, never bake into the image
+**/.env
+**/.env.*
+!**/.env.example
+
+# Build output (frontend is rebuilt inside the image)
+frontend/dist
+
+# Git / editor / OS cruft
+.git
+.gitignore
+**/*.log
+.DS_Store
+
+# Docker files themselves
+Dockerfile
+.dockerignore
+docker-compose.yml
