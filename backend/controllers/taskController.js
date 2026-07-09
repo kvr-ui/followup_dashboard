@@ -1,6 +1,6 @@
 const Task = require('../models/Task');
 const zoho = require('../services/zoho');
-const { enrichBody } = require('../services/enrich');
+const wati = require('../services/wati');
 
 function ownerEmailOf(task) {
   return task && task.Owner && task.Owner.email
@@ -26,6 +26,7 @@ function serialize(doc) {
     statusHistory: doc.statusHistory || [],
     notes: doc.notes || [],
     taskHistory: doc.taskHistory || [],
+    whatsappLog: doc.whatsappLog || [],
   };
 }
 
@@ -54,16 +55,9 @@ async function loadAccessible(req, res) {
  */
 async function getTasks(req, res) {
   try {
-    const all = await Task.find().sort({ receivedAt: -1 });
-
-    // Backfill contact phone/email for any task that doesn't have it yet.
-    // enrichBody skips tasks already enriched, so this is a no-op once filled.
-    for (const doc of all) {
-      if (await enrichBody(doc.body)) {
-        doc.markModified('body');
-        await doc.save();
-      }
-    }
+    // Pure DB read — no Zoho calls on the hot path. Enrichment happens once at
+    // webhook ingest / import, not on every dashboard refresh.
+    const all = await Task.find().sort({ receivedAt: -1 }).lean();
 
     let records = all.map(serialize);
 
@@ -91,11 +85,6 @@ async function getTasks(req, res) {
 async function getTask(req, res) {
   const doc = await loadAccessible(req, res);
   if (!doc) return;
-
-  if (await enrichBody(doc.body)) {
-    doc.markModified('body');
-    await doc.save();
-  }
 
   res.json({ success: true, data: serialize(doc), zohoSync: zoho.isConfigured() });
 }
@@ -156,4 +145,42 @@ async function addNote(req, res) {
   res.json({ success: true, data: serialize(doc), zohoSync: sync });
 }
 
-module.exports = { getTasks, getTask, updateStatus, addNote };
+// Send a WhatsApp template to this lead's phone via WATI, and log it.
+async function sendWhatsapp(req, res) {
+  const doc = await loadAccessible(req, res);
+  if (!doc) return;
+
+  const { template, parameters } = req.body || {};
+  if (!template) {
+    return res.status(400).json({ success: false, message: 'template is required' });
+  }
+
+  const phone = doc.body && doc.body.Who_Id && doc.body.Who_Id.phone;
+  if (!phone) {
+    return res.status(400).json({ success: false, message: 'This lead has no phone number' });
+  }
+
+  const result = await wati.sendTemplate(phone, template, parameters || []);
+
+  doc.whatsappLog.push({
+    template,
+    number: result.number || phone,
+    sentBy: req.user.username,
+    sentAt: new Date(),
+    ok: Boolean(result.ok),
+    error: result.ok ? null : result.error || (result.skipped ? 'WATI not configured' : 'Failed'),
+  });
+  await doc.save();
+
+  if (!result.ok) {
+    return res.status(result.skipped ? 400 : 502).json({
+      success: false,
+      message: result.error || 'WATI not configured',
+      data: serialize(doc),
+    });
+  }
+
+  res.json({ success: true, data: serialize(doc) });
+}
+
+module.exports = { getTasks, getTask, updateStatus, addNote, sendWhatsapp };

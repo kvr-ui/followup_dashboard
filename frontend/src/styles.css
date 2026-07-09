@@ -769,6 +769,19 @@ tr.row-today td {
   resize: vertical;
 }
 
+.wa-form {
+  margin-top: 0.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+.wa-param {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 0.78rem;
+  color: var(--ink-2);
+}
+
 @media (max-width: 640px) {
   .fields {
     grid-template-columns: 1fr;

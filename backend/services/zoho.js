@@ -40,34 +40,50 @@ function isConfigured() {
 }
 
 // Cache the access token in memory until shortly before it expires.
+// A single in-flight refresh is shared by concurrent callers so we never
+// hammer Zoho's OAuth endpoint (which triggers "Access Denied" rate blocks).
 let cachedToken = null;
 let tokenExpiresAt = 0;
+let refreshInFlight = null;
 
 async function getAccessToken() {
   if (cachedToken && Date.now() < tokenExpiresAt) return cachedToken;
+  if (refreshInFlight) return refreshInFlight;
 
-  const params = new URLSearchParams({
-    refresh_token: ZOHO_REFRESH_TOKEN,
-    client_id: ZOHO_CLIENT_ID,
-    client_secret: ZOHO_CLIENT_SECRET,
-    grant_type: 'refresh_token',
+  refreshInFlight = (async () => {
+    const params = new URLSearchParams({
+      refresh_token: ZOHO_REFRESH_TOKEN,
+      client_id: ZOHO_CLIENT_ID,
+      client_secret: ZOHO_CLIENT_SECRET,
+      grant_type: 'refresh_token',
+    });
+
+    const res = await fetch(`${ZOHO_ACCOUNTS_URL}/oauth/v2/token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: params.toString(),
+    });
+
+    const text = await res.text();
+    let json;
+    try {
+      json = JSON.parse(text);
+    } catch {
+      throw new Error('Zoho auth blocked (non-JSON response — likely rate-limited)');
+    }
+    if (!json.access_token) {
+      throw new Error(json.error || 'Failed to obtain Zoho access token');
+    }
+
+    cachedToken = json.access_token;
+    // Zoho tokens last ~1h; refresh a minute early.
+    tokenExpiresAt = Date.now() + ((json.expires_in || 3600) - 60) * 1000;
+    return cachedToken;
+  })().finally(() => {
+    refreshInFlight = null;
   });
 
-  const res = await fetch(`${ZOHO_ACCOUNTS_URL}/oauth/v2/token`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: params.toString(),
-  });
-  const json = await res.json();
-
-  if (!json.access_token) {
-    throw new Error(json.error || 'Failed to obtain Zoho access token');
-  }
-
-  cachedToken = json.access_token;
-  // Zoho tokens last ~1h; refresh a minute early.
-  tokenExpiresAt = Date.now() + ((json.expires_in || 3600) - 60) * 1000;
-  return cachedToken;
+  return refreshInFlight;
 }
 
 async function zohoFetch(path, options = {}) {
@@ -80,7 +96,18 @@ async function zohoFetch(path, options = {}) {
       ...(options.headers || {}),
     },
   });
-  const json = await res.json().catch(() => ({}));
+
+  // Zoho occasionally returns an HTML "Access Denied" page instead of JSON
+  // when rate-limited — handle that without leaking raw HTML.
+  const text = await res.text();
+  let json;
+  try {
+    json = text ? JSON.parse(text) : {};
+  } catch {
+    throw new Error(
+      `Zoho unavailable (${res.status}) — rate-limited or access-denied. Try again shortly.`
+    );
+  }
   if (!res.ok) {
     throw new Error(json.message || `Zoho API error (${res.status})`);
   }

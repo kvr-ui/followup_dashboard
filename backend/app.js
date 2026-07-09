@@ -7,6 +7,7 @@ const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
 const taskRoutes = require('./routes/tasks');
 const analyticsRoutes = require('./routes/analytics');
+const watiRoutes = require('./routes/wati');
 
 const app = express();
 
@@ -32,6 +33,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes); // admin-only
 app.use('/api/tasks', taskRoutes); // auth + role-based filtering
 app.use('/api/analytics', analyticsRoutes); // admin-only
+app.use('/api/wati', watiRoutes);
 
 // Health check
 app.get('/health', (req, res) => {

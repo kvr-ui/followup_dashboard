@@ -13,6 +13,14 @@ export default function TaskDetail({ recordId, onClose, onUpdated }) {
   const [note, setNote] = useState('');
   const [syncMsg, setSyncMsg] = useState('');
 
+  // WhatsApp (WATI)
+  const [templates, setTemplates] = useState([]);
+  const [waConfigured, setWaConfigured] = useState(true);
+  const [waTemplate, setWaTemplate] = useState('');
+  const [waParams, setWaParams] = useState({});
+  const [waBusy, setWaBusy] = useState(false);
+  const [waMsg, setWaMsg] = useState('');
+
   async function load() {
     setError('');
     try {
@@ -28,6 +36,52 @@ export default function TaskDetail({ recordId, onClose, onUpdated }) {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recordId]);
+
+  // Load WhatsApp templates once.
+  useEffect(() => {
+    api('/api/wati/templates')
+      .then((r) => {
+        setTemplates(r.templates || []);
+        setWaConfigured(r.configured);
+      })
+      .catch(() => setWaConfigured(false));
+  }, []);
+
+  function selectTemplate(name) {
+    setWaTemplate(name);
+    setWaMsg('');
+    const t = templates.find((x) => x.name === name);
+    const b = detail?.body || {};
+    const init = {};
+    (t?.params || []).forEach((p) => {
+      if (p === 'name') init[p] = b.Who_Id?.name || '';
+      else if (p === 'phone') init[p] = getContact(b).phone || '';
+      else init[p] = '';
+    });
+    setWaParams(init);
+  }
+
+  async function sendWhatsapp() {
+    setWaBusy(true);
+    setWaMsg('');
+    try {
+      const t = templates.find((x) => x.name === waTemplate);
+      const parameters = (t?.params || []).map((p) => ({ name: p, value: waParams[p] || '' }));
+      const { data } = await api(`/api/tasks/${encodeURIComponent(recordId)}/whatsapp`, {
+        method: 'POST',
+        body: { template: waTemplate, parameters },
+      });
+      setDetail(data);
+      setWaMsg('✓ WhatsApp sent');
+      onUpdated?.();
+    } catch (err) {
+      setWaMsg('Failed: ' + err.message);
+      // Refresh so the failed attempt shows in the log.
+      load();
+    } finally {
+      setWaBusy(false);
+    }
+  }
 
   function reportSync(sync, what) {
     if (sync?.ok) setSyncMsg(`${what} synced to Zoho.`);
@@ -227,6 +281,73 @@ export default function TaskDetail({ recordId, onClose, onUpdated }) {
                 ))}
               </ul>
             </section>
+
+            {/* WhatsApp (WATI) */}
+            {waConfigured && (
+              <section className="drawer-section">
+                <span className="field-label">Send WhatsApp</span>
+                {!contact.phone && (
+                  <div className="hint" style={{ marginTop: '0.5rem' }}>
+                    This lead has no phone number.
+                  </div>
+                )}
+                {waMsg && (
+                  <div
+                    className={waMsg.startsWith('Failed') ? 'error' : 'notice'}
+                    style={{ marginTop: '0.5rem', marginBottom: 0 }}
+                  >
+                    {waMsg}
+                  </div>
+                )}
+                <div className="wa-form">
+                  <select value={waTemplate} onChange={(e) => selectTemplate(e.target.value)}>
+                    <option value="">Choose a template…</option>
+                    {templates.map((t) => (
+                      <option key={t.name} value={t.name}>
+                        {t.name}
+                        {t.params.length ? ` — ${t.params.join(', ')}` : ''}
+                      </option>
+                    ))}
+                  </select>
+
+                  {waTemplate &&
+                    (templates.find((t) => t.name === waTemplate)?.params || []).map((p) => (
+                      <label key={p} className="wa-param">
+                        {p}
+                        <input
+                          value={waParams[p] || ''}
+                          onChange={(e) =>
+                            setWaParams((v) => ({ ...v, [p]: e.target.value }))
+                          }
+                        />
+                      </label>
+                    ))}
+
+                  <button
+                    disabled={waBusy || !waTemplate || !contact.phone}
+                    onClick={sendWhatsapp}
+                  >
+                    {waBusy ? 'Sending…' : 'Send WhatsApp'}
+                  </button>
+                </div>
+
+                {detail.whatsappLog?.length > 0 && (
+                  <ul className="notes" style={{ marginTop: '0.75rem' }}>
+                    {[...detail.whatsappLog].reverse().map((w, i) => (
+                      <li key={i}>
+                        <div>
+                          {w.ok ? '✅' : '❌'} <b>{w.template}</b> → {w.number}
+                        </div>
+                        <div className="subtle">
+                          {w.sentBy} · {formatDateTime(w.sentAt)}
+                          {w.error ? ` · ${w.error}` : ''}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            )}
 
             {/* Notes */}
             <section className="drawer-section">

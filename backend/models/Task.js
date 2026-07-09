@@ -20,6 +20,18 @@ const noteSchema = new mongoose.Schema(
   { _id: true }
 );
 
+const whatsappLogSchema = new mongoose.Schema(
+  {
+    template: String,
+    number: String,
+    sentBy: String,
+    sentAt: { type: Date, default: Date.now },
+    ok: Boolean,
+    error: { type: String, default: null },
+  },
+  { _id: true }
+);
+
 // Summary of each individual task belonging to this contact (kept as history
 // so no follow-up is lost when we dedupe by phone).
 const relatedTaskSchema = new mongoose.Schema(
@@ -47,6 +59,7 @@ const taskSchema = new mongoose.Schema(
     statusHistory: { type: [statusChangeSchema], default: [] },
     notes: { type: [noteSchema], default: [] },
     taskHistory: { type: [relatedTaskSchema], default: [] },
+    whatsappLog: { type: [whatsappLogSchema], default: [] },
   },
   { timestamps: true }
 );
