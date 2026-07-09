@@ -86,7 +86,26 @@ async function getAccessToken() {
   return refreshInFlight;
 }
 
-async function zohoFetch(path, options = {}) {
+// Throttle ALL Zoho calls through a single serial queue with minimum spacing,
+// so bursts of webhooks never hammer Zoho (which triggers "Access Denied").
+const MIN_SPACING_MS = 350;
+let zohoQueue = Promise.resolve();
+let lastCallAt = 0;
+
+function reserveSlot() {
+  zohoQueue = zohoQueue.then(async () => {
+    const wait = MIN_SPACING_MS - (Date.now() - lastCallAt);
+    if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+    lastCallAt = Date.now();
+  });
+  return zohoQueue;
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function zohoFetch(path, options = {}, attempt = 0) {
+  await reserveSlot();
+
   const token = await getAccessToken();
   const res = await fetch(`${ZOHO_API_URL}${API_BASE}${path}`, {
     ...options,
@@ -97,18 +116,25 @@ async function zohoFetch(path, options = {}) {
     },
   });
 
-  // Zoho occasionally returns an HTML "Access Denied" page instead of JSON
-  // when rate-limited — handle that without leaking raw HTML.
   const text = await res.text();
   let json;
   try {
     json = text ? JSON.parse(text) : {};
   } catch {
-    throw new Error(
-      `Zoho unavailable (${res.status}) — rate-limited or access-denied. Try again shortly.`
-    );
+    // Non-JSON = Zoho's HTML "Access Denied"/rate-limit page. Back off and retry.
+    if (attempt < 3) {
+      await sleep(1500 * (attempt + 1));
+      return zohoFetch(path, options, attempt + 1);
+    }
+    throw new Error(`Zoho unavailable (${res.status}) — rate-limited. Try again shortly.`);
   }
+
   if (!res.ok) {
+    const throttled = res.status === 429 || json.code === 'TOO_MANY_REQUESTS';
+    if (throttled && attempt < 3) {
+      await sleep(1500 * (attempt + 1));
+      return zohoFetch(path, options, attempt + 1);
+    }
     throw new Error(json.message || `Zoho API error (${res.status})`);
   }
   return json;
