@@ -51,7 +51,7 @@ async function run() {
     const tasks = json.data || [];
 
     for (const rec of tasks) {
-      await upsertTask(rec); // enriches + dedupes by phone
+      await upsertTask(rec, { enrich: true }); // enriches inline + dedupes by contact
       imported += 1;
     }
 

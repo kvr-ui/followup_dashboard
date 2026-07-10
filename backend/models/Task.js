@@ -64,4 +64,7 @@ const taskSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Dedupe/lookup by contact id (present in every webhook payload).
+taskSchema.index({ 'body.Who_Id.id': 1 });
+
 module.exports = mongoose.model('Task', taskSchema);
