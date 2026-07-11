@@ -1,6 +1,7 @@
 const Task = require('../models/Task');
 const { upsertTask } = require('../services/taskStore');
 const { enrichBody } = require('../services/enrich');
+const { invalidateTaskCache } = require('./taskController');
 
 // Fetch phone/subject from Zoho for a stored record, in the background.
 // Throttled + retried inside the Zoho service, so it never blocks the webhook
@@ -34,6 +35,7 @@ async function receiveWebhook(req, res) {
     for (const p of payloads) saved.push(await upsertTask(p, { enrich: false }));
 
     console.log(`Webhook received: ${saved.length} task(s) stored`);
+    invalidateTaskCache(); // new lead must show up on the next dashboard poll
     res.status(200).json({ success: true, message: 'Webhook received', count: saved.length });
 
     // Enrich after responding — does not delay the webhook.

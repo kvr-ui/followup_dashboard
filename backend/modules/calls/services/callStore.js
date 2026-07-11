@@ -108,6 +108,13 @@ function toCallDoc(row, leadIndex, agents) {
     leadPhone = from;
   }
 
+  // If neither leg matched a lead, fall back to whatever TeleCMI told us.
+  if (direction === 'unknown' && row._direction) {
+    const d = String(row._direction).toLowerCase();
+    if (d.startsWith('in')) direction = 'inbound';
+    else if (d.startsWith('out')) direction = 'outbound';
+  }
+
   const agentExt = String(row.agent || '').split('_')[0] || null;
   const hasRecording = String(row.record) === 'true' && Boolean(row.filename);
 

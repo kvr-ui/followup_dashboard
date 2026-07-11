@@ -5,25 +5,39 @@ const { agentMap, buildLeadIndex, upsertCall, key10 } = require('../services/cal
 const { upsertDeal, shouldTranscribe } = require('../services/dealStore');
 
 /**
- * Normalise a TeleCMI webhook payload into the same shape as their CDR API.
- * The webhook uses `call_id`/`answeredsec`; the CDR API uses `cmiuid`/`duration`.
+ * Normalise a TeleCMI webhook payload into the shape their CDR API returns.
+ *
+ * The two differ, which is easy to get wrong:
+ *   CDR API :  cmiuid   | duration    | agent
+ *   Webhook :  cmiuuid  | answeredsec | user
+ *
+ * Verified against TeleCMI's documented webhook payload:
+ *   { type:'cdr', cmiuuid, user:'204_2222223', status:'answered', direction,
+ *     from, to, time, answeredsec, record:true, filename, ... }
  */
 function normalizeCallPayload(b) {
   if (!b || typeof b !== 'object') return null;
-  const cmiuid = b.cmiuid || b.call_id || b.uuid || null;
+
+  const cmiuid =
+    b.cmiuid || b.cmiuuid || b.call_id || b.conversation_uuid || b.uuid || null;
   if (!cmiuid) return null;
 
+  const agent = b.agent || b.user || b.extension || null;
+
   return {
-    cmiuid,
-    duration: Number(b.duration ?? b.answeredsec ?? 0),
+    cmiuid: String(cmiuid),
+    duration: Number(b.duration ?? b.answeredsec ?? b.billedsec ?? 0),
     billedsec: b.billedsec ?? b.answeredsec ?? 0,
-    agent: b.agent || b.extension || null,
+    agent,
     filename: b.filename || null,
     record: b.record === true || b.record === 'true' ? 'true' : 'false',
     from: b.from ?? b.caller ?? null,
     to: b.to ?? b.callee ?? b.destination ?? null,
     time: b.time ?? (b.date ? new Date(b.date).getTime() : Date.now()),
     name: b.name || 'unknown',
+    // TeleCMI tells us the direction outright — better than inferring it.
+    _direction: b.direction || null,
+    _status: b.status || null,
   };
 }
 
@@ -79,11 +93,26 @@ async function afterCallStored(callDoc) {
  */
 async function receiveCallWebhook(req, res) {
   try {
+    if (process.env.LOG_WEBHOOK_PAYLOADS !== 'false') {
+      console.log('=== RAW CALL WEBHOOK PAYLOAD ===');
+      console.log(JSON.stringify(req.body, null, 2));
+      console.log('=== END PAYLOAD ===');
+    }
+
     const payloads = Array.isArray(req.body) ? req.body : [req.body];
     const rows = payloads.map(normalizeCallPayload).filter(Boolean);
 
     if (!rows.length) {
-      return res.status(400).json({ success: false, message: 'No recognisable call payload' });
+      // 200 so TeleCMI doesn't retry while we adjust the parser.
+      console.warn(
+        'Call webhook: no recognisable call id. Fields seen:',
+        Object.keys(req.body || {}).join(', ')
+      );
+      return res.status(200).json({
+        success: false,
+        message: 'Payload received but no call id found',
+        fieldsSeen: Object.keys(req.body || {}),
+      });
     }
 
     const agents = agentMap();

@@ -23,14 +23,53 @@ function dueBucket(t) {
   return 'upcoming';
 }
 
+// Atlas M0 throttles to ~20ms/doc, so scanning every lead takes ~25s.
+// Analytics changes slowly — cache the computed result.
+const ANALYTICS_TTL_MS = Number(process.env.ANALYTICS_CACHE_TTL_MS || 60000);
+let cached = null;
+let cachedAt = 0;
+let building = null;
+
 /**
  * Per-salesperson performance, aggregated from all tasks.
  * Admin-only (enforced by the route).
  */
 async function getAnalytics(req, res) {
   try {
+    if (cached && Date.now() - cachedAt < ANALYTICS_TTL_MS) {
+      return res.json(cached);
+    }
+    if (building) {
+      // Another request is already computing it — serve stale rather than queue.
+      if (cached) return res.json(cached);
+      return res.json(await building);
+    }
+
+    building = buildAnalytics()
+      .then((payload) => {
+        cached = payload;
+        cachedAt = Date.now();
+        return payload;
+      })
+      .finally(() => {
+        building = null;
+      });
+
+    return res.json(await building);
+  } catch (err) {
+    console.error('Analytics failed:', err.message);
+    return res.status(500).json({ success: false, message: 'Failed to build analytics' });
+  }
+}
+
+async function buildAnalytics() {
+  {
+    // Only pull the fields we actually aggregate on.
     const [docs, users] = await Promise.all([
-      Task.find().lean(),
+      Task.find(
+        {},
+        { 'body.Status': 1, 'body.Priority': 1, 'body.Due_Date': 1, 'body.Owner': 1, notes: 1, statusHistory: 1 }
+      ).lean(),
       User.find().lean(),
     ]);
 
@@ -131,10 +170,7 @@ async function getAnalytics(req, res) {
       ? Math.round((totals.completed / totals.total) * 100)
       : 0;
 
-    res.json({ success: true, totals, users: rows });
-  } catch (err) {
-    console.error('Analytics failed:', err.message);
-    res.status(500).json({ success: false, message: 'Failed to build analytics' });
+    return { success: true, totals, users: rows };
   }
 }
 

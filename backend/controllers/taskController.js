@@ -53,13 +53,74 @@ async function loadAccessible(req, res) {
  * - Admins see every task.
  * - Sales users see only tasks whose Owner.email matches their ownerEmail.
  */
+/**
+ * The list view only renders fields from `body` — it never shows statusHistory,
+ * notes, taskHistory or whatsappLog (those are detail-only). Sending them costs
+ * us dearly: MongoDB Atlas M0 throttles to ~20ms/document, so every extra byte
+ * is real latency.
+ */
+function serializeList(doc) {
+  return {
+    id: doc.dedupeKey || doc.zohoId || String(doc._id),
+    zohoId: doc.zohoId || null,
+    receivedAt: doc.receivedAt,
+    body: doc.body,
+  };
+}
+
+// ---- Task list cache -------------------------------------------------------
+// Atlas M0 takes ~25s to return all leads, and the dashboard polls every 15s.
+// We serve from an in-memory cache and refresh it in the background, so the UI
+// is instant and slow Atlas reads never block a request.
+const TASK_CACHE_TTL_MS = Number(process.env.TASK_CACHE_TTL_MS || 30000);
+let taskCache = null;
+let taskCacheAt = 0;
+let taskRefreshing = null;
+
+async function loadTaskList() {
+  const docs = await Task.find(
+    {},
+    { body: 1, receivedAt: 1, dedupeKey: 1, zohoId: 1 } // slim projection
+  )
+    .sort({ receivedAt: -1 })
+    .lean();
+  return docs.map(serializeList);
+}
+
+async function getCachedTasks() {
+  const fresh = taskCache && Date.now() - taskCacheAt < TASK_CACHE_TTL_MS;
+  if (fresh) return taskCache;
+
+  if (!taskRefreshing) {
+    taskRefreshing = loadTaskList()
+      .then((rows) => {
+        taskCache = rows;
+        taskCacheAt = Date.now();
+        return rows;
+      })
+      .finally(() => {
+        taskRefreshing = null;
+      });
+  }
+
+  // Stale-while-revalidate: hand back the old copy instantly if we have one.
+  return taskCache || taskRefreshing;
+}
+
+/** Called after any write so the next read reflects it immediately. */
+function invalidateTaskCache() {
+  taskCacheAt = 0;
+}
+
+/** Warm at boot so the first dashboard load isn't the slow one. */
+async function warmTaskCache() {
+  const rows = await getCachedTasks();
+  console.log(`Task list cache warmed: ${rows.length} leads`);
+}
+
 async function getTasks(req, res) {
   try {
-    // Pure DB read — no Zoho calls on the hot path. Enrichment happens once at
-    // webhook ingest / import, not on every dashboard refresh.
-    const all = await Task.find().sort({ receivedAt: -1 }).lean();
-
-    let records = all.map(serialize);
+    let records = await getCachedTasks();
 
     if (req.user.role !== 'admin') {
       const mine = (req.user.ownerEmail || '').toLowerCase();
@@ -116,6 +177,7 @@ async function updateStatus(req, res) {
   if (doc.zohoId) sync = await zoho.updateTaskStatus(doc.zohoId, status);
 
   await doc.save();
+  invalidateTaskCache();
 
   res.json({ success: true, data: serialize(doc), zohoSync: sync });
 }
@@ -141,6 +203,7 @@ async function addNote(req, res) {
     syncedToZoho: Boolean(sync.ok),
   });
   await doc.save();
+  invalidateTaskCache();
 
   res.json({ success: true, data: serialize(doc), zohoSync: sync });
 }
@@ -183,4 +246,12 @@ async function sendWhatsapp(req, res) {
   res.json({ success: true, data: serialize(doc) });
 }
 
-module.exports = { getTasks, getTask, updateStatus, addNote, sendWhatsapp };
+module.exports = {
+  getTasks,
+  getTask,
+  updateStatus,
+  addNote,
+  sendWhatsapp,
+  invalidateTaskCache,
+  warmTaskCache,
+};
