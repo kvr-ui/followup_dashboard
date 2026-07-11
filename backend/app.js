@@ -8,6 +8,8 @@ const userRoutes = require('./routes/users');
 const taskRoutes = require('./routes/tasks');
 const analyticsRoutes = require('./routes/analytics');
 const watiRoutes = require('./routes/wati');
+const callRoutes = require('./modules/calls/routes/calls'); // v2: call grading
+const callWebhookRoutes = require('./modules/calls/routes/webhooks'); // v2: TeleCMI + Bigin deal webhooks
 
 const app = express();
 
@@ -34,6 +36,8 @@ app.use('/api/users', userRoutes); // admin-only
 app.use('/api/tasks', taskRoutes); // auth + role-based filtering
 app.use('/api/analytics', analyticsRoutes); // admin-only
 app.use('/api/wati', watiRoutes);
+app.use('/api/calls', callRoutes); // admin-only
+app.use('/webhook', callWebhookRoutes); // /webhook/call (TeleCMI), /webhook/deal (Bigin)
 
 // Health check
 app.get('/health', (req, res) => {

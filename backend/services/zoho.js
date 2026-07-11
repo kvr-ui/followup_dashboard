@@ -200,10 +200,22 @@ async function addNote(zohoId, title, content) {
   }
 }
 
+// Generic authenticated GET against the Bigin/CRM API (throttled + retried).
+async function apiGet(path) {
+  if (!isConfigured()) return { ok: false, skipped: true };
+  try {
+    const json = await zohoFetch(path, { method: 'GET' });
+    return { ok: true, json };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
+
 module.exports = {
   isConfigured,
   updateTaskStatus,
   addNote,
   getContact,
   getTaskRecord,
+  apiGet,
 };

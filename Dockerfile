@@ -22,6 +22,10 @@ FROM node:22-alpine AS runtime
 ENV NODE_ENV=production
 WORKDIR /app/backend
 
+# ffmpeg: TeleCMI records at MPEG-2.5/8kHz, which browsers can't decode.
+# We transcode call recordings to standard MP3 before streaming them.
+RUN apk add --no-cache ffmpeg
+
 # Production dependencies only
 COPY backend/package.json backend/package-lock.json ./
 RUN npm ci --omit=dev

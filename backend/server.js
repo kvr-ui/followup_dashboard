@@ -4,6 +4,7 @@ const app = require('./app');
 const connectDB = require('./config/db');
 const seedAdmin = require('./config/seed');
 const Task = require('./models/Task');
+const callJobs = require('./modules/calls/services/scheduler');
 
 const PORT = process.env.PORT || 3000;
 
@@ -13,6 +14,7 @@ connectDB()
   .then(() => {
     app.listen(PORT, () => {
       console.log(`Server is running on http://localhost:${PORT}`);
+      callJobs.start(); // reconcile polls + transcription worker
     });
   })
   .catch((err) => {

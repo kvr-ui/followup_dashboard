@@ -782,6 +782,184 @@ tr.row-today td {
   color: var(--ink-2);
 }
 
+/* ---------- Calls: lead journeys ---------- */
+.journeys {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.journey {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+.journey.open {
+  border-color: var(--border-strong);
+}
+
+.journey-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem 1.1rem;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.journey-head:hover {
+  background: var(--surface-2);
+}
+
+.journey-main {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+.chev {
+  color: var(--muted);
+  font-size: 0.85rem;
+  width: 12px;
+}
+
+.journey-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.score-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+
+.call-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--border);
+  background: var(--surface-2);
+}
+.call-list li {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.6rem 1.1rem 0.6rem 2.4rem;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: background 0.12s;
+}
+.call-list li:last-child {
+  border-bottom: none;
+}
+.call-list li:hover {
+  background: var(--surface);
+}
+.call-n {
+  font-weight: 700;
+  color: var(--muted);
+  min-width: 26px;
+}
+.call-date {
+  min-width: 165px;
+  color: var(--ink-2);
+}
+.call-dur {
+  min-width: 65px;
+  color: var(--ink-2);
+}
+.call-open {
+  margin-left: auto;
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 0.8rem;
+}
+
+/* ---------- Call detail: audio + transcript ---------- */
+.drawer-wide {
+  width: 620px;
+}
+
+.audio-player {
+  width: 100%;
+  margin-top: 0.6rem;
+}
+
+.grade-box {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  margin-top: 0.5rem;
+}
+.grade-score {
+  font-family: var(--serif);
+  font-size: 2rem;
+  font-weight: 600;
+  color: var(--accent);
+  line-height: 1;
+}
+
+.transcript {
+  margin-top: 0.7rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 460px;
+  overflow-y: auto;
+  padding-right: 0.35rem;
+}
+
+.turn {
+  padding: 0.5rem 0.7rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: border-color 0.12s;
+}
+.turn:hover {
+  border-color: var(--border-strong);
+}
+.turn-agent {
+  background: var(--accent-soft);
+}
+.turn-customer {
+  background: var(--surface-2);
+}
+.turn-meta {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.2rem;
+}
+.turn-who {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-2);
+}
+.turn-time {
+  font-size: 0.7rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.turn-text {
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
 @media (max-width: 640px) {
   .fields {
     grid-template-columns: 1fr;

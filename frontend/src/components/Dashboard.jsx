@@ -3,6 +3,7 @@ import TaskTable from './TaskTable';
 import TaskDetail from './TaskDetail';
 import AdminUsers from './AdminUsers';
 import Analytics from './Analytics';
+import Calls from './Calls';
 import SummaryCards from './SummaryCards';
 import Filters from './Filters';
 import { api } from '../api';
@@ -81,6 +82,12 @@ export default function Dashboard({ user, onLogout }) {
                 Analytics
               </button>
               <button
+                className={view === 'calls' ? 'tab active' : 'tab'}
+                onClick={() => setView('calls')}
+              >
+                Calls
+              </button>
+              <button
                 className={view === 'users' ? 'tab active' : 'tab'}
                 onClick={() => setView('users')}
               >
@@ -132,6 +139,8 @@ export default function Dashboard({ user, onLogout }) {
           </>
         ) : view === 'analytics' ? (
           <Analytics />
+        ) : view === 'calls' ? (
+          <Calls />
         ) : (
           <AdminUsers />
         )}
