@@ -27,7 +27,7 @@ const gradeSchema = new mongoose.Schema(
   { _id: false }
 );
 
-// The Bigin deal this call belongs to (only set for "Closed with Sale" deals).
+// The Bigin deal this call belongs to (set for any CLOSED deal — won or lost).
 const dealSchema = new mongoose.Schema(
   {
     id: String,
@@ -39,6 +39,8 @@ const dealSchema = new mongoose.Schema(
     ownerEmail: String,
     contactId: String,
     contactName: String,
+    // Why it was lost (null for won deals, and for lost ones left blank in Bigin).
+    lostReason: { type: String, default: null },
   },
   { _id: false }
 );
@@ -88,5 +90,10 @@ const callSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+// The journeys view joins every closed deal to its calls on this field. Without
+// the index that join scans the whole calls collection once per deal — it took
+// ~20s. Indexed, it is a lookup.
+callSchema.index({ 'deal.id': 1 });
 
 module.exports = mongoose.model('Call', callSchema);

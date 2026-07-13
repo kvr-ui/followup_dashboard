@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api';
 import CallDetail from './CallDetail';
 import { formatDateTime } from '../utils';
@@ -24,13 +24,47 @@ function statusBadge(s) {
 
 export default function Calls() {
   const [stats, setStats] = useState(null);
+  const [outcomes, setOutcomes] = useState(null); // won/lost + why we lose
   const [journeys, setJourneys] = useState([]);
+  const [coverage, setCoverage] = useState({ withCalls: 0, withoutCalls: 0, count: 0 });
+  const [page, setPage] = useState(1);
+  const [pages, setPages] = useState(1);
   const [owner, setOwner] = useState('');
+  // The two tabs ARE the outcome. Won and lost are different questions — "what
+  // did a winning journey look like" vs "why did we lose" — so they get separate
+  // pages rather than one mixed list.
+  const [outcome, setOutcome] = useState('won');
+  const [reason, setReason] = useState('');       // filter by why it was lost
   const [search, setSearch] = useState('');
+  const [from, setFrom] = useState('');           // deal closed between…
+  const [to, setTo] = useState('');
+  const [product, setProduct] = useState('');
+  const [status, setStatus] = useState('');       // transcription state
+  const [minDuration, setMinDuration] = useState('');
+  const [minCalls, setMinCalls] = useState('');
+  const [hasCalls, setHasCalls] = useState('');   // '' = all closed leads
   const [open, setOpen] = useState({});      // expanded journeys
   const [selected, setSelected] = useState(null); // call id for the drawer
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // Everything the journeys query filters on. Typed fields (search, amounts) are
+  // NOT in here — they apply on Enter/Apply, so we don't refetch on every keypress.
+  const auto = [owner, outcome, reason, from, to, product, status, minDuration, minCalls, hasCalls];
+
+  // `outcome` is the tab, not a filter — it's always set, so counting it would
+  // show "Clear (1)" on a page with nothing filtered, and clearing it would
+  // leave the tab bar pointing at nothing.
+  const activeCount = [
+    owner, reason, search, from, to, product, status, minDuration, minCalls, hasCalls,
+  ].filter(Boolean).length;
+
+  function clearAll() {
+    setOwner(''); setReason(''); setSearch('');
+    setFrom(''); setTo(''); setProduct('');
+    setStatus(''); setMinDuration(''); setMinCalls(''); setHasCalls('');
+    setPage(1);
+  }
 
   async function load() {
     setLoading(true);
@@ -38,13 +72,32 @@ export default function Calls() {
     try {
       const qs = new URLSearchParams();
       if (owner) qs.set('owner', owner);
+      if (outcome) qs.set('outcome', outcome);
+      if (reason) qs.set('reason', reason);
       if (search) qs.set('search', search);
-      const [s, j] = await Promise.all([
+      if (from) qs.set('from', from);
+      if (to) qs.set('to', to);
+      if (product) qs.set('product', product);
+      if (status) qs.set('status', status);
+      if (minDuration) qs.set('minDuration', minDuration);
+      if (minCalls) qs.set('minCalls', minCalls);
+      if (hasCalls) qs.set('hasCalls', hasCalls);
+      qs.set('page', String(page));
+
+      const [s, o, j] = await Promise.all([
         api('/api/calls/stats'),
+        api(`/api/calls/outcomes${owner ? `?owner=${encodeURIComponent(owner)}` : ''}`),
         api(`/api/calls/journeys?${qs.toString()}`),
       ]);
       setStats(s);
+      setOutcomes(o);
       setJourneys(j.data || []);
+      setCoverage({
+        withCalls: j.withCalls ?? 0,
+        withoutCalls: j.withoutCalls ?? 0,
+        count: j.count ?? 0,
+      });
+      setPages(j.pages ?? 1);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -52,18 +105,30 @@ export default function Calls() {
     }
   }
 
+  // Refetch when a filter or the page changes — but when a FILTER changes, snap
+  // back to page 1 first. Otherwise you'd sit on page 5 of a result set that now
+  // only has 2 pages and see an empty list.
+  const sig = JSON.stringify(auto);
+  const lastSig = useRef(sig);
+
   useEffect(() => {
+    if (lastSig.current !== sig) {
+      lastSig.current = sig;
+      if (page !== 1) {
+        setPage(1); // this re-runs the effect with page=1; don't also fetch now
+        return;
+      }
+    }
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [owner]);
+  }, [sig, page]);
 
-  const owners = useMemo(() => {
-    const set = new Map();
-    journeys.forEach((j) => {
-      if (j.deal?.ownerEmail) set.set(j.deal.ownerEmail, j.deal.ownerName || j.deal.ownerEmail);
-    });
-    return [...set.entries()];
-  }, [journeys]);
+  // Owners come from the outcome stats, not the journeys on screen — otherwise
+  // filtering to one salesperson would empty the dropdown you filtered with.
+  const owners = useMemo(
+    () => (outcomes?.byOwner || []).filter((o) => o.ownerEmail),
+    [outcomes]
+  );
 
   const totals = useMemo(() => {
     const calls = journeys.reduce((a, j) => a + j.totalCalls, 0);
@@ -72,32 +137,106 @@ export default function Calls() {
     return { calls, mins, done };
   }, [journeys]);
 
+  // Deals whose loss reason nobody filled in are counted, but can't be filtered
+  // on — so keep them out of the dropdown while still showing them in the list.
+  const reasonList = useMemo(
+    () => (outcomes?.reasons || []).filter((r) => r.reason),
+    [outcomes]
+  );
+  const noReasonCount = useMemo(
+    () => (outcomes?.reasons || []).find((r) => !r.reason)?.count ?? 0,
+    [outcomes]
+  );
+
+  const productList = useMemo(() => outcomes?.products || [], [outcomes]);
+
+  const isWon = outcome === 'won';
+
+  // Switching tab is a different question, so drop the filters that only make
+  // sense on the other one and go back to page 1.
+  function switchTab(next) {
+    if (next === outcome) return;
+    setOutcome(next);
+    setReason('');
+    setPage(1);
+  }
+
   return (
     <>
+      <div className="tabs" style={{ width: 'fit-content', marginBottom: 16 }}>
+        <button
+          onClick={() => switchTab('won')}
+          className={isWon ? 'tab active' : 'tab'}
+        >
+          Closed with Sale ({outcomes?.won ?? '—'})
+        </button>
+        <button
+          onClick={() => switchTab('lost')}
+          className={!isWon ? 'tab active' : 'tab'}
+        >
+          Closed without Sale ({outcomes?.lost ?? '—'})
+        </button>
+      </div>
+
       <div className="summary-grid">
         <div className="card">
-          <div className="num">{journeys.length}</div>
-          <div className="label">Closed-sale journeys</div>
+          <div
+            className="num"
+            style={{ color: isWon ? 'var(--green)' : 'var(--red, #c0392b)' }}
+          >
+            {coverage.count}
+          </div>
+          <div className="label">{isWon ? 'Won' : 'Lost'}</div>
         </div>
         <div className="card">
-          <div className="num">{totals.calls}</div>
-          <div className="label">Calls in those journeys</div>
+          <div className="num">{coverage.withCalls}</div>
+          <div className="label">…with a recorded call</div>
+        </div>
+        <div className="card">
+          <div className="num" style={{ opacity: 0.6 }}>{coverage.withoutCalls}</div>
+          <div className="label">…with no call</div>
         </div>
         <div className="card week">
+          <div className="num">{outcomes ? `${outcomes.winRate}%` : '—'}</div>
+          <div className="label">Win rate (overall)</div>
+        </div>
+        <div className="card">
           <div className="num">{totals.mins}</div>
           <div className="label">Minutes of audio</div>
         </div>
         <div className="card">
-          <div className="num" style={{ color: 'var(--green)' }}>
-            {totals.done}
-          </div>
+          <div className="num" style={{ color: 'var(--green)' }}>{totals.done}</div>
           <div className="label">Transcribed</div>
         </div>
-        <div className="card">
-          <div className="num">{stats?.total ?? '—'}</div>
-          <div className="label">Total calls synced</div>
-        </div>
       </div>
+
+      {/* Only the lost tab has a "why". */}
+      {!isWon && reasonList.length > 0 && (
+        <div className="card" style={{ padding: '14px 16px', marginBottom: 16 }}>
+          <div className="label" style={{ marginBottom: 10 }}>Why deals are lost</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {reasonList.map((r) => (
+              <button
+                key={r.reason}
+                onClick={() => {
+                  setOutcome('lost');
+                  setReason(reason === r.reason ? '' : r.reason);
+                }}
+                className={`badge ${reason === r.reason ? 'badge-high' : 'badge-normal'}`}
+                style={{ cursor: 'pointer', border: 'none' }}
+                title="Click to filter"
+              >
+                {r.reason} · {r.count}
+              </button>
+            ))}
+            {noReasonCount > 0 && (
+              <span className="badge status-not-started" title="Lost, but nobody recorded why">
+                no reason given · {noReasonCount}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="filters">
         <label>
@@ -109,27 +248,112 @@ export default function Calls() {
             onKeyDown={(e) => e.key === 'Enter' && load()}
           />
         </label>
+        {/* The tabs are the outcome now — no dropdown. "Lost because" only
+            exists on the lost tab; a won deal has no loss reason. */}
+        {!isWon && (
+          <label>
+            Lost because
+            <select value={reason} onChange={(e) => setReason(e.target.value)}>
+              <option value="">Any reason</option>
+              {reasonList.map((r) => (
+                <option key={r.reason} value={r.reason}>
+                  {r.reason} ({r.count})
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <label>
           Salesperson
           <select value={owner} onChange={(e) => setOwner(e.target.value)}>
             <option value="">All</option>
-            {owners.map(([email, name]) => (
-              <option key={email} value={email}>
-                {name}
+            {owners.map((o) => (
+              <option key={o.ownerEmail} value={o.ownerEmail}>
+                {o.ownerName || o.ownerEmail} ({o.won}W / {o.lost}L)
               </option>
             ))}
           </select>
         </label>
+
+        <label>
+          Product
+          <select value={product} onChange={(e) => setProduct(e.target.value)}>
+            <option value="">Any product</option>
+            {productList.map((p) => (
+              <option key={p.name} value={p.name}>
+                {p.name} ({p.won}W / {p.lost}L)
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label>
+          Closed from
+          <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+        </label>
+        <label>
+          Closed to
+          <input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+        </label>
+
+        <label>
+          Calls
+          <select value={hasCalls} onChange={(e) => setHasCalls(e.target.value)}>
+            <option value="">All closed leads</option>
+            <option value="yes">Has a recorded call</option>
+            <option value="no">No call recorded</option>
+          </select>
+        </label>
+
+        <label>
+          Transcript
+          <select value={status} onChange={(e) => setStatus(e.target.value)}>
+            <option value="">Any</option>
+            <option value="transcribed">Has a transcript</option>
+            <option value="pending">Waiting to transcribe</option>
+            <option value="none">Not transcribed</option>
+          </select>
+        </label>
+
+        <label>
+          Min call length
+          <select value={minDuration} onChange={(e) => setMinDuration(e.target.value)}>
+            <option value="">Any</option>
+            <option value="30">30s+</option>
+            <option value="60">1 min+</option>
+            <option value="180">3 min+</option>
+            <option value="300">5 min+</option>
+          </select>
+        </label>
+
+        <label>
+          Min calls
+          <select value={minCalls} onChange={(e) => setMinCalls(e.target.value)}>
+            <option value="">Any</option>
+            <option value="2">2+</option>
+            <option value="3">3+</option>
+            <option value="5">5+</option>
+          </select>
+        </label>
+
         <button onClick={load} disabled={loading}>
           {loading ? 'Loading…' : 'Apply'}
         </button>
+        {activeCount > 0 && (
+          <button onClick={clearAll} disabled={loading}>
+            Clear ({activeCount})
+          </button>
+        )}
       </div>
 
       {error && <div className="error">{error}</div>}
 
       <p id="status">
-        {journeys.length} closed-sale lead{journeys.length === 1 ? '' : 's'} — click a lead to see
-        its call journey
+        {coverage.count} lead{coverage.count === 1 ? '' : 's'}{' '}
+        {isWon ? 'closed with sale' : 'closed without sale'} —{' '}
+        <strong>{coverage.withCalls}</strong> with recorded calls,{' '}
+        <strong>{coverage.withoutCalls}</strong> with none.
+        {pages > 1 && ` Showing ${journeys.length} (page ${page} of ${pages}).`}
       </p>
 
       <div className="journeys">
@@ -142,21 +366,42 @@ export default function Calls() {
                 onClick={() => setOpen((o) => ({ ...o, [j._id]: !o[j._id] }))}
               >
                 <div className="journey-main">
-                  <span className="chev">{isOpen ? '▾' : '▸'}</span>
+                  <span className="chev" style={{ opacity: j.totalCalls ? 1 : 0.2 }}>
+                    {isOpen ? '▾' : '▸'}
+                  </span>
                   <div>
-                    <div className="who">{j.contactName || j.phone}</div>
+                    <div className="who">{j.contactName || j.phone || j.deal?.name}</div>
                     <div className="subtle">
                       {j.phone} · {j.deal?.name}
+                      {j.outcome === 'lost' && (
+                        <>
+                          {' · '}
+                          {j.lostReason ? (
+                            <em>{j.lostReason}</em>
+                          ) : (
+                            <em style={{ opacity: 0.6 }}>no reason given</em>
+                          )}
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
 
                 <div className="journey-meta">
-                  <span className="badge badge-normal">{j.totalCalls} calls</span>
-                  <span className="subtle">{mmss(j.totalDuration)}</span>
-                  <span className="subtle">
-                    {shortDate(j.firstCall)} → {shortDate(j.lastCall)}
-                  </span>
+                  {/* No won/lost badge — the tab already says which you're on. */}
+                  {j.totalCalls > 0 ? (
+                    <>
+                      <span className="badge badge-normal">{j.totalCalls} calls</span>
+                      <span className="subtle">{mmss(j.totalDuration)}</span>
+                      <span className="subtle">
+                        {shortDate(j.firstCall)} → {shortDate(j.lastCall)}
+                      </span>
+                    </>
+                  ) : (
+                    // Closed without a single recorded call — WhatsApp, personal
+                    // phone, or walk-in. Nothing to grade, but you should see it.
+                    <span className="badge status-not-started">no call recorded</span>
+                  )}
                   <span className="badge badge-low">{j.deal?.ownerName}</span>
                   {j.avgScore != null ? (
                     <span className="score-pill">{Math.round(j.avgScore)}</span>
@@ -166,7 +411,7 @@ export default function Calls() {
                 </div>
               </div>
 
-              {isOpen && (
+              {isOpen && j.totalCalls > 0 && (
                 <ul className="call-list">
                   {j.calls.map((c, i) => (
                     <li key={c._id} onClick={() => setSelected(c._id)}>
@@ -185,9 +430,29 @@ export default function Calls() {
           );
         })}
         {journeys.length === 0 && !loading && (
-          <p className="subtle">No closed-sale journeys found.</p>
+          <p className="subtle">No closed leads match these filters.</p>
         )}
       </div>
+
+      {pages > 1 && (
+        <div className="filters" style={{ justifyContent: 'center', marginTop: 16 }}>
+          <button onClick={() => setPage(1)} disabled={page === 1 || loading}>
+            « First
+          </button>
+          <button onClick={() => setPage((p) => p - 1)} disabled={page === 1 || loading}>
+            ‹ Prev
+          </button>
+          <span className="subtle" style={{ alignSelf: 'center' }}>
+            Page {page} of {pages}
+          </span>
+          <button onClick={() => setPage((p) => p + 1)} disabled={page >= pages || loading}>
+            Next ›
+          </button>
+          <button onClick={() => setPage(pages)} disabled={page >= pages || loading}>
+            Last »
+          </button>
+        </div>
+      )}
 
       {selected && <CallDetail callId={selected} onClose={() => setSelected(null)} />}
     </>

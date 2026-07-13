@@ -76,12 +76,16 @@ async function afterCallStored(callDoc) {
           ownerEmail: deal.ownerEmail,
           contactId: deal.contactId,
           contactName: deal.contactName,
+          lostReason: deal.lostReason || null,
         };
       }
     }
 
     fresh.transcriptionStatus = shouldTranscribe(fresh) ? 'pending' : 'skipped';
     await fresh.save();
+
+    // A new call changes the lead's journey — drop the snapshot.
+    require('../services/journeyCache').invalidate();
   } catch (err) {
     console.warn('afterCallStored failed:', err.message);
   }
@@ -166,6 +170,16 @@ function normalizeDealPayload(b) {
   const ownerEmail = pick('owner_email', 'ownerEmail', 'owners_email_address', 'owner_email_address') ??
     (b.Owner && b.Owner.email);
   const ownerName = pick('owner_name', 'ownerName') ?? (b.Owner && b.Owner.name);
+  // Zoho Flow sends owner_id but no email. Keep the id so upsertDeal can resolve
+  // the email from Bigin — without it the deal has no salesperson to filter by.
+  const ownerId = pick('owner_id', 'ownerId') ?? (b.Owner && b.Owner.id);
+
+  // Bigin's custom loss-reason picklist. Zoho Flow doesn't send it today, so this
+  // stays undefined and upsertDeal fetches it by deal id. Left here so that if you
+  // DO add it to the Flow, we use it directly and skip the extra API call.
+  // undefined (field absent) and null (field present but empty) mean different
+  // things downstream — don't collapse them with `|| null`.
+  const reasons = pick('Reasons', 'reasons', 'reason', 'lost_reason', 'lostReason');
 
   return {
     id: String(id),
@@ -173,7 +187,12 @@ function normalizeDealPayload(b) {
     Stage: pick('Stage', 'stage') || null,
     Closing_Date: pick('Closing_Date', 'closing_date', 'closingDate') || null,
     Amount: Number(pick('Amount', 'amount') || 0),
-    Owner: { name: ownerName || null, email: ownerEmail || null },
+    Reasons: reasons,
+    Owner: {
+      id: ownerId ? String(ownerId) : null,
+      name: ownerName || null,
+      email: ownerEmail || null,
+    },
     Contact_Name: contactId ? { id: String(contactId), name: contactName || null } : null,
     Modified_Time:
       pick('Modified_Time', 'modified_time', 'date_and_time_modified', 'modifiedTime') ||
@@ -233,4 +252,9 @@ async function receiveDealWebhook(req, res) {
   }
 }
 
-module.exports = { receiveCallWebhook, receiveDealWebhook, normalizeCallPayload };
+module.exports = {
+  receiveCallWebhook,
+  receiveDealWebhook,
+  normalizeCallPayload,
+  normalizeDealPayload,
+};

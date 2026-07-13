@@ -4,6 +4,7 @@ const {
   listCalls,
   listJourneys,
   callStats,
+  outcomeStats,
   getCall,
   streamRecording,
   syncCalls,
@@ -17,6 +18,7 @@ router.use(authenticate, requireAdmin);
 
 router.get('/', listCalls);
 router.get('/stats', callStats);
+router.get('/outcomes', outcomeStats); // won/lost + why we lose
 router.get('/journeys', listJourneys);
 router.post('/sync', syncCalls);
 router.get('/:id', getCall);

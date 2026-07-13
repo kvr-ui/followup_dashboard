@@ -8,16 +8,32 @@
 // that webhooks can silently miss events, so we never rely on them alone.
 
 const Call = require('../models/Call');
+const Deal = require('../models/Deal');
 const telecmi = require('./telecmi');
 const elevenlabs = require('./elevenlabs');
 const { agentMap, buildLeadIndex, warmLeadIndex, upsertCall } = require('./callStore');
 const { upsertDeal, fetchDealsModifiedSince, shouldTranscribe } = require('./dealStore');
 const { runBatch } = require('./transcriptionWorker');
+const { sinceFor, commit, fmtWindow } = require('../../../services/lookback');
 
 const CALL_POLL_MIN = Number(process.env.CALL_POLL_MINUTES || 15);
 const DEAL_POLL_MIN = Number(process.env.DEAL_POLL_MINUTES || 15);
 const TRANSCRIBE_EVERY_MIN = Number(process.env.TRANSCRIBE_POLL_MINUTES || 10);
 const TRANSCRIBE_BATCH = Number(process.env.TRANSCRIBE_BATCH || 10);
+
+// First run only (no cursor yet): open the window at the newest record we hold,
+// so a fresh deploy doesn't cold-start at 2h and skip what was already missed.
+const seedFromNewestCall = async () => {
+  const c = await Call.findOne({ startedAt: { $ne: null } }, { startedAt: 1 })
+    .sort({ startedAt: -1 })
+    .lean();
+  return c && c.startedAt ? new Date(c.startedAt).getTime() : null;
+};
+
+const seedFromNewestDeal = async () => {
+  const d = await Deal.findOne({}, { modifiedTime: 1 }).sort({ modifiedTime: -1 }).lean();
+  return d && d.modifiedTime ? new Date(d.modifiedTime).getTime() : null;
+};
 
 // If ElevenLabs says we're out of credits, stop hammering it for a while.
 let quotaBlockedUntil = 0;
@@ -28,9 +44,14 @@ let running = { calls: false, deals: false, transcribe: false };
 async function reconcileCalls() {
   if (running.calls || !telecmi.isConfigured()) return;
   running.calls = true;
+
+  const startedAt = new Date(); // stamped before the fetch — see lookback.commit()
+
   try {
-    const from = Date.now() - 2 * 60 * 60 * 1000; // last 2 hours
+    const from = await sinceFor('calls', seedFromNewestCall);
     const to = Date.now();
+    console.log(`[reconcile calls] window ${fmtWindow(from)}`);
+
     const agents = agentMap();
     const leadIndex = await buildLeadIndex();
 
@@ -52,7 +73,15 @@ async function reconcileCalls() {
         }
       },
     });
-    if (created) console.log(`[reconcile] ${created} new call(s) from TeleCMI`);
+
+    // Only now is the window truly closed. A throw above leaves the cursor
+    // where it was, so the next poll retries this same span.
+    await commit('calls', startedAt);
+
+    if (created) {
+      require('./journeyCache').invalidate();
+      console.log(`[reconcile] ${created} new call(s) from TeleCMI`);
+    }
   } catch (err) {
     console.warn('[reconcile calls] failed:', err.message);
   } finally {
@@ -63,14 +92,22 @@ async function reconcileCalls() {
 async function reconcileDeals() {
   if (running.deals) return;
   running.deals = true;
+
+  const startedAt = new Date();
+
   try {
-    const since = Date.now() - 2 * 60 * 60 * 1000; // last 2 hours
+    const since = await sinceFor('deals', seedFromNewestDeal);
+    console.log(`[reconcile deals] window ${fmtWindow(since)}`);
+
     const deals = await fetchDealsModifiedSince(since);
     let tagged = 0;
     for (const d of deals) {
       const r = await upsertDeal(d, 'poll');
       tagged += r.tagged;
     }
+
+    await commit('deals', startedAt);
+
     if (deals.length) {
       console.log(`[reconcile] ${deals.length} deal(s) refreshed, ${tagged} call(s) re-tagged`);
     }

@@ -19,6 +19,12 @@ const dealSchema = new mongoose.Schema(
     closingDate: String,
     amount: { type: Number, default: 0 },
 
+    // WHY the deal was lost — Bigin's custom `Reasons` picklist
+    // (Consistent NR, Wrong Course/Level, Cold, Financial Aid, …).
+    // Only meaningful for lost deals, and only ~55% of them have it filled in.
+    // Like products, it is not in the webhook payload, so we fetch it by deal id.
+    lostReason: { type: String, default: null, index: true },
+
     ownerName: String,
     ownerEmail: { type: String, index: true },
 

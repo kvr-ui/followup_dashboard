@@ -65,6 +65,73 @@ async function fetchProducts(dealId) {
   }));
 }
 
+// owner id -> {email, name}. A handful of salespeople own thousands of deals, so
+// this must be cached: uncached, it would be an extra API call on every deal.
+const ownerCache = new Map();
+
+/** Bigin writes an unset picklist as the literal "-None-". That is not a reason. */
+function cleanReason(v) {
+  if (!v) return null;
+  const s = String(v).trim();
+  return !s || s === '-None-' ? null : s;
+}
+
+/**
+ * Fill in what the payload didn't carry: the owner's email, and why a lost deal
+ * was lost.
+ *
+ * The POLL path gets both from the Bigin API for free. The WEBHOOK path gets
+ * neither — Zoho Flow sends owner_id/owner_name but no email, and no `Reasons`
+ * field at all. Both are things the dashboard needs (the owner filter, and the
+ * loss breakdown), so we re-read the deal by id to get them.
+ *
+ * One read fills both, and only when something is actually missing:
+ *   - owner email: cached by owner id, so it costs one call per NEW salesperson
+ *   - lost reason: only fetched for LOST deals whose payload omitted the field
+ * A poll that already carries `Reasons` (even as null) never triggers a read.
+ */
+async function hydrate(raw, outcome) {
+  const owner = raw.Owner || {};
+  const ownerId = owner.id ? String(owner.id) : null;
+
+  let email = owner.email ? String(owner.email).toLowerCase() : null;
+  let name = owner.name || null;
+  let reason = cleanReason(raw.Reasons);
+
+  // The poll path seeds the cache, so the webhook path usually pays nothing.
+  if (email && ownerId) ownerCache.set(ownerId, { email, name });
+  if (!email && ownerId && ownerCache.has(ownerId)) {
+    const hit = ownerCache.get(ownerId);
+    email = hit.email;
+    name = name || hit.name;
+  }
+
+  // `undefined` means the payload never had the field (webhook). An explicit
+  // null/"-None-" means Bigin told us there is no reason — don't go asking again.
+  const needReason = outcome === 'lost' && raw.Reasons === undefined;
+  const needOwner = !email;
+
+  if ((needOwner || needReason) && raw.id) {
+    const r = await zoho.apiGet(`/Deals/${raw.id}`);
+    const rec = r.ok && r.json && r.json.data && r.json.data[0];
+    if (rec) {
+      if (needOwner && rec.Owner && rec.Owner.email) {
+        email = String(rec.Owner.email).toLowerCase();
+        name = name || rec.Owner.name || null;
+        if (ownerId) ownerCache.set(ownerId, { email, name });
+      }
+      if (needReason) reason = cleanReason(rec.Reasons);
+    }
+  }
+
+  return {
+    ownerEmail: email,
+    ownerName: name,
+    // A won deal has no loss reason, whatever Bigin has lying in the field.
+    lostReason: outcome === 'lost' ? reason : null,
+  };
+}
+
 /**
  * Store/refresh a deal from a Bigin record, then re-tag that contact's calls
  * with the outcome and queue any that now qualify for transcription.
@@ -74,6 +141,7 @@ async function upsertDeal(raw, source = 'poll') {
   const resolved = await contactPhone(contactId, raw.Contact_Name && raw.Contact_Name.name);
 
   const outcome = outcomeOf(raw.Stage);
+  const extra = await hydrate(raw, outcome);
 
   // Only worth an extra API call for deals that actually closed.
   const products = outcome === 'won' || outcome === 'lost' ? await fetchProducts(raw.id) : [];
@@ -86,8 +154,9 @@ async function upsertDeal(raw, source = 'poll') {
     products,
     closingDate: raw.Closing_Date || null,
     amount: Number(raw.Amount) || 0,
-    ownerName: (raw.Owner && raw.Owner.name) || null,
-    ownerEmail: (raw.Owner && raw.Owner.email && raw.Owner.email.toLowerCase()) || null,
+    lostReason: extra.lostReason,
+    ownerName: extra.ownerName,
+    ownerEmail: extra.ownerEmail,
     contactId: contactId ? String(contactId) : null,
     contactName: (resolved && resolved.name) || (raw.Contact_Name && raw.Contact_Name.name) || null,
     contactPhone: (resolved && resolved.phone) || null,
@@ -102,6 +171,11 @@ async function upsertDeal(raw, source = 'poll') {
   });
 
   const tagged = await tagCallsForDeal(deal);
+
+  // The journeys view is served from a snapshot — drop it so a newly closed deal
+  // shows up on the next page load instead of after the TTL.
+  require('./journeyCache').invalidate();
+
   return { deal, tagged };
 }
 
@@ -137,6 +211,7 @@ async function tagCallsForDeal(deal) {
     ownerEmail: deal.ownerEmail,
     contactId: deal.contactId,
     contactName: deal.contactName,
+    lostReason: deal.lostReason || null,
   };
 
   let n = 0;
