@@ -1,0 +1,1079 @@
+[
+  {
+    "callId": "6a51e902e55ba9c99d284200",
+    "durationMin": 24,
+    "lead": "TS Nivriti",
+    "agentExt": "5004",
+    "outcome": "won",
+    "position": "1/1",
+    "grade": {
+      "salesperson_speaker": "speaker_0",
+      "speaker_evidence": "speaker_1 தன்னை FOCAS அகாடமியில் இருந்து அழைப்பவராக அடையாளப்படுத்திக் கொள்கிறார்: 'அந்த focus ல இருந்து நான் பேசுறேன். C academy. WhatsApp enquiry பண்ணி.' அழைப்பிற்குப் பதிலளித்து பாடத்திட்ட விவரங்களை விளக்குபவர் speaker_0 ஆவார்.",
+      "call_type": "first_call",
+      "call_type_reason": "இது ஒரு புதிய விசாரணையாகும். இங்கு விற்பனையாளர் பாடத்திட்டத்தைப் பற்றிய முழுமையான விளக்கத்தை முதல்முறையாக வழங்குகிறார்.",
+      "scores": {
+        "opening": {
+          "score": 0,
+          "why": "விற்பனையாளர் 'ஹலோ சார்' என்று பதிலளித்தாரே தவிர, தனது பெயரையோ அல்லது அகாடமியின் பெயரையோ குறிப்பிடவில்லை. முறையான அறிமுகம் அளிக்கத் தவறிவிட்டார்."
+        },
+        "needs_discovery": {
+          "score": 5,
+          "why": "விற்பனையாளர் அழைப்பாளர் தனது சூழலை (நேரக் கட்டுப்பாடு) விளக்க அனுமதித்தார், ஆனால் ஆழமான கேள்விகளை எதையும் கேட்கவில்லை. சிக்கலை முழுமையாகப் புரிந்து கொள்ளாமல் உடனடியாகத் தீர்வுக்குச் சென்றுவிட்டார்."
+        },
+        "product_pitch": {
+          "score": 12,
+          "why": "விற்பனையாளர் பாடத்திட்டத்தின் அனைத்து அம்சங்களையும் உள்ளடக்கிய நீண்ட மற்றும் விரிவான விளக்கத்தை அளித்தார். இருப்பினும், இது பொதுவான ஒன்றாக இருந்ததே தவிர, அழைப்பாளர் எதிர்கொள்ளும் நேர மேலாண்மைப் பிரச்சினைக்கு ஏற்ப வடிவமைக்கப்படவில்லை."
+        },
+        "objection_handling": {
+          "score": 25,
+          "why": "கட்டணம், செல்லுபடியாகும் காலம் மற்றும் அமர்வு அமைப்பு குறித்து அழைப்பாளர் பல சந்தேகங்களை எழுப்பினார். விற்பனையாளர் ஒவ்வொரு கேள்விக்கும் நேரடியாகவும் தெளிவாகவும் பதிலளித்தார், இது அழைப்பாளர் முடிவெடுக்க வழிவகுத்தது."
+        },
+        "next_step": {
+          "score": 10,
+          "why": "விற்பனையாளர் ஏற்கனவே வாட்ஸ்அப் (WhatsApp) மூலம் கட்டண இணைப்பையும் பாடத்திட்ட விவரங்களையும் அனுப்பிவிட்டார். இது அழைப்பாளர் கட்டணம் செலுத்த ஒரு தெளிவான மற்றும் உடனடி அடுத்த கட்ட நடவடிக்கையை உருவாக்கியுள்ளது."
+        },
+        "tone": {
+          "score": 10,
+          "why": "விற்பனையாளர் பொறுமையாகவும், மரியாதையாகவும், முழுமையாகவும் இருந்தார். எவ்வித அவசரமோ அல்லது அழுத்தமோ இன்றி ஒவ்வொரு கேள்விக்கும் பதிலளித்தார்."
+        }
+      },
+      "total": 62,
+      "summary": "விற்பனையாளர் FOCAS பாடத்திட்டம் குறித்து விரிவான விளக்கத்தை அளித்தார். கட்டணம், அட்டவணை மற்றும் பாடத்திட்ட அமைப்பு குறித்த அழைப்பாளர் கேட்ட அனைத்து கேள்விகளுக்கும் வெற்றிகரமாகப் பதிலளித்தார். அழைப்பாளர் விவரங்களைக் கேட்டவுடன், விற்பனையாளர் ஏற்கனவே வாட்ஸ்அப் மூலம் விவரங்களை அனுப்பிவிட்டதால், அழைப்பாளர் கட்டணம் செலுத்துவதற்கான தெளிவான வழிவகை செய்யப்பட்டது.",
+      "strengths": [
+        "சிறப்பான முறையில் ஆட்சேபனைகளைக் கையாண்டார்; அழைப்பாளர் கேட்ட ஒவ்வொரு கேள்விக்கும் தெளிவாகவும் பொறுமையாகவும் பதிலளித்தார்.",
+        "பாடத்திட்டத்தின் அனைத்து அம்சங்களையும் உள்ளடக்கிய விரிவான விளக்கத்தை வழங்கினார்.",
+        "வாட்ஸ்அப் மூலம் கட்டண இணைப்பையும் விவரங்களையும் அனுப்பி அடுத்த கட்ட நடவடிக்கையைத் தீர்மானித்தார்."
+      ],
+      "improvements": [
+        "தொடக்கமே பலவீனமாக இருந்தது; தனது அடையாளத்தையோ அல்லது அகாடமியையோ அறிமுகப்படுத்தத் தவறியது தொழில்முறைக்குக் குறைவானது.",
+        "தேவைகளைக் கண்டறியும் முயற்சி மிகக் குறைவாக இருந்தது; 'நேரக் கட்டுப்பாடு' என்பதைத் தாண்டி அழைப்பாளர் எதிர்கொள்ளும் சவால்களைப் புரிந்துகொள்ள ஆழமான கேள்விகளை அவர் கேட்கவில்லை.",
+        "பாடத்திட்ட விளக்கம் மிகவும் பொதுவானதாக இருந்தது. அழைப்பாளர் எதிர்கொள்ளும் நேர மேலாண்மைப் பிரச்சினைக்கு ஏற்ப விளக்கத்தை அமைத்திருந்தால் அது இன்னும் சிறப்பாக இருந்திருக்கும்."
+      ]
+    },
+    "error": null
+  },
+  {
+    "callId": "6a51e8d2e55ba9c99d283d59",
+    "durationMin": 1,
+    "lead": null,
+    "agentExt": "5001",
+    "outcome": "won",
+    "position": "1/1",
+    "grade": {
+      "salesperson_speaker": "speaker_0",
+      "speaker_evidence": "speaker_0 offers to send the form, which is an administrative action for the academy.",
+      "call_type": "not_gradeable",
+      "call_type_reason": "The call was purely transactional. The lead already knew what they wanted (the form) and there was no sales conversation, discovery, or pitch from the salesperson.",
+      "scores": {
+        "opening": {
+          "score": 0,
+          "why": "No introduction was made."
+        },
+        "needs_discovery": {
+          "score": 0,
+          "why": "No questions were asked about the lead's needs."
+        },
+        "product_pitch": {
+          "score": 0,
+          "why": "No product or course was pitched."
+        },
+        "objection_handling": {
+          "score": 0,
+          "why": "No objections were raised by the lead."
+        },
+        "next_step": {
+          "score": 0,
+          "why": "No sales-related next step was agreed upon."
+        },
+        "tone": {
+          "score": 0,
+          "why": "The interaction was administrative, not a sales call."
+        }
+      },
+      "total": 0,
+      "summary": "The lead called to request a form, and the salesperson immediately agreed to send it. There was no sales conversation.",
+      "strengths": [],
+      "improvements": []
+    },
+    "error": null
+  },
+  {
+    "callId": "6a51e8d2e55ba9c99d283d53",
+    "durationMin": 1,
+    "lead": null,
+    "agentExt": "5001",
+    "outcome": "won",
+    "position": "1/1",
+    "grade": {
+      "salesperson_speaker": "speaker_1",
+      "speaker_evidence": "speaker_1, 'focus institute'-ல இருந்து பேசுறதா சொல்லிக்கிறாங்க. அவங்க lead-ஓட name-அ confirm பண்ணிட்டு, 'contact team'-கூட connect பண்ண offer பண்றாங்க. இது அவங்க academy-அ represent பண்ற salesperson-ன்னு காட்டுது.",
+      "call_type": "not_gradeable",
+      "call_type_reason": "Salesperson எந்த sales activities-உம் பண்ணல. Lead-ஓட inquiry-அ மட்டும் acknowledge பண்ணிட்டு, இன்னொரு team member-கூட connect பண்ண promise பண்ணாங்க. இதுல எந்த pitch-உம் இல்ல, discovery-உம் இல்ல, objection handling-உம் இல்ல.",
+      "scores": {
+        "opening": {
+          "score": 0,
+          "why": "Salesperson தன்னோட identity-அயோ இல்ல FOCAS-அயோ introduce பண்ணல."
+        },
+        "needs_discovery": {
+          "score": 0,
+          "why": "Lead-ஓட situation இல்லனா needs பத்தி எந்த questions-உம் கேக்கல."
+        },
+        "product_pitch": {
+          "score": 0,
+          "why": "Course, batch இல்லனா fees பத்தி எந்த information-உம் கொடுக்கல."
+        },
+        "objection_handling": {
+          "score": 0,
+          "why": "Lead எந்த objection-உம் raise பண்ணல, salesperson-உம் எந்த hidden concerns-அயும் probe பண்ணல."
+        },
+        "next_step": {
+          "score": 0,
+          "why": "Salesperson-கிட்ட இருந்து எந்த concrete commitment-உம் இல்ல; இன்னொரு team member-கூட connect பண்ண promise மட்டும் தான் பண்ணாங்க."
+        },
+        "tone": {
+          "score": 0,
+          "why": "Tone administrative-ஆ இருந்தது, sales conversation-ல engage ஆகல."
+        }
+      },
+      "total": 0,
+      "summary": "Lead, miss ஆன call பத்தி follow up பண்ண call பண்ணாங்க. Salesperson அத acknowledge பண்ணிட்டு, 10 minutes-குள்ள lead-அ contact team-கூட connect பண்றதா promise பண்ணாங்க, ஆனா எந்த sales conversation-உம் நடக்கல.",
+      "strengths": [],
+      "improvements": []
+    },
+    "error": null
+  },
+  {
+    "callId": "6a51e8d1e55ba9c99d283d4d",
+    "durationMin": 4,
+    "lead": "Saranya G",
+    "agentExt": "5003",
+    "outcome": "won",
+    "position": "1/1",
+    "grade": {
+      "salesperson_speaker": "speaker_1",
+      "speaker_evidence": "speaker_1 provides instructions on how to use the FOCAS website and app, which is a core function of a salesperson or support person from the academy. speaker_0 is the one asking for this help, indicating they are the customer/lead.",
+      "call_type": "closing",
+      "call_type_reason": "The lead is not being pitched; they are actively trying to complete a transaction for a specific package ('two hundred rupees'). The conversation is entirely focused on the logistics of payment and download, which is the definition of a closing call.",
+      "scores": {
+        "context_recall": {
+          "score": 8,
+          "why": "The rep vaguely remembers a prior interaction by saying 'I'll send the website link I sent you,' but doesn't specifically recall the context of the previous call."
+        },
+        "objection_progress": {
+          "score": 15,
+          "why": "The lead's logistical blocker ('how to purchase') is being directly addressed, but the transcript ends before it is fully resolved. The rep is in the process of handling it."
+        },
+        "new_value": {
+          "score": 0,
+          "why": "The rep is repeating information ('I'll send the link I sent you') and not offering any new incentive, offer, or information to move the deal forward."
+        },
+        "urgency": {
+          "score": 0,
+          "why": "No urgency was created. There was no mention of deadlines, batch filling up, or any reason to decide immediately."
+        },
+        "next_step": {
+          "score": 0,
+          "why": "No concrete commitment was made. The call was still in the troubleshooting phase with no agreement from the lead on a next action."
+        },
+        "tone": {
+          "score": 10,
+          "why": "The rep is patient and helpful, saying 'wait' and 'I'll explain,' and is not pushy or aggressive."
+        }
+      },
+      "total": 33,
+      "summary": "The lead called to get help completing a purchase for a 200 rupee FOCAS package. The salesperson patiently tried to guide them through the website and app but failed to create urgency or secure a next step.",
+      "strengths": [
+        "Patient and helpful tone while troubleshooting a technical issue."
+      ],
+      "improvements": [
+        "Create urgency by mentioning batch deadlines or offer deadlines.",
+        "Secure a concrete next step, like 'Can you try clicking the link I'm sending now and tell me if it works?'",
+        "Proactively offer a new value proposition, like a small discount for completing the purchase today."
+      ]
+    },
+    "error": null
+  },
+  {
+    "callId": "6a51e8d1e55ba9c99d283d44",
+    "durationMin": 2,
+    "lead": "Ajay",
+    "agentExt": "5001",
+    "outcome": "won",
+    "position": "1/3",
+    "grade": {
+      "salesperson_speaker": "speaker_0",
+      "speaker_evidence": "speaker_0 அறிமுகப்படுத்தி நிறுவனத்தின் பெயரைக் குறிப்பிடுகிறார் ('Hello Focus Institute') மற்றும் மாணவரின் பாடத் தேவைகள் குறித்துக் குறிப்பிட்ட கேள்விகளைக் கேட்கிறார் ('group two ஓடதான?', 'Tax full class'). speaker_1 தன்னை ஒரு மாணவராக அறிமுகப்படுத்திக் கொள்கிறார் ('நான் அஜய் பேசுறேன். காலைல enquiry பண்ணிருந்தேனே').",
+      "call_type": "follow_up",
+      "call_type_reason": "விற்பனையாளர் உடனடியாக 'பாலாஜி' உடனான முந்தைய உரையாடலைக் குறிப்பிடுகிறார் மற்றும் அனுப்பப்படாத விவரங்களைப் பின்தொடர்ந்து பேசுகிறார். இது ஒரு follow-up அழைப்பு என்பதை இது உறுதிப்படுத்துகிறது.",
+      "scores": {
+        "context_recall": {
+          "score": 8,
+          "why": "விற்பனையாளர் 'ஆமா பாலாஜி கிட்ட பேசியிருந்தீங்க இல்லையா?' என்று கேட்டு, முந்தைய உரையாடலை நினைவு கூர்கிறார்; ஆனால், தொடக்கத்தில் விவரங்களைத் தவறான நபருக்கு அனுப்புகிறார். இது ஒரு சிறிய கவனக்குறைவைக் காட்டினாலும், அவர் அந்த உரையாடலின் சூழலை நினைவில் வைத்திருந்தார் என்பதை இது உணர்த்துகிறது."
+        },
+        "objection_progress": {
+          "score": 30,
+          "why": "மாணவரின் ஆட்சேபனை விவரங்கள் கிடைக்காததுதான். விற்பனையாளர் தீவிரமாகச் செயல்பட்டு ('இருங்க நான் check பண்றேன்'), பிழையைக் கண்டறிந்து, சரியான தகவலை அனுப்பி அந்தப் பிரச்சினையை வெற்றிகரமாகத் தீர்க்கிறார். மாணவர் அதைப் பெற்றதை உறுதிப்படுத்துகிறார்."
+        },
+        "new_value": {
+          "score": 10,
+          "why": "விவரங்களை அனுப்பும் வாக்குறுதியை விற்பனையாளர் நிறைவேற்றுகிறார். மேலும், மாதிரி காணொளிகளை (demo videos) அனுப்பி, விலைப்பட்டியல் (PDF) குறித்த விளக்கங்களை அளிப்பதன் மூலம் கூடுதல் மதிப்பையும் வழங்குகிறார்."
+        },
+        "urgency": {
+          "score": 0,
+          "why": "அவசர உணர்வு எதுவும் உருவாக்கப்படவில்லை. இக்காலில் காலக்கெடுவோ அல்லது வகுப்பு நிரம்பிவிட்டதோ போன்ற நேரக் கட்டுப்பாடுகள் குறித்து எதுவும் குறிப்பிடப்படவில்லை."
+        },
+        "next_step": {
+          "score": 5,
+          "why": "தகவல்கள் அனுப்பப்பட்டன, இது ஒரு நடவடிக்கைதான்; ஆனால் எதிர்கால விற்பனை நடவடிக்கைகளுக்கான (உதாரணமாக, திட்டமிடப்பட்ட அழைப்பு அல்லது மாதிரி வகுப்பு) உறுதியான உறுதிமொழி எதுவும் இல்லை. 'ஏதாவது சந்தேகம் இருந்தா என்னை கூப்பிடுங்க' என்ற பொதுவான அழைப்புடன் அழைப்பு முடிவடைகிறது."
+        },
+        "tone": {
+          "score": 10,
+          "why": "விற்பனையாளர் பொறுமையாகவும், மரியாதையாகவும், உதவியாகவும் இருந்தார். குறிப்பாகத் தகவல்களைத் தேடும்போது ('இருங்க நான் check பண்றேன்') அவர் காட்டிய அணுகுமுறை சிறப்பாக இருந்தது."
+        }
+      },
+      "total": 63,
+      "summary": "விற்பனையாளர் முந்தைய விசாரணையைப் பின்தொடர்ந்து, மாணவருக்கு அனுப்ப வேண்டிய விவரங்கள் கிடைக்காத சிக்கலைத் தீர்த்து, சரியான தகவலை வெற்றிகரமாக அனுப்பினார். இக்காலில் சிக்கல்களைத் தீர்ப்பதில் சிறப்பாகச் செயல்பட்டாலும், அவசர உணர்வையோ அல்லது விற்பனைச் செயல்முறைக்கான அடுத்தகட்ட நடவடிக்கையையோ அவர் உருவாக்கவில்லை.",
+      "strengths": [
+        "காணாமல் போன மின்னஞ்சல் பிரச்சினையைத் தீவிரமாகத் தீர்த்ததன் மூலம் சிறந்த முறையில் கையாண்டார்.",
+        "அழைப்பு முழுவதும் பொறுமையான மற்றும் மரியாதையான அணுகுமுறையைக் கடைப்பிடித்தார்.",
+        "மாணவரின் உடனடிப் பிரச்சினையை வெற்றிகரமாகத் தீர்த்தார்."
+      ],
+      "improvements": [
+        "மாணவர் முடிவெடுப்பதற்கான அவசர உணர்வை உருவாக்கத் தவறிவிட்டார்.",
+        "எதிர்காலப் பின்தொடர் அழைப்பிற்கான உறுதியான அடுத்தகட்ட நடவடிக்கையை அவர் மேற்கொள்ளவில்லை.",
+        "தவறான நபருக்கு விவரங்களை அனுப்பிய ஆரம்பத் தவறு, தரவுப் பராமரிப்பில் (record-keeping) முன்னேற்றம் தேவை என்பதைக் காட்டுகிறது."
+      ]
+    },
+    "error": null
+  },
+  {
+    "callId": "6a51e8d1e55ba9c99d283d41",
+    "durationMin": 4,
+    "lead": null,
+    "agentExt": "5004",
+    "outcome": "won",
+    "position": "1/1",
+    "grade": {
+      "salesperson_speaker": "speaker_1",
+      "speaker_evidence": "speaker_1 'Balaji Sir' கூட போன call-அ பத்தி கேக்குறாங்க, brochure-அ பத்தி சொல்றாங்க, அப்புறம் payment process-அயும் (screenshot அனுப்புறது, form அனுப்புறது) வழிநடத்துறாங்க. இத வச்சு அவங்க தான் FOCAS representative-ன்னு தெரியுது.",
+      "call_type": "closing",
+      "call_type_reason": "Lead ஏற்கனவே pay பண்ணிட்டாங்க, இப்போ call முழுக்க onboarding process-அ finalize பண்றது, payment details-அ confirm பண்றது, அப்புறம் class access-அ set up பண்றதுல தான் focus இருக்கு. இது ஒரு logistical closing call.",
+      "scores": {
+        "context_recall": {
+          "score": 15,
+          "why": "'Balaji Sir'-கூட போன previous enquiry அப்புறம் call-அ உடனே reference பண்றாங்க, இதனால context-அ establish பண்றாங்க."
+        },
+        "objection_progress": {
+          "score": 15,
+          "why": "Lead ஒரு extra charge பத்தி doubt raise பண்றாங்க. Rep ஒரு screenshot கேட்டு அத address பண்றாங்க, ஆனா இது ஒரு partial resolution தான், fee பத்தின full explanation இல்ல."
+        },
+        "new_value": {
+          "score": 10,
+          "why": "Process-அ முன்னாடி கொண்டு போக தேவையான next steps-அ (form அனுப்புறது) provide பண்றாங்க, ஆனா எந்த புது offers இல்லனா value-adds-உம் குடுக்கல."
+        },
+        "urgency": {
+          "score": 8,
+          "why": "Access 'இன்னைக்கு இல்லனா நாளைக்குள்ள' குடுத்துடுவாங்கன்னு சொல்றது மூலமா ஒரு mild nudge குடுக்குறாங்க."
+        },
+        "next_step": {
+          "score": 10,
+          "why": "Next step-அ தெளிவா define பண்றாங்க: rep அனுப்பப்போற Google Form-அ lead fill பண்ணனும்."
+        },
+        "tone": {
+          "score": 10,
+          "why": "Tone ரொம்ப patient-ஆவும், respectful-ஆவும், reassuring-ஆவும் இருக்கு."
+        }
+      },
+      "total": 78,
+      "summary": "Salesperson ஏற்கனவே payment பண்ண ஒரு student-அ வெற்றிகரமா onboard பண்ணிட்டாங்க. அவங்க lead-ஓட history-அ ஞாபகம் வச்சிருந்தாங்க, payment doubt-அ handle பண்ணாங்க, அப்புறம் form submission அப்புறம் class access-க்கான next steps-அ தெளிவா சொன்னாங்க.",
+      "strengths": [
+        "Lead-ஓட history அப்புறம் previous interactions-அ ரொம்ப நல்லா ஞாபகம் வச்சிருந்தாங்க.",
+        "Call முழுக்க ரொம்ப patient-ஆவும், respectful-ஆவும், reassuring-ஆவும் இருந்தாங்க.",
+        "Lead follow பண்ண ஒரு தெளிவான next step-அ குடுத்தாங்க."
+      ],
+      "improvements": [
+        "Extra charge பத்தின objection-க்கு partial resolution தான் கிடைச்சது. வெறும் screenshot கேக்குறதுக்கு பதிலா, fee structure பத்தி இன்னும் தெளிவான explanation குடுத்திருக்கலாம்.",
+        "Batch filling இல்லனா specific class start date பத்தி சொல்லி இன்னும் கொஞ்சம் urgency-அ create பண்ணிருக்கலாம்."
+      ]
+    },
+    "error": null
+  },
+  {
+    "callId": "6a51e8c4e55ba9c99d283bf7",
+    "durationMin": 7,
+    "lead": "Pavithra Pavithra",
+    "agentExt": "5004",
+    "outcome": "won",
+    "position": "1/1",
+    "grade": {
+      "salesperson_speaker": "speaker_0",
+      "speaker_evidence": "speaker_0 solutions-அ offer பண்றாங்க, அதாவது classes-அ reschedule பண்றது மற்றும் 'Venkat sir's team' கிட்ட check பண்றது பத்தி பேசுறாங்க, அப்புறம் refunds-க்கான procedures பத்தியும் discuss பண்றாங்க. இதெல்லாம் அவங்க academy representative-ன்னு காட்டுது.",
+      "call_type": "follow_up",
+      "call_type_reason": "Lead 'முன்னாடியே நான் சொல்லிருக்கேன்' (நான் முன்னாடியே உங்களுக்கு சொல்லிருக்கேன்)-ன்னு சொல்றாங்க, இதனால முன்னாடியே ஒரு conversation நடந்திருக்குன்னு தெரியுது. இந்த call, ஏற்கனவே enroll ஆன ஒரு student-ஓட class schedule மற்றும் fees பத்தின discussion-ஓட continuation-ஆ இருக்கு.",
+      "scores": {
+        "context_recall": {
+          "score": 5,
+          "why": "Salesperson situation-அ புரிஞ்சுக்க questions கேக்குறாங்க, ஆனா lead சொன்ன previous conversation-அ அவங்க explicitly reference பண்ணல. Lead சொன்ன details-அ அவங்க ஞாபகம் வச்சிருக்காங்கன்னு காட்டாம, 'ஓகே, ஓகே'-ன்னு சொல்றாங்க."
+        },
+        "objection_progress": {
+          "score": 15,
+          "why": "Salesperson lead-ஓட problems-அ (exams, illness) acknowledge பண்ணி reschedule பண்ண offer பண்றாங்க, ஆனா core issues-அ resolve பண்ணவோ இல்ல lead-ஓட anxiety-அ குறைக்கவோ முடியல. Lead-க்கு எந்த ஒரு clear answer-உம் இல்லாம இருக்கு."
+        },
+        "new_value": {
+          "score": 5,
+          "why": "Salesperson January batch மற்றும் rescheduling பத்தி check பண்ண offer பண்றாங்க, இது ஒரு procedural step தான், ஆனா ஒரு offer, discount இல்லனா blocker-அ overcome பண்ண புது information மாதிரி எந்த ஒரு new value-add-உம் இல்ல."
+        },
+        "urgency": {
+          "score": 0,
+          "why": "Salesperson எந்த ஒரு urgency-அயும் create பண்ணல. அவங்க passive-ஆ 'கொஞ்சம் time கொடுங்க' (கொஞ்சம் time கொடுங்க)-ன்னு சொல்றாங்க, ஆனா deadlines இல்லனா batch filling up பத்தி எதுவும் சொல்லல."
+        },
+        "next_step": {
+          "score": 5,
+          "why": "Next step ரொம்ப vague-ஆ இருக்கு: 'நான் Venkat sir's team-ல மட்டும் பேசிட்டு உங்களுக்கு update பண்றேன்'. இதுல எந்த ஒரு specific date-உம் இல்ல, concrete action-உம் promise பண்ணல."
+        },
+        "tone": {
+          "score": 5,
+          "why": "Tone ரொம்ப patient-ஆ இருந்தாலும், கொஞ்சம் dismissive-ஆவும் responsibility-அ deflect பண்ற மாதிரியும் இருக்கு ('அந்த class scheduling-க்கு நான் responsible இல்ல'). Lead-ஓட stressed state-க்கு அவங்கல empathy இல்ல."
+        }
+      },
+      "total": 35,
+      "summary": "Multiple issues-அ face பண்ற ஒரு existing student-கூட நடந்த follow-up call இது. Salesperson ரொம்ப passive-ஆ இருந்ததால, student-ஓட concerns-அ resolve பண்ண முடியல, அப்புறம் அவங்களுக்கு ஒரு vague promise-அ மட்டும் கொடுத்துட்டு போயிட்டாங்க, இதனால அவங்களுக்கு எந்த ஒரு urgency-உம் இல்ல.",
+      "strengths": [
+        "Salesperson ரொம்ப patient-ஆ இருந்தாங்க, lead-ஓட multiple problems-அ (illness, exams, fees) அவங்க dismiss பண்ணாம கேட்டாங்க.",
+        "Classes-அ reschedule பண்றது மற்றும் January batch check பண்றதுல academy-க்கு இருக்குற flexibility-அ அவங்க acknowledge பண்ணாங்க."
+      ],
+      "improvements": [
+        "Problem-க்கு ownership எடுத்துக்கிட்டு, இன்னொரு team-க்கு deflect பண்ணாம, follow-up-க்கு ஒரு specific timeframe provide பண்ணிருக்கணும்.",
+        "Lead-ஓட stress-க்கு அவங்க இன்னும் empathetic-ஆ இருந்திருக்கணும், அப்புறம் ஒரு quick decision எடுக்க வேண்டிய அவசியம் ஏன் இருக்குன்னு explain பண்ணி urgency-அ create பண்ணிருக்கணும்."
+      ]
+    },
+    "error": null
+  },
+  {
+    "callId": "6a51e8c4e55ba9c99d283bf1",
+    "durationMin": 18,
+    "lead": "Thomas",
+    "agentExt": "5001",
+    "outcome": "won",
+    "position": "1/3",
+    "grade": {
+      "salesperson_speaker": "speaker_0",
+      "speaker_evidence": "speaker_0 தன்னை 'நான் போக்கஸ் செதுவாணன்' (நான் FOCAS செதுவாணன்) என்று அறிமுகப்படுத்திக் கொள்கிறார், இதன் மூலம் அவர் அகாடமியின் பிரதிநிதி என்பது தெளிவாகிறது.",
+      "call_type": "first_call",
+      "call_type_reason": "வாடிக்கையாளர் 'இப்ப தான் first time பேசுறீங்களா?' (இது முதல் முறையா பேசுகிறீர்களா?) என்று வெளிப்படையாகக் கேட்கிறார், அதற்கு விற்பனையாளர் 'ஆமா சார். ஆமா' (ஆம் ஐயா. ஆம்) என்று பதிலளிக்கிறார்.",
+      "scores": {
+        "opening": {
+          "score": 10,
+          "why": "விற்பனையாளர் தனது பெயரையும் FOCAS என்பதையும் குறிப்பிட்டார்: 'நான் போக்கஸ் செதுவாணன்.'"
+        },
+        "needs_discovery": {
+          "score": 15,
+          "why": "தேர்வு (ஜனவரி), குழு (குழு 1), முதல் முயற்சி மற்றும் படிப்பு நிலை (முழுநேர மாணவர்) குறித்துக் கேட்டார், ஆனால் இந்தத் தகவலைப் பயன்படுத்தி விற்பனை விளக்கத்தை (pitch) மாற்றியமைக்கவில்லை."
+        },
+        "product_pitch": {
+          "score": 12,
+          "why": "பாடத்திட்டக் கட்டமைப்பு, பொருட்கள் மற்றும் அட்டவணை குறித்துத் திறமையான ஆனால் பொதுவான விளக்கத்தை அளித்தார்; இதை வாடிக்கையாளரின் குறிப்பிட்ட சூழ்நிலையுடன் தொடர்புபடுத்தவில்லை."
+        },
+        "objection_handling": {
+          "score": 12,
+          "why": "வாடிக்கையாளர் விளக்க வகுப்பு (demo class), வகுப்பின் கால அளவு மற்றும் விடுப்புக் கொள்கை குறித்துத் தெளிவுபடுத்தும் கேள்விகளை எழுப்பினார். விற்பனையாளர் நேரடியாகப் பதிலளித்தார், வாடிக்கையாளரும் திருப்தி அடைந்தார். பெரிய ஆட்சேபனைகள் எதுவும் எழுப்பப்படாததால், மதிப்பெண் 12 என நிர்ணயிக்கப்படுகிறது."
+        },
+        "next_step": {
+          "score": 5,
+          "why": "விற்பனையாளர் 'நான் இப்ப உங்களுக்கு brochure அனுப்புறேன்' (நான் இப்ப உங்களுக்குத் தகவல் தொகுப்பை அனுப்புகிறேன்) என்று கூறினார், ஆனால் எந்தவொரு உறுதியான உறுதிமொழியோ அல்லது தேதியோ ஒப்புக்கொள்ளப்படவில்லை."
+        },
+        "tone": {
+          "score": 10,
+          "why": "விற்பனையாளர் முழுவதும் பொறுமையாகவும், மரியாதையுடனும் ('சார்'), எவரையும் வற்புறுத்தாமலும் இருந்தார்."
+        }
+      },
+      "total": 64,
+      "summary": "விற்பனையாளர் FOCAS நிறுவனத்தை அறிமுகப்படுத்தி, முதல் முறையாகத் தொடர்பு கொண்ட வாடிக்கையாளருக்குக் குழு 1 சி.ஏ. (CA) பாடத்திட்டக் கட்டமைப்பு குறித்து விரிவான மற்றும் பொதுவான விளக்கத்தை அளித்தார். வாடிக்கையாளர் அட்டவணை மற்றும் பொருட்கள் குறித்துப் பல தெளிவுபடுத்தும் கேள்விகளைக் கேட்டார், அவற்றுக்குப் பதிலளித்த விற்பனையாளர் பொறுமையைக் கடைப்பிடித்தார். விற்பனையாளர் தகவல் தொகுப்பை (brochure) அனுப்புவதாக உறுதியளித்த நிலையில் இக்கருத்தரங்கு முடிவடைந்தது, ஆனால் அடுத்த கட்டத்திற்கான உறுதியான உறுதிப்பாடு எதுவும் பெறப்படவில்லை.",
+      "strengths": [
+        "முழுக்கருத்தரங்கு முழுவதும் சிறந்த மற்றும் மரியாதையான அணுகுமுறை.",
+        "பதிவு செய்யப்பட்ட விரிவுரைகள், நேரடி வகுப்புகள் மற்றும் படிப்புப் பொருட்கள் உள்ளிட்ட பாடத்திட்ட முறைகள் குறித்து விரிவான மற்றும் தெளிவான விளக்கத்தை அளித்தார்.",
+        "வாடிக்கையாளரின் அட்டவணை மற்றும் நெகிழ்வுத்தன்மை குறித்த தெளிவுபடுத்தும் கேள்விகளையும் கவலைகளையும் திறம்படக் கையாண்டார்."
+      ],
+      "improvements": [
+        "தேவைகளைக் கண்டறியும் (Needs Discovery) நிலை பலவீனமாக இருந்தது. விற்பனையாளர் பொருத்தமான கேள்விகளைக் கேட்டார், ஆனால் வாடிக்கையாளரின் பதில்களை (உதாரணமாக, 'முழுநேர மாணவர்') விற்பனை விளக்கத்தைத் தனிப்பயனாக்கப் பயன்படுத்தத் தவறினார்.",
+        "பாடத்திட்ட விளக்கம் (Product Pitch) மிகவும் பொதுவானதாக இருந்தது. வாடிக்கையாளரின் குறிப்பிட்ட சூழ்நிலைக்கு ஏற்ப, உதாரணமாக ஒரு முழுநேர மாணவருக்கு 6 மணிநேர தினசரி படிப்பு அட்டவணை என்பது ஒரு சவால் என்பதை விளக்கியிருக்க வேண்டும்.",
+        "அடுத்த கட்ட நடவடிக்கை (Next Step) பலவீனமாக இருந்தது. வெறும் தகவல் தொகுப்பை அனுப்புவதற்குப் பதிலாக, ஒரு விளக்க வகுப்பைத் திட்டமிடுவது அல்லது ஒரு குறிப்பிட்ட தேதிக்காகப் பின்தொடர் அழைப்பை (follow-up call) உறுதி செய்வது போன்ற உறுதியான உறுதிப்பாட்டைப் பெற விற்பனையாளர் முயன்றிருக்க வேண்டும்."
+      ]
+    },
+    "error": null
+  },
+  {
+    "callId": "6a51e8c4e55ba9c99d283bee",
+    "durationMin": 6,
+    "lead": null,
+    "agentExt": "5001",
+    "outcome": "won",
+    "position": "1/1",
+    "grade": {
+      "salesperson_speaker": "speaker_0",
+      "speaker_evidence": "speaker_0 'இதுக்கு சிஏ intermediate group twoக்காக வந்து enroll பண்றதுக்கு எவ்வளவு fees என்ன ஏதுன்னு கேக்குறதுக்காக call பண்ணிருந்தேன்' அப்படின்னு சொல்றாங்க. இத வச்சு அவங்க FOCAS representative-ன்னு தெரியுது.",
+      "call_type": "first_call",
+      "call_type_reason": "Lead 'இப்ப தான் first time பேசுறீங்களா?' அப்படின்னு கேக்குறாங்க, salesperson 'இப்ப தான் first time பேசுறேன்' அப்படின்னு சொல்றாங்க. இத வச்சு இதுதான் முதல் interaction-ன்னு confirm ஆகுது.",
+      "scores": {
+        "opening": {
+          "score": 5,
+          "why": "Salesperson அவங்க name-அயோ இல்ல academy-அயோ ஆரம்பத்துல சொல்லாம, நேரடியா purpose-க்கு வந்திருக்காங்க. அவங்க 'ஃபோகஸ் எட்யூஷனலா?' அப்படின்னு academy name-அ மட்டும் தான் சொல்லிருக்காங்க."
+        },
+        "needs_discovery": {
+          "score": 25,
+          "why": "Salesperson lead-ஓட situation பத்தி தெளிவா கேட்டிருக்காங்க: 'Work timing எப்படி உங்களோடு?', 'இந்த recent ஆ மே ல குடுத்தீங்களா?', 'Group two வந்து எப்ப plan பண்றீங்க?'. Lead-ஓட பதில்களை வச்சு, அவங்க working person-ன்னும் repeater-ன்னும் தெரிஞ்சிக்கிட்டு, அதற்கேத்த மாதிரி pitch-அ மாத்தி இருக்காங்க."
+        },
+        "product_pitch": {
+          "score": 20,
+          "why": "Pitch-அ lead-ஓட தேவைகளுக்கு ஏத்த மாதிரி மாத்தி இருக்காங்க. Lead working person-ன்னும், அவங்களுக்கு structure வேணும்ன்னும் தெரிஞ்சதால, 'pro kit' (planner, manual, question bank) பத்தியும், அது repeaters-க்கு எப்படி help பண்ணும் ('ஏன்னா நிறைய பேர் வந்து அதனால தான் clear பண்ண முடியாம போறது') பத்தியும் explain பண்ணிருக்காங்க."
+        },
+        "objection_handling": {
+          "score": 25,
+          "why": "Lead 'Sir recorded classes இல்லையா?' அப்படின்னு ஒரு தெளிவான objection-அ எழுப்புனாங்க. Salesperson 'இல்லங்க. அந்த மாதிரி provide பண்ண மாட்டோம்... Live class join பண்றவங்களுக்கு தான் recording குடுப்போம் actual ஆ' அப்படின்னு நேரடியா பதில் சொல்லிருக்காங்க. Lead அந்த பதில ஏத்துக்கிட்டாங்க ('ஓ ஓகே. recorded மட்டும் இல்ல')."
+        },
+        "next_step": {
+          "score": 10,
+          "why": "Salesperson ஒரு தெளிவான அடுத்த கட்ட நடவடிக்கைய சொன்னாங்க: 'உங்களுக்கு அதான் நான் kit ஓட link வேணா send பண்றேன். நீங்க just explore பண்ணிட்டு purchase பண்ணிக்கலாம் வேணும்னா.' இது ஒரு தெளிவான action item."
+        },
+        "tone": {
+          "score": 10,
+          "why": "Salesperson ரொம்ப பொறுமையாவும் மரியாதையாவும் இருந்தாங்க. Lead-ஓட எல்லா கேள்விகளுக்கும் விளக்கமா பதில் சொல்லிருக்காங்க. அவங்க 'ஓகே, ஓகே' அப்படின்னு தொடர்ந்து ஒத்துழைப்பு கொடுத்ததுனால ஒரு நல்ல rapport build ஆகிருக்கு."
+        }
+      },
+      "total": 95,
+      "summary": "FOCAS salesperson, CA Intermediate Group 2-க்காக படிக்கிற ஒரு working repeater-அ சரியா identify பண்ணி, அவங்களுக்கு ஏத்த மாதிரி product pitch-அ கொடுத்திருக்காங்க. Recorded classes பத்தின objection-அ professional-ஆ handle பண்ணி, ஒரு தெளிவான அடுத்த கட்ட நடவடிக்கையோட முடிச்சிருக்காங்க.",
+      "strengths": [
+        "Lead-ஓட background மற்றும் தேவைகள் பத்தி ரொம்ப சிறப்பா கேட்டிருக்காங்க.",
+        "Lead-ஓட situation-க்கு ஏத்த மாதிரி product pitch-அ மாத்தி கொடுத்திருக்காங்க.",
+        "Recorded classes பத்தின objection-அ தெளிவாவும் professional-ஆவும் handle பண்ணிருக்காங்க.",
+        "Call முழுக்க ஒரு நல்ல பொறுமையான மற்றும் மரியாதையான tone-அ maintain பண்ணிருக்காங்க."
+      ],
+      "improvements": [
+        "Opening இன்னும் ஸ்ட்ராங்கா இருந்திருக்கலாம். ஆரம்பத்துலயே அவங்க name மற்றும் academy name-அ சொல்லி introduce பண்ணிருந்தா இன்னும் நல்லா இருந்திருக்கும்."
+      ]
+    },
+    "error": null
+  },
+  {
+    "callId": "6a51e8c3e55ba9c99d283be5",
+    "durationMin": 1,
+    "lead": null,
+    "agentExt": "5004",
+    "outcome": "won",
+    "position": "1/1",
+    "grade": {
+      "salesperson_speaker": "speaker_0",
+      "speaker_evidence": "speaker_0 initiated the call with 'Hello hello.' and engaged in a non-sales-related exchange with speaker_1.",
+      "call_type": "not_gradeable",
+      "call_type_reason": "The lead's response ('நான் இன்னொரு phone போட்டுட்டாங்க. attack பண்ணுங்க.') was not a genuine inquiry from a prospective student. The conversation did not involve any sales discussion, making it impossible to grade a sales performance.",
+      "scores": {
+        "opening": {
+          "score": 0,
+          "why": "No sales introduction was given as the conversation was not a sales call."
+        },
+        "needs_discovery": {
+          "score": 0,
+          "why": "No needs discovery was attempted as the lead's response was not a genuine inquiry."
+        },
+        "product_pitch": {
+          "score": 0,
+          "why": "No product pitch was given."
+        },
+        "objection_handling": {
+          "score": 0,
+          "why": "No objections were raised as there was no sales conversation."
+        },
+        "next_step": {
+          "score": 0,
+          "why": "No next step was agreed upon."
+        },
+        "tone": {
+          "score": 0,
+          "why": "Tone could not be assessed as there was no sales interaction."
+        }
+      },
+      "total": 0,
+      "summary": "This was not a sales call. The lead's response was nonsensical, indicating a wrong number or a prank. No sales conversation took place.",
+      "strengths": [],
+      "improvements": []
+    },
+    "error": null
+  },
+  {
+    "callId": "6a51e8c3e55ba9c99d283be2",
+    "durationMin": 1,
+    "lead": "Ajay",
+    "agentExt": "5001",
+    "outcome": "won",
+    "position": "2/3",
+    "grade": {
+      "salesperson_speaker": "",
+      "speaker_evidence": "",
+      "call_type": "not_gradeable",
+      "call_type_reason": "The transcript is empty, providing no evidence of a sales conversation to grade.",
+      "scores": {
+        "opening": {
+          "score": 0,
+          "why": "Call is not gradeable due to empty transcript."
+        },
+        "needs_discovery": {
+          "score": 0,
+          "why": "Call is not gradeable due to empty transcript."
+        },
+        "product_pitch": {
+          "score": 0,
+          "why": "Call is not gradeable due to empty transcript."
+        },
+        "objection_handling": {
+          "score": 0,
+          "why": "Call is not gradeable due to empty transcript."
+        },
+        "next_step": {
+          "score": 0,
+          "why": "Call is not gradeable due to empty transcript."
+        },
+        "tone": {
+          "score": 0,
+          "why": "Call is not gradeable due to empty transcript."
+        }
+      },
+      "total": 0,
+      "summary": "No conversation was transcribed, so the call could not be graded.",
+      "strengths": [],
+      "improvements": []
+    },
+    "error": null
+  },
+  {
+    "callId": "6a51e8c3e55ba9c99d283bdf",
+    "durationMin": 1,
+    "lead": "Ajay",
+    "agentExt": "5001",
+    "outcome": "won",
+    "position": "3/3",
+    "grade": {
+      "salesperson_speaker": "N/A",
+      "speaker_evidence": "N/A",
+      "call_type": "not_gradeable",
+      "call_type_reason": "The transcript is empty, so no conversation can be graded.",
+      "scores": {
+        "opening": {
+          "score": 0,
+          "why": "No transcript provided to assess the opening."
+        },
+        "needs_discovery": {
+          "score": 0,
+          "why": "No transcript provided to assess needs discovery."
+        },
+        "product_pitch": {
+          "score": 0,
+          "why": "No transcript provided to assess the product pitch."
+        },
+        "objection_handling": {
+          "score": 0,
+          "why": "No transcript provided to assess objection handling."
+        },
+        "next_step": {
+          "score": 0,
+          "why": "No transcript provided to assess the next step."
+        },
+        "tone": {
+          "score": 0,
+          "why": "No transcript provided to assess the tone."
+        },
+        "context_recall": {
+          "score": 0,
+          "why": "No transcript provided to assess context recall."
+        },
+        "objection_progress": {
+          "score": 0,
+          "why": "No transcript provided to assess objection progress."
+        },
+        "new_value": {
+          "score": 0,
+          "why": "No transcript provided to assess new value."
+        },
+        "urgency": {
+          "score": 0,
+          "why": "No transcript provided to assess urgency."
+        }
+      },
+      "total": 0,
+      "summary": "The call transcript is empty. Therefore, the call cannot be graded.",
+      "strengths": [],
+      "improvements": []
+    },
+    "error": null
+  },
+  {
+    "callId": "6a51e8c2e55ba9c99d283bd3",
+    "durationMin": 1,
+    "lead": "GOMATHI SHREE",
+    "agentExt": "5001",
+    "outcome": "won",
+    "position": "1/2",
+    "grade": {
+      "salesperson_speaker": "speaker_0",
+      "speaker_evidence": "speaker_0 கேள்விகள் கேட்டு பிரச்சனையைத் தெளிவுபடுத்துகிறார் ('நீங்க வந்து workout batch எந்த group?') மற்றும் 'team-க்குத் தகவல் தெரிவிக்கிறேன்' என்று உறுதியளிக்கிறார். speaker_1 பிரச்சனையைப் புகாரளிக்கிறார் ('app ல differ ஆகுது').",
+      "call_type": "not_gradeable",
+      "call_type_reason": "இது ஏற்கனவே பயிலும் ஒரு மாணவரிடமிருந்து வந்த உள்வரும் வாடிக்கையாளர் சேவை அழைப்பு; இது ஒரு தொழில்நுட்பப் பிரச்சனை குறித்த புகாரே தவிர, விற்பனை உரையாடல் அல்ல. விற்பனைப் பிரதிநிதியின் பணி பிரச்சனையைத் தீர்ப்பதும், மீண்டும் அழைப்பதாக உறுதியளிப்பதும் மட்டுமே, ஒரு தயாரிப்பு அல்லது சேவையை விற்பது அல்ல.",
+      "scores": {
+        "opening": {
+          "score": 0,
+          "why": "N/A - இது விற்பனை அழைப்பு அல்ல"
+        },
+        "needs_discovery": {
+          "score": 0,
+          "why": "N/A - இது விற்பனை அழைப்பு அல்ல"
+        },
+        "product_pitch": {
+          "score": 0,
+          "why": "N/A - இது விற்பனை அழைப்பு அல்ல"
+        },
+        "objection_handling": {
+          "score": 0,
+          "why": "N/A - இது விற்பனை அழைப்பு அல்ல"
+        },
+        "next_step": {
+          "score": 0,
+          "why": "N/A - இது விற்பனை அழைப்பு அல்ல"
+        },
+        "tone": {
+          "score": 0,
+          "why": "N/A - இது விற்பனை அழைப்பு அல்ல"
+        }
+      },
+      "total": 0,
+      "summary": "ஏற்கனவே பயிலும் ஒரு மாணவர், தனது டேப்லெட்டில் உள்ள வினா வங்கி (question bank) மொபைல் ஆப்பில் உள்ளதிலிருந்து மாறுபடுவதாகப் புகாரளிக்க அழைத்தார். விற்பனைப் பிரதிநிதி பிரச்சனையைச் செவிமடுத்து, அதைத் தெளிவுபடுத்தி, தொழில்நுட்பக் குழுவிடமிருந்து மீண்டும் அழைப்பதாக உறுதியளித்தார்.",
+      "strengths": [
+        "பிரச்சனையைச் செவிமடுத்துப் பொறுமையாகக் கேட்டார்.",
+        "சாதனம் மற்றும் பாடப்பிரிவு குறித்துக் குறிப்பிட்ட கேள்விகளைக் கேட்டுப் பிரச்சனையைத் தெளிவுபடுத்தினார்.",
+        "பிரச்சனையைத் தீர்ப்பதற்கான பொறுப்பை ஏற்றுக்கொண்டு, குழுவிடம் தகவல் தெரிவித்து மீண்டும் அழைப்பதாக உறுதியளித்தார்."
+      ],
+      "improvements": [
+        "பிரச்சனையைத் தீர்க்கும் அதே வேளையில், இந்தச் சிக்கல் மாணவரின் படிப்பைப் பாதிக்கிறதா என்று கேட்டு, அவர் மீது அதிக அக்கறை காட்டியிருக்கலாம்."
+      ]
+    },
+    "error": null
+  },
+  {
+    "callId": "6a51e8c2e55ba9c99d283bd0",
+    "durationMin": 1,
+    "lead": "Sindhuja",
+    "agentExt": "5001",
+    "outcome": "won",
+    "position": "1/1",
+    "grade": {
+      "salesperson_speaker": "speaker_0",
+      "speaker_evidence": "speaker_0 says 'already sollittu iruken sir' (I already told you, sir), directly referencing a previous conversation about payment timing. They are also discussing payment logistics and a link, which are sales-related actions.",
+      "call_type": "closing",
+      "call_type_reason": "The call is about finalizing payment and a technical detail after the lead has already decided to join, which is characteristic of a closing call. The salesperson is confirming logistics to complete the sale.",
+      "scores": {
+        "context_recall": {
+          "score": 15,
+          "why": "speaker_0 says 'already sollittu iruken sir' (I already told you, sir), directly referencing a previous conversation about payment timing."
+        },
+        "objection_progress": {
+          "score": 30,
+          "why": "The lead had previously asked about the payment day ('seventh than pay panreenga') and a device. The salesperson directly addressed both points, confirming the payment day and providing an update on the device, which the lead accepted ('sari okay okay fine')."
+        },
+        "new_value": {
+          "score": 20,
+          "why": "The salesperson provided a new resolution to the payment timing issue, explaining it was based on a family decision ('enga amma sonnaanga') and confirming the link would be sent before the agreed day."
+        },
+        "urgency": {
+          "score": 8,
+          "why": "The salesperson created a mild logistical urgency by stating the link must be received before the payment day, but did not apply high-pressure tactics like batch deadlines."
+        },
+        "next_step": {
+          "score": 10,
+          "why": "A clear next step was agreed upon: the salesperson will send the payment link before Thursday, and the lead will pay on Thursday."
+        },
+        "tone": {
+          "score": 10,
+          "why": "The salesperson maintained a patient, respectful, and non-pushy tone throughout the call, using 'sir' and calmly confirming details."
+        }
+      },
+      "total": 93,
+      "summary": "The salesperson successfully closed the deal by confirming payment logistics and addressing the lead's final concerns about the payment day and device access. A clear next step was established for sending the payment link.",
+      "strengths": [
+        "Excellent recall of the previous conversation, immediately referencing the payment discussion.",
+        "Effectively resolved the lead's specific objections regarding payment timing and the technical device issue.",
+        "Secured a clear, time-bound next step (sending the link before Thursday)."
+      ],
+      "improvements": [
+        "The sense of urgency was weak. While a deadline was mentioned, it lacked a compelling reason for immediate action, which could be improved by mentioning batch filling or a start date."
+      ]
+    },
+    "error": null
+  },
+  {
+    "callId": "6a51e8c2e55ba9c99d283bc7",
+    "durationMin": 2,
+    "lead": "Sruthi Bairavan",
+    "agentExt": "5001",
+    "outcome": "won",
+    "position": "1/1",
+    "grade": {
+      "salesperson_speaker": "speaker_0",
+      "speaker_evidence": "The salesperson, speaker_0, introduces herself by name ('நான் ஸ்ருதி பேசுறேன்') and references the specific previous inquiry about a 'Group Two' class ('Group Two க்கு class கேட்டிருந்தாம்'). The lead, speaker_1, confirms this context ('Last week பேசினோம். Yes.').",
+      "call_type": "follow_up",
+      "call_type_reason": "The transcript explicitly states 'Last week பேசினோம்' (We spoke last week), indicating a prior interaction. The call's purpose is to finalize the payment plan, which is a follow-up action to a previous conversation.",
+      "scores": {
+        "context_recall": {
+          "score": 15,
+          "why": "The salesperson immediately references the specific course ('Group Two') and the previous inquiry, showing she remembered the context of their last conversation."
+        },
+        "objection_progress": {
+          "score": 15,
+          "why": "The lead raises a payment concern ('EMI மாதிரி வராது'), and while the terms are clarified, the salesperson does not actively handle or resolve the objection; she simply accepts the lead's proposed structure."
+        },
+        "new_value": {
+          "score": 0,
+          "why": "The salesperson did not bring any new information, offers, or value to the conversation. The lead provided all the details about the payment plan and materials."
+        },
+        "urgency": {
+          "score": 0,
+          "why": "The salesperson did not provide any reason for the lead to decide or act immediately. The call was purely transactional about the payment plan."
+        },
+        "next_step": {
+          "score": 10,
+          "why": "The lead commits to sending a payment link after the salesperson confirms via message, creating a clear action item ('நீங்க once எனக்கு message ல confirm பண்ணுங்க. அப்புறம் நான் link generate பண்ணி உங்களுக்கு send பண்ணிவேறேன்')."
+        },
+        "tone": {
+          "score": 10,
+          "why": "The salesperson is polite, respectful ('Thank you sir'), and patient, allowing the lead to explain the payment terms without interruption."
+        }
+      },
+      "total": 50,
+      "summary": "The salesperson followed up on a previous call to finalize the payment plan for a Group Two course. The lead raised a concern about the EMI, which was clarified, and a concrete next step was agreed upon for payment.",
+      "strengths": [
+        "Good context recall of the previous conversation.",
+        "Maintained a polite and respectful tone throughout."
+      ],
+      "improvements": [
+        "Failed to add any new value or create urgency to close the deal.",
+        "Did not actively handle the lead's payment objection, instead passively accepting the lead's proposed solution. Should have probed for other concerns and reinforced the course's value."
+      ]
+    },
+    "error": null
+  },
+  {
+    "callId": "6a51e8c1e55ba9c99d283bc1",
+    "durationMin": 2,
+    "lead": "Unnamalai",
+    "agentExt": "5001",
+    "outcome": "won",
+    "position": "1/1",
+    "grade": {
+      "salesperson_speaker": "speaker_1",
+      "speaker_evidence": "speaker_1 mentions sending RTI details ('நீங்க அந்த RTI எதாவது உங்களுக்கு அந்த detail அனுப்பி இருக்கேன்'), discusses class schedules, and offers to send the payment link, all actions of the academy representative.",
+      "call_type": "closing",
+      "call_type_reason": "The lead has already decided to join ('I thought I will just join') and the call is about finalizing payment and schedule logistics. The outcome is 'won'.",
+      "scores": {
+        "context_recall": {
+          "score": 15,
+          "why": "speaker_1 says 'நீங்க அந்த RTI எதாவது உங்களுக்கு அந்த detail அனுப்பி இருக்கேன்' (I have sent you the RTI details), showing they remembered a previous conversation."
+        },
+        "objection_progress": {
+          "score": 15,
+          "why": "speaker_1 says 'Okay மாம் fine' to the lead's concern about joining without the RTI paper but doesn't address the issue, instead moving to the schedule."
+        },
+        "new_value": {
+          "score": 20,
+          "why": "speaker_1 informs the lead about a potential change in the class schedule ('இப்ப கொஞ்சம் அவங்க changes பண்றாங்க நினைக்கிறேன்'), which is new information."
+        },
+        "urgency": {
+          "score": 0,
+          "why": "The lead expressed urgency ('time is also running'), but speaker_1 did not add any new reason to decide now, simply accepting the lead's decision."
+        },
+        "next_step": {
+          "score": 10,
+          "why": "speaker_1 proposes a concrete next step: sending the payment link, which the lead immediately agrees to."
+        },
+        "tone": {
+          "score": 10,
+          "why": "speaker_1 is polite ('மாம்'), patient, and respectful throughout the call."
+        }
+      },
+      "total": 70,
+      "summary": "The lead called to finalize joining FOCAS. The salesperson confirmed payment was possible, informed them about a potential schedule change, and agreed to send the payment link.",
+      "strengths": [
+        "Clearly remembered a previous interaction about RTI details.",
+        "Provided new, relevant information about a potential schedule change.",
+        "Secured a clear, immediate next step (sending the payment link)."
+      ],
+      "improvements": [
+        "Addressed the lead's underlying concern about joining without the RTI paper instead of just saying 'Okay fine'.",
+        "Proactively created a sense of urgency or a deadline to encourage prompt payment, rather than just accepting the lead's self-imposed timeline."
+      ]
+    },
+    "error": null
+  },
+  {
+    "callId": "6a51e8c1e55ba9c99d283bbe",
+    "durationMin": 8,
+    "lead": "Thomas",
+    "agentExt": "5001",
+    "outcome": "won",
+    "position": "2/3",
+    "grade": {
+      "salesperson_speaker": "speaker_0",
+      "speaker_evidence": "பேச்சாளர் 'தாமஸ்' என்று தன்னை அறிமுகப்படுத்திக் கொண்டு, முந்தைய உரையாடலை உறுதிப்படுத்துகிறார். மேலும், பாடநெறி குறித்த விவரங்கள், கட்டண நடைமுறைகள் மற்றும் கட்டணத் தொகை ஆகியவற்றை விளக்குகிறார்; இவை அனைத்தும் விற்பனைப் பிரதிநிதியின் செயல்பாடுகளாகும்.",
+      "call_type": "follow_up",
+      "call_type_reason": "முந்தைய நாள் தான் பேசியதாக வாடிக்கையாளர் வெளிப்படையாகக் குறிப்பிடுகிறார் ('சார் நேத்து நான் பேசியிருந்தேன்'), மேலும் விற்பனைப் பிரதிநிதியும் அதை உறுதிப்படுத்துகிறார் ('ஆஹ் யெஸ் கரெக்ட். தாமஸ் ரைட்?'). இது ஒரு தொடர் உரையாடல் என்பதை இது உறுதிப்படுத்துகிறது.",
+      "scores": {
+        "context_recall": {
+          "score": 15,
+          "why": "வாடிக்கையாளர் முந்தைய நாள் பேசியதாகக் கூறிய உடனேயே, விற்பனைப் பிரதிநிதி அவரது பெயரை உறுதிப்படுத்துகிறார்: 'ஆஹ் யெஸ் கரெக்ட். தாமஸ் ரைட்?'"
+        },
+        "objection_progress": {
+          "score": 25,
+          "why": "வாடிக்கையாளரின் முக்கியக் கவலையான பாடநெறி தொடங்கும் நேரம் குறித்து விற்பனைப் பிரதிநிதி நேரடியாகப் பதிலளிக்கிறார். 'இப்போ நான் ஜாயின் பண்ணா அடுத்த வாரம் இந்த டைம் வந்து கிளாஸ் ஸ்டார்ட் ஆயிடும்' என்ற வாடிக்கையாளரின் புரிதலை உறுதிப்படுத்துகிறார். மேலும், கட்டணம் செலுத்துவதற்கும் கிளாஸ் தொடங்குவதற்கும் இடையிலான கால அவகாசத்தை விளக்கி, முந்தைய உரையாடலில் இருந்த தடையைத் தீர்க்கிறார்."
+        },
+        "new_value": {
+          "score": 20,
+          "why": "பாடநெறி முடிவடையும் காலக்கெடு ('செப்டம்பர் அல்லது அக்டோபர் முதல் வாரத்தில் முடிஞ்சிரும்') மற்றும் தேர்வுத் தொடர் அட்டவணை ('நவம்பர் மூன்றாவது வாரத்தில் இருந்து') குறித்த தெளிவான தகவல்களை விற்பனைப் பிரதிநிதி வழங்குகிறார். இது வாடிக்கையாளருக்கு ஒரு தெளிவான பாதையை அமைத்துக் கொடுக்கிறது."
+        },
+        "urgency": {
+          "score": 5,
+          "why": "விற்பனைப் பிரதிநிதி அவசர உணர்வை உருவாக்கவில்லை. மாறாக, 'டைம் எடுத்துக்கோங்க. ஏன்னா ஜனவரிதானே. டைம் இருக்கு' என்று கூறி வாடிக்கையாளரை நிதானமாக முடிவெடுக்க ஊக்குவிக்கிறார். வாடிக்கையாளர் தனது அவசரத்தை வெளிப்படுத்தினாலும், விற்பனைப் பிரதிநிதி அதற்கு எந்தக் காரணத்தையும் முன்வைக்கவில்லை."
+        },
+        "next_step": {
+          "score": 10,
+          "why": "விற்பனைப் பிரதிநிதி கட்டண விவரங்களை உறுதிப்படுத்துகிறார், மேலும் வாடிக்கையாளர் உடனடியாகப் பணம் செலுத்துவதற்கான அடுத்த கட்ட நடவடிக்கையை உறுதிப்படுத்துகிறார்: 'அதா எப்படி ஃபீஸ் பே பண்றது... நான் உங்களுக்கு பேமெண்ட் லிங்க் ஜெனரேட் பண்ணி அனுப்புவேன். அதுல போய் நீங்க பே பண்ணிக்கலாம்.'"
+        },
+        "tone": {
+          "score": 10,
+          "why": "விற்பனைப் பிரதிநிதி வாடிக்கையாளரின் அனைத்துக் கேள்விகளுக்கும் பொறுமையாகவும் மரியாதையாகவும் பதிலளிக்கிறார். 'புரிஞ்சுது புரியுது' போன்ற சொற்களைப் பயன்படுத்தி, வாடிக்கையாளரின் சந்தேகங்களைத் தீர்க்கும் வரை அவசரப்படாமல் உரையாடலைத் தொடர்கிறார்."
+        }
+      },
+      "total": 85,
+      "summary": "விற்பனைப் பிரதிநிதி முந்தைய உரையாடலை வெற்றிகரமாகத் தொடர்ந்தார். பாடநெறி தொடங்கும் நேரம், கட்டண நடைமுறைகள் மற்றும் பாடநெறி கட்டமைப்பு குறித்த வாடிக்கையாளரின் அனைத்துக் கேள்விகளுக்கும் பொறுமையாகப் பதிலளித்தார். பாடநெறி முடிவடையும் காலக்கெடு மற்றும் தேர்வு அட்டவணை குறித்த தெளிவான தகவல்களை வழங்கியதன் மூலம், வாடிக்கையாளர் சேர்க்கையை முடிப்பதற்கான தெளிவான அடுத்த கட்ட நடவடிக்கையை உறுதிப்படுத்தினார்.",
+      "strengths": [
+        "முந்தைய உரையாடல் மற்றும் வாடிக்கையாளரின் பெயரை மிகச்சரியாக நினைவு கூர்ந்தார்.",
+        "வாடிக்கையாளரின் விரிவான கேள்விகளுக்குப் பொறுமையாகவும் முழுமையாகவும் பதிலளித்தார்.",
+        "வாடிக்கையாளர் பாடநெறியை முழுமையாகப் புரிந்துகொள்ள உதவும் வகையில் தெளிவான புதிய தகவல்களை வழங்கினார்.",
+        "வாடிக்கையாளர் உடனடியாகப் பணம் செலுத்துவதற்கான தெளிவான மற்றும் உடனடி அடுத்த கட்ட நடவடிக்கையை உறுதிப்படுத்தினார்."
+      ],
+      "improvements": [
+        "அவசர உணர்வை உருவாக்கத் தவறிவிட்டார். வாடிக்கையாளர் விரைவாக முடிவெடுக்க ஏதுவாக, பாடநெறி நிரம்பிவிடுதல் அல்லது காலக்கெடு போன்ற காரணங்களை விற்பனைப் பிரதிநிதி குறிப்பிட்டிருக்க வேண்டும்.",
+        "கட்டண விவரங்களை விளக்கும்போது, வாடிக்கையாளர் பணம் செலுத்தும் நேரத்தில் குழப்பம் ஏற்படாமல் இருக்க, '24500 இன்க்ளூடிங் ஜி.எஸ்.டி' மற்றும் 'மொத்தம் 25000' என்ற விவரங்களைத் தெளிவாக விளக்கியிருக்க வேண்டும்."
+      ]
+    },
+    "error": null
+  },
+  {
+    "callId": "6a51e8c1e55ba9c99d283bb5",
+    "durationMin": 3,
+    "lead": "Thomas",
+    "agentExt": "5001",
+    "outcome": "won",
+    "position": "3/3",
+    "grade": null,
+    "error": "unparseable JSON"
+  },
+  {
+    "callId": "6a51e8bee55ba9c99d283b6d",
+    "durationMin": 1,
+    "lead": null,
+    "agentExt": "5001",
+    "outcome": "won",
+    "position": "1/1",
+    "grade": {
+      "salesperson_speaker": "",
+      "speaker_evidence": "No transcript provided to identify speakers.",
+      "call_type": "not_gradeable",
+      "call_type_reason": "The transcript is empty, containing no conversation to grade. While the metadata indicates a 'won' outcome and a 1-minute duration, there is no actual dialogue to evaluate against the sales rubric.",
+      "scores": {
+        "opening": {
+          "score": 0,
+          "why": "Not gradeable - no transcript provided."
+        },
+        "needs_discovery": {
+          "score": 0,
+          "why": "Not gradeable - no transcript provided."
+        },
+        "product_pitch": {
+          "score": 0,
+          "why": "Not gradeable - no transcript provided."
+        },
+        "objection_handling": {
+          "score": 0,
+          "why": "Not gradeable - no transcript provided."
+        },
+        "next_step": {
+          "score": 0,
+          "why": "Not gradeable - no transcript provided."
+        },
+        "tone": {
+          "score": 0,
+          "why": "Not gradeable - no transcript provided."
+        }
+      },
+      "total": 0,
+      "summary": "No conversation was transcribed for this call. The outcome is marked as 'won' but there is no evidence of the sales process.",
+      "strengths": [
+        "No strengths can be identified from an empty transcript."
+      ],
+      "improvements": [
+        "No improvements can be identified from an empty transcript."
+      ]
+    },
+    "error": null
+  },
+  {
+    "callId": "6a51e8bae55ba9c99d283b1f",
+    "durationMin": 2,
+    "lead": "pranav narayan",
+    "agentExt": "5003",
+    "outcome": "won",
+    "position": "1/2",
+    "grade": {
+      "salesperson_speaker": "speaker_1",
+      "speaker_evidence": "The speaker answers the phone for 'focus education' and provides information about the company's process ('tutors உங்களுக்கு send பண்ணுவாங்களே!', 'நாங்க இப்ப new books order பண்ணியிருக்கோம்'). This indicates they are a representative of FOCAS.",
+      "call_type": "not_gradeable",
+      "call_type_reason": "This is an inbound customer service call from an existing student regarding a missing kit and delayed materials. No sales conversation, pitch, or discovery took place.",
+      "scores": {
+        "opening": {
+          "score": 0,
+          "why": "N/A - Not a sales call."
+        },
+        "needs_discovery": {
+          "score": 0,
+          "why": "N/A - Not a sales call."
+        },
+        "product_pitch": {
+          "score": 0,
+          "why": "N/A - Not a sales call."
+        },
+        "objection_handling": {
+          "score": 0,
+          "why": "N/A - Not a sales call."
+        },
+        "next_step": {
+          "score": 0,
+          "why": "N/A - Not a sales call."
+        },
+        "tone": {
+          "score": 0,
+          "why": "N/A - Not a sales call."
+        }
+      },
+      "total": 0,
+      "summary": "An existing student called FOCAS to report that their study kit and physical books had not arrived despite payment. The FOCAS representative listened to the issue and promised to call back after checking the status.",
+      "strengths": [
+        "The representative listened patiently to the customer's detailed complaint.",
+        "They provided a clear and immediate next step: a callback after investigation."
+      ],
+      "improvements": [
+        "While not a sales call, a more proactive approach could be to immediately check the tracking number provided by the customer to give a more concrete ETA."
+      ]
+    },
+    "error": null
+  },
+  {
+    "callId": "6a51e8bae55ba9c99d283b1c",
+    "durationMin": 4,
+    "lead": "pranav narayan",
+    "agentExt": "5004",
+    "outcome": "won",
+    "position": "2/2",
+    "grade": {
+      "salesperson_speaker": "speaker_0",
+      "speaker_evidence": "பிரணவ் நாராயணன் (speaker_0) தன்னோட பேரச் சொல்லி அறிமுகப்படுத்திக்கிட்டு, 'உங்க parent இப்ப பேசினேன். பேசினேன் பையன்' அப்படின்னு சொல்றாரு. இதுல இருந்து அவரு FOCAS academy-அ சேர்ந்தவருன்னும், ஏற்கனவே பேசின parent-கிட்ட இருந்து follow-up பண்றாருன்னும் தெரியுது. Speaker_1 ஒரு customer-ஆ பதில் சொல்றாரு, அவங்க delivery partner பத்தி ஒரு issue-அ explain பண்றாரு.",
+      "call_type": "follow_up",
+      "call_type_reason": "இந்த call #2 of 2-ன்னு குறிக்கப்பட்டிருக்கு. Salesperson ஏற்கனவே பேசின conversation-அ பத்தி சொல்றாரு ('உங்க parent இப்ப பேசினேன்'), அப்புறம் ஏற்கனவே enroll ஆன ஒரு student-ஓட study material delivery மற்றும் correction delay பத்தின பிரச்சனைகள சரி பண்றாரு.",
+      "scores": {
+        "context_recall": {
+          "score": 15,
+          "why": "முந்தைய conversation-அ தெளிவா ஞாபகம் வச்சிருந்தாரு. 'second ஜூலை' மற்றும் 'third ஜூலை' போன்ற குறிப்பிட்ட தேதிகளையும், link அனுப்புனது மற்றும் test series upload பண்ணது போன்ற செயல்களையும் குறிப்பிட்டார்."
+        },
+        "objection_progress": {
+          "score": 25,
+          "why": "Study material delivery மற்றும் correction delay பத்தின lead-ஓட கவலைகள நேரடியா கவனிச்சாரு. Correction timeline பத்தி கேட்டு, ஒரு தீர்வை நோக்கி அவங்கள தூண்டுனாரு. Correction delay-க்கு tutors வார இறுதி நாட்கள்ல (weekends) மட்டும் தான் வேலை செய்வாங்கங்கற காரணத்த புரிஞ்சிக்கிட்டாரு."
+        },
+        "new_value": {
+          "score": 15,
+          "why": "Correction timeline பத்தி ஒரு முக்கியமான புது தகவல கொடுத்தாரு. Correction-க்கு CAs வார இறுதி நாட்கள்ல மட்டும் தான் வேலை செய்வாங்கன்னு explain பண்ணி lead-ஓட எதிர்பார்ப்பை manage பண்ணாரு. ஆனா, புதுசா எந்த offer-ஓ இல்ல deadline-ஓ கொண்டு வரல."
+        },
+        "urgency": {
+          "score": 12,
+          "why": "நேர நெருக்கடிய சுட்டிக்காட்டி ஒரு உண்மையான காரணத்த உருவாக்கினாரு. '60 days-ல 10 days முடிஞ்சாச்சு' அப்படின்னும், exam date நெருங்குறத பத்தியும் சொல்லி, இத ஒரு பொதுவான பிரச்சனையா அணுகி சீக்கிரம் முடிக்க சொன்னாரு."
+        },
+        "next_step": {
+          "score": 8,
+          "why": "Lead-கிட்ட இருந்து ஒரு தெளிவான action item-அ வாங்கினாரு. Lead-ஓட group admin (Mr. Venkat) இத follow up பண்ணுவாருன்னு உறுதி கொடுத்தாரு. அடுத்த கட்ட நடவடிக்கை தெளிவா இருந்தாலும், அது ஒரு third party மூலமா நடக்குறதுனால salesperson-ஓட நேரடி control-ல இல்ல."
+        },
+        "tone": {
+          "score": 8,
+          "why": "பொதுவா மரியாதையா, பொறுமையா, ஆனா உறுதியா இருந்தாரு. 'Madam'னு கூப்பிட்டு மரியாதையா பேசினாலும், 'கொஞ்சம் இது உங்க sideல என்ன பண்ணுமோ நல்லபடியா முடிச்சு கொடுங்க Madam'னு திரும்ப திரும்ப கேக்குறதுனால lead-க்கு கொஞ்சம் pressure கொடுத்த மாதிரி தெரிஞ்சது."
+        }
+      },
+      "total": 83,
+      "summary": "Enroll ஆன ஒரு student-ஓட study material delivery மற்றும் correction delay பிரச்சனைகள தீர்க்க, salesperson ஒரு follow-up call பண்ணாரு. முந்தைய conversation-ல சொன்ன விவரங்கள சரியா ஞாபகம் வச்சிருந்த அவரு, lead-ஓட கவலைகள நேரடியா கவனிச்சு, ஒரு தீர்வை நோக்கி அவங்கள தூண்டுனாரு.",
+      "strengths": [
+        "முந்தைய conversation-ல சொன்ன தேதிகள் மற்றும் செயல்கள் உட்பட விவரங்கள ரொம்ப நல்லா ஞாபகம் வச்சிருந்தாரு.",
+        "Study material மற்றும் correction delay பத்தின lead-ஓட முக்கியமான கவலைகள நேரடியா அணுகி தீர்த்து வச்சாரு.",
+        "Correction timeline பத்தி ஒரு முக்கியமான தகவல கொடுத்தாரு, இதனால lead-ஓட எதிர்பார்ப்பை manage பண்ண முடிஞ்சது."
+      ],
+      "improvements": [
+        "அடுத்த கட்ட நடவடிக்கை ஒரு third party-அ சார்ந்து இருக்கு. Mr. Venkat எப்போ follow up பண்ணுவாருன்னு ஒரு நேரத்த கேட்டு வாங்குறது இன்னும் effective-ஆ இருந்திருக்கும்.",
+        "அவரோட tone professional-ஆ இருந்தாலும், திரும்ப திரும்ப ஒரே கேள்விய கேக்குறத குறைச்சிருந்தா lead-க்கு pressure கம்மியா இருந்திருக்கும்."
+      ]
+    },
+    "error": null
+  },
+  {
+    "callId": "6a51e8b9e55ba9c99d283b16",
+    "durationMin": 1,
+    "lead": "GOMATHI SHREE",
+    "agentExt": "5003",
+    "outcome": "won",
+    "position": "2/2",
+    "grade": {
+      "salesperson_speaker": "speaker_1",
+      "speaker_evidence": "speaker_1 என்பவர் FOCAS நிறுவனத்தைச் சேர்ந்தவர். ஏற்கனவே ஆர்டர் செய்யப்பட்ட 'Focus kit' இருப்பு மற்றும் விநியோகம் குறித்து இவர் விவாதிக்கிறார். ஆர்டர் தாமதமானது குறித்துக் கேட்கும் வாடிக்கையாளர் தான் speaker_0.",
+      "call_type": "follow_up",
+      "call_type_reason": "இது ஏற்கனவே ஒரு பாடப்பிரிவை வாங்கியுள்ள ஒரு வாடிக்கையாளருடனான இரண்டாவது அழைப்பு. இந்த உரையாடல் தாமதமான ஆர்டர் பற்றியது, புதிய விற்பனை பற்றியது அல்ல.",
+      "scores": {
+        "context_recall": {
+          "score": 8,
+          "why": "வாடிக்கையாளரின் ஆர்டர் குறித்து விற்பனைப் பிரதிநிதிக்குத் தெரியும், மேலும் முழு சூழலையும் மீண்டும் கூறாமலேயே உடனடியாக அந்தப் பிரச்சினையைத் தீர்க்கிறார். இருப்பினும், முந்தைய உரையாடலை அவர் வெளிப்படையாகக் குறிப்பிடவில்லை."
+        },
+        "objection_progress": {
+          "score": 15,
+          "why": "இருப்பு இல்லாததால் ஏற்பட்ட தாமதத்திற்கான காரணத்தை விளக்கி, புதிய காலக்கெடுவை ('இந்த வாரம்') வழங்கியதன் மூலம் வாடிக்கையாளரின் கவலையை அவர் தீர்த்தார். ஆனால், இருப்புப் பிரச்சினைக்கான அடிப்படைத் தீர்வை அவர் வழங்கவில்லை."
+        },
+        "new_value": {
+          "score": 0,
+          "why": "விற்பனைப் பிரதிநிதி எதையும் புதியதாக வழங்கவில்லை. விநியோக நிலை குறித்த அதே தகவலை மீண்டும் மீண்டும் கூறினார்."
+        },
+        "urgency": {
+          "score": 0,
+          "why": "இது விற்பனைக்கான முடிவு அல்ல என்பதால் அவசரப்படுத்துவது அவசியமில்லை. விநியோகத்திற்காக அவர் எந்தவிதமான அவசர உணர்வையும் உருவாக்கவில்லை."
+        },
+        "next_step": {
+          "score": 5,
+          "why": "அவர் ஒரு தெளிவற்ற காலக்கெடுவை ('இந்த வாரம்') வழங்கினார், ஆனால் ஒரு குறிப்பிட்ட தேதியையோ அல்லது 'புதன்கிழமை அனுப்பப்படும், வெள்ளிக்கிழமை வந்து சேரும்' என்பது போன்ற உறுதியான உறுதிமொழியையோ வழங்கவில்லை."
+        },
+        "tone": {
+          "score": 10,
+          "why": "விற்பனைப் பிரதிநிதியின் தொனி பொறுமையாகவும் மரியாதையாகவும் இருந்தது. அவர் 'மா'ம்' என்று மரியாதையுடன் கூப்பிட்டார், தற்காப்பு உணர்வு கொள்ளவில்லை, மேலும் அழைப்பை முறையாக முடித்தார்."
+        }
+      },
+      "total": 38,
+      "summary": "தாமதமான பாடப்பிரிவு கிட் (kit) குறித்து ஏற்கனவே ஒரு வாடிக்கையாளர் மேற்கொண்ட உள்வரும் அழைப்பை விற்பனைப் பிரதிநிதி கையாண்டார். அவர் இருப்புப் பிரச்சினையை விளக்கி, விநியோகத்திற்கான ஒரு தெளிவற்ற காலக்கெடுவை வழங்கினார், ஆனால் எந்தவிதமான கூடுதல் மதிப்பையோ அல்லது குறிப்பிட்ட தேதியையோ வழங்கவில்லை.",
+      "strengths": [
+        "அழைப்பு முழுவதும் பொறுமையான மற்றும் மரியாதையான தொனியைப் பராமரித்தார்.",
+        "தாமதமான கிட் பற்றிய வாடிக்கையாளரின் முதன்மையான கவலையை நேரடியாகத் தீர்த்தார்."
+      ],
+      "improvements": [
+        "தெளிவற்ற 'இந்த வாரம்' என்ற காலக்கெடுவிற்குப் பதிலாக, ஒரு குறிப்பிட்ட விநியோகத் தேதியையோ அல்லது கண்காணிப்பு எண்ணையோ (tracking number) வழங்க வேண்டும்.",
+        "தாமதத்திற்கான தீர்வாக, அடுத்த கொள்முதலுக்குத் தள்ளுபடி வழங்குவது அல்லது டிஜிட்டல் பொருட்களை அணுக அனுமதிப்பது போன்றவற்றை முன்வந்து வழங்க வேண்டும்.",
+        "வாடிக்கையாளரின் ஏமாற்றத்தையும், ஆர்டர் செய்யப்பட்ட தேதியையும் வெளிப்படையாக அங்கீகரித்து, அனுதாபத்தைக் காட்ட வேண்டும்."
+      ]
+    },
+    "error": null
+  }
+]
