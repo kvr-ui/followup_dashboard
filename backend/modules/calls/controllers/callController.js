@@ -103,7 +103,6 @@ async function listJourneys(req, res) {
     const {
       owner, search, outcome, reason,
       from, to,                       // deal closing date
-      product,
       status, minDuration, minCalls, hasCalls, // call-level
       page = 1, limit = 50,
     } = req.query;
@@ -122,7 +121,6 @@ async function listJourneys(req, res) {
       }
       if (lcOwner && (j.ownerEmail || '').toLowerCase() !== lcOwner) return false;
       if (reason && j.lostReason !== reason) return false;
-      if (product && !(j.products || []).some((p) => p.name === product)) return false;
 
       // closingDate is "YYYY-MM-DD", so string compare is correct here.
       if (from && !(j.closingDate && j.closingDate >= from)) return false;
@@ -198,18 +196,24 @@ async function outcomeStats(req, res) {
         },
         { $sort: { won: -1 } },
       ]),
-      // Win rate per product — one row per product actually attached to a deal.
+      // What actually sells, ranked by revenue.
+      //
+      // WON only, deliberately. The team attaches products when the sale is made,
+      // so lost deals are ~4% populated — a win rate per product would be noise
+      // dressed up as a number.
       Deal.aggregate([
-        { $match: { ...base, outcome: { $in: ['won', 'lost'] } } },
+        { $match: { ...base, outcome: 'won' } },
         { $unwind: '$products' },
+        { $match: { 'products.name': { $ne: null } } },
         {
           $group: {
             _id: '$products.name',
-            won: { $sum: { $cond: [{ $eq: ['$outcome', 'won'] }, 1, 0] } },
-            lost: { $sum: { $cond: [{ $eq: ['$outcome', 'lost'] }, 1, 0] } },
+            deals: { $sum: 1 },
+            units: { $sum: '$products.quantity' },
+            revenue: { $sum: '$products.total' },
           },
         },
-        { $sort: { won: -1, lost: -1 } },
+        { $sort: { revenue: -1 } },
       ]),
     ]);
 
@@ -232,14 +236,12 @@ async function outcomeStats(req, res) {
         lost: o.lost,
         winRate: o.won + o.lost ? Math.round((o.won / (o.won + o.lost)) * 100) : 0,
       })),
-      products: byProduct
-        .filter((p) => p._id)
-        .map((p) => ({
-          name: p._id,
-          won: p.won,
-          lost: p.lost,
-          winRate: p.won + p.lost ? Math.round((p.won / (p.won + p.lost)) * 100) : 0,
-        })),
+      products: byProduct.map((p) => ({
+        name: p._id,
+        deals: p.deals,
+        units: p.units || 0,
+        revenue: Math.round(p.revenue || 0),
+      })),
     });
   } catch (err) {
     console.error('Outcome stats failed:', err.message);

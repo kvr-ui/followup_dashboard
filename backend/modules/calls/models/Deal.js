@@ -32,16 +32,22 @@ const dealSchema = new mongoose.Schema(
     contactName: String,
     contactPhone: { type: String, index: true },
 
-    // What was actually sold. Bigin exposes this as the deal's `Products`
-    // related list — NOT a field, so it can't come through the webhook.
-    // We fetch it from the API using the deal id instead.
+    // What was actually sold — Bigin's `Associated_Products` subform on the deal.
+    // Not a field on the list endpoint, so it never arrives in the webhook and
+    // isn't in a page of deals either; it costs a read of the deal record.
+    //
+    // In practice only WON deals carry products (the team attaches them when the
+    // sale is made) — lost deals are ~4% populated, so don't read a win rate out
+    // of this.
     products: {
       type: [
         {
           id: String,
           name: String,
-          category: String,
-          unitPrice: Number,
+          quantity: Number,
+          listPrice: Number,
+          discount: Number,
+          total: Number, // line total after discount — the real revenue
           _id: false,
         },
       ],

@@ -15,6 +15,12 @@ function shortDate(d) {
   return x.toLocaleDateString(undefined, { day: '2-digit', month: 'short' });
 }
 
+function inr(n) {
+  const v = Math.round(n || 0);
+  if (v >= 1e5) return `₹${(v / 1e5).toFixed(2)}L`; // lakhs read better than 9,19,000
+  return `₹${v.toLocaleString('en-IN')}`;
+}
+
 function statusBadge(s) {
   if (s === 'done') return <span className="badge badge-low">transcribed</span>;
   if (s === 'pending') return <span className="badge status-in-progress">pending</span>;
@@ -38,7 +44,6 @@ export default function Calls() {
   const [search, setSearch] = useState('');
   const [from, setFrom] = useState('');           // deal closed between…
   const [to, setTo] = useState('');
-  const [product, setProduct] = useState('');
   const [status, setStatus] = useState('');       // transcription state
   const [minDuration, setMinDuration] = useState('');
   const [minCalls, setMinCalls] = useState('');
@@ -50,18 +55,18 @@ export default function Calls() {
 
   // Everything the journeys query filters on. Typed fields (search, amounts) are
   // NOT in here — they apply on Enter/Apply, so we don't refetch on every keypress.
-  const auto = [owner, outcome, reason, from, to, product, status, minDuration, minCalls, hasCalls];
+  const auto = [owner, outcome, reason, from, to, status, minDuration, minCalls, hasCalls];
 
   // `outcome` is the tab, not a filter — it's always set, so counting it would
   // show "Clear (1)" on a page with nothing filtered, and clearing it would
   // leave the tab bar pointing at nothing.
   const activeCount = [
-    owner, reason, search, from, to, product, status, minDuration, minCalls, hasCalls,
+    owner, reason, search, from, to, status, minDuration, minCalls, hasCalls,
   ].filter(Boolean).length;
 
   function clearAll() {
     setOwner(''); setReason(''); setSearch('');
-    setFrom(''); setTo(''); setProduct('');
+    setFrom(''); setTo('');
     setStatus(''); setMinDuration(''); setMinCalls(''); setHasCalls('');
     setPage(1);
   }
@@ -77,7 +82,6 @@ export default function Calls() {
       if (search) qs.set('search', search);
       if (from) qs.set('from', from);
       if (to) qs.set('to', to);
-      if (product) qs.set('product', product);
       if (status) qs.set('status', status);
       if (minDuration) qs.set('minDuration', minDuration);
       if (minCalls) qs.set('minCalls', minCalls);
@@ -148,7 +152,17 @@ export default function Calls() {
     [outcomes]
   );
 
+  // Ranked by revenue, biggest first. Won deals only — the team attaches products
+  // when a sale is made, so lost deals have none and a win rate would be a lie.
   const productList = useMemo(() => outcomes?.products || [], [outcomes]);
+  const productMax = useMemo(
+    () => Math.max(...productList.map((p) => p.revenue), 1),
+    [productList]
+  );
+  const productTotal = useMemo(
+    () => productList.reduce((a, p) => a + p.revenue, 0),
+    [productList]
+  );
 
   const isWon = outcome === 'won';
 
@@ -238,6 +252,85 @@ export default function Calls() {
         </div>
       )}
 
+      {/* What actually sells. Won deals only — see productList above. */}
+      {isWon && productList.length > 0 && (
+        <div className="card" style={{ padding: '14px 16px', marginBottom: 16 }}>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'baseline',
+              marginBottom: 12,
+            }}
+          >
+            <div className="label">Which products close — highest to lowest</div>
+            <div className="subtle">
+              {productList.length} products · {inr(productTotal)} total
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {productList.map((p, i) => {
+              const top = i === 0;
+              const bottom = i === productList.length - 1;
+              return (
+                <div
+                  key={p.name}
+                  style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: '0.85rem' }}
+                  title={`${p.deals} deal${p.deals === 1 ? '' : 's'} · ${p.units} unit${p.units === 1 ? '' : 's'} · ${inr(p.revenue)}`}
+                >
+                  <span style={{ width: 22, textAlign: 'right', opacity: 0.5 }}>{i + 1}</span>
+
+                  <span style={{ flex: '0 0 240px', fontWeight: top ? 600 : 400 }}>
+                    {p.name}
+                  </span>
+
+                  {/* Bar is relative to the best seller, so the spread is visible. */}
+                  <span
+                    style={{
+                      flex: 1,
+                      background: 'var(--surface-inset)',
+                      borderRadius: 4,
+                      height: 14,
+                      overflow: 'hidden',
+                    }}
+                  >
+                    <span
+                      style={{
+                        display: 'block',
+                        height: '100%',
+                        width: `${Math.max((p.revenue / productMax) * 100, 1)}%`,
+                        background: top
+                          ? 'var(--green, #27ae60)'
+                          : bottom
+                            ? 'var(--red, #c0392b)'
+                            : 'var(--accent, #6b8afd)',
+                        opacity: top || bottom ? 1 : 0.55,
+                      }}
+                    />
+                  </span>
+
+                  <span style={{ flex: '0 0 90px', textAlign: 'right', fontWeight: 600 }}>
+                    {inr(p.revenue)}
+                  </span>
+                  <span
+                    style={{ flex: '0 0 70px', textAlign: 'right' }}
+                    className="subtle"
+                  >
+                    {p.deals} deal{p.deals === 1 ? '' : 's'}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="subtle" style={{ marginTop: 10, fontSize: '0.75rem' }}>
+            Won deals only — products are attached in Bigin when the sale is made, so
+            lost deals carry none.
+          </div>
+        </div>
+      )}
+
       <div className="filters">
         <label>
           Search lead
@@ -270,18 +363,6 @@ export default function Calls() {
             {owners.map((o) => (
               <option key={o.ownerEmail} value={o.ownerEmail}>
                 {o.ownerName || o.ownerEmail} ({o.won}W / {o.lost}L)
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label>
-          Product
-          <select value={product} onChange={(e) => setProduct(e.target.value)}>
-            <option value="">Any product</option>
-            {productList.map((p) => (
-              <option key={p.name} value={p.name}>
-                {p.name} ({p.won}W / {p.lost}L)
               </option>
             ))}
           </select>

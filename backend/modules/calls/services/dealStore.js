@@ -48,21 +48,38 @@ async function contactPhone(contactId, fallbackName) {
   return null;
 }
 
+/** Read the full Bigin deal record. Carries what the webhook payload omits. */
+async function fetchDealRecord(dealId) {
+  if (!dealId) return null;
+  const r = await zoho.apiGet(`/Deals/${dealId}`);
+  return (r.ok && r.json && r.json.data && r.json.data[0]) || null;
+}
+
 /**
- * Fetch what was sold on this deal.
- * Products are a related list in Bigin (not a field), so they can never arrive
- * via the webhook — we look them up by deal id.
+ * What was sold on this deal.
+ *
+ * The team attaches products in the pipeline, and Bigin stores them in the
+ * `Associated_Products` SUBFORM on the deal — not the `/Products` related list
+ * we used to read. The subform is also where the money is (list price, quantity,
+ * discount, line total), so it's the only source that can answer "which product
+ * actually earns".
+ *
+ * Neither one arrives in the webhook, so this costs a read by deal id.
  */
-async function fetchProducts(dealId) {
-  if (!dealId) return [];
-  const r = await zoho.apiGet(`/Deals/${dealId}/Products`);
-  if (!r.ok || !r.json || !r.json.data) return [];
-  return r.json.data.map((p) => ({
-    id: String(p.id),
-    name: p.Product_Name || null,
-    category: p.Product_Category || null,
-    unitPrice: Number(p.Unit_Price ?? p.price ?? 0),
+function productsFromRecord(rec) {
+  const rows = (rec && rec.Associated_Products) || [];
+  return rows.map((p) => ({
+    id: String((p.Product && p.Product.id) || p.id),
+    name: (p.Product && p.Product.name) || null,
+    quantity: Number(p.Quantity || 0),
+    listPrice: Number(p.List_Price || 0),
+    discount: Number(p.Discount_Amount || 0),
+    total: Number(p.Total || 0), // what the customer actually pays for this line
   }));
+}
+
+async function fetchProducts(dealId) {
+  return productsFromRecord(await fetchDealRecord(dealId));
 }
 
 // owner id -> {email, name}. A handful of salespeople own thousands of deals, so
@@ -77,26 +94,29 @@ function cleanReason(v) {
 }
 
 /**
- * Fill in what the payload didn't carry: the owner's email, and why a lost deal
- * was lost.
+ * Fill in everything the payload didn't carry: the owner's email, why a lost
+ * deal was lost, and what was sold.
  *
- * The POLL path gets both from the Bigin API for free. The WEBHOOK path gets
- * neither — Zoho Flow sends owner_id/owner_name but no email, and no `Reasons`
- * field at all. Both are things the dashboard needs (the owner filter, and the
- * loss breakdown), so we re-read the deal by id to get them.
+ * None of the three arrive in the webhook, and products aren't on the deal LIST
+ * endpoint either — only on the deal RECORD. So all three come from one read of
+ * that record, and we do it at most once per deal:
  *
- * One read fills both, and only when something is actually missing:
- *   - owner email: cached by owner id, so it costs one call per NEW salesperson
- *   - lost reason: only fetched for LOST deals whose payload omitted the field
- * A poll that already carries `Reasons` (even as null) never triggers a read.
+ *   - products    : every CLOSED deal (the subform is the only source)
+ *   - owner email : cached by owner id — one call per NEW salesperson
+ *   - lost reason : LOST deals whose payload omitted the field
+ *
+ * A poll that already carries owner email and `Reasons` still needs the record
+ * for products, so for closed deals this is one call either way.
  */
 async function hydrate(raw, outcome) {
   const owner = raw.Owner || {};
   const ownerId = owner.id ? String(owner.id) : null;
+  const closed = outcome === 'won' || outcome === 'lost';
 
   let email = owner.email ? String(owner.email).toLowerCase() : null;
   let name = owner.name || null;
   let reason = cleanReason(raw.Reasons);
+  let products = [];
 
   // The poll path seeds the cache, so the webhook path usually pays nothing.
   if (email && ownerId) ownerCache.set(ownerId, { email, name });
@@ -110,10 +130,10 @@ async function hydrate(raw, outcome) {
   // null/"-None-" means Bigin told us there is no reason — don't go asking again.
   const needReason = outcome === 'lost' && raw.Reasons === undefined;
   const needOwner = !email;
+  const needProducts = closed;
 
-  if ((needOwner || needReason) && raw.id) {
-    const r = await zoho.apiGet(`/Deals/${raw.id}`);
-    const rec = r.ok && r.json && r.json.data && r.json.data[0];
+  if ((needOwner || needReason || needProducts) && raw.id) {
+    const rec = await fetchDealRecord(raw.id);
     if (rec) {
       if (needOwner && rec.Owner && rec.Owner.email) {
         email = String(rec.Owner.email).toLowerCase();
@@ -121,12 +141,14 @@ async function hydrate(raw, outcome) {
         if (ownerId) ownerCache.set(ownerId, { email, name });
       }
       if (needReason) reason = cleanReason(rec.Reasons);
+      if (needProducts) products = productsFromRecord(rec);
     }
   }
 
   return {
     ownerEmail: email,
     ownerName: name,
+    products,
     // A won deal has no loss reason, whatever Bigin has lying in the field.
     lostReason: outcome === 'lost' ? reason : null,
   };
@@ -143,15 +165,12 @@ async function upsertDeal(raw, source = 'poll') {
   const outcome = outcomeOf(raw.Stage);
   const extra = await hydrate(raw, outcome);
 
-  // Only worth an extra API call for deals that actually closed.
-  const products = outcome === 'won' || outcome === 'lost' ? await fetchProducts(raw.id) : [];
-
   const doc = {
     zohoId: String(raw.id),
     name: raw.Deal_Name || null,
     stage: raw.Stage || null,
     outcome,
-    products,
+    products: extra.products,
     closingDate: raw.Closing_Date || null,
     amount: Number(raw.Amount) || 0,
     lostReason: extra.lostReason,
