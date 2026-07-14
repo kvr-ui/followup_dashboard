@@ -12,6 +12,12 @@ const callRoutes = require('./modules/calls/routes/calls'); // v2: call grading
 const installmentRoutes = require('./modules/calls/routes/installments'); // v2: pending payments
 const upsellRoutes = require('./modules/calls/routes/upsells'); // v2: upsold leads
 const callWebhookRoutes = require('./modules/calls/routes/webhooks'); // v2: TeleCMI + Bigin deal webhooks
+const campaignRoutes = require('./modules/campaigns/routes/campaigns'); // v3: WhatsApp campaigns
+const contactRoutes = require('./modules/campaigns/routes/contacts'); // v3: the send list
+const segmentRoutes = require('./modules/campaigns/routes/segments'); // v3: saved audiences
+const sequenceRoutes = require('./modules/campaigns/routes/sequences'); // v3: drips
+const campaignWebhookRoutes = require('./modules/campaigns/routes/webhooks'); // v3: WATI status events
+const redirectRoutes = require('./modules/campaigns/routes/redirect'); // v3: /r/<code> click tracking
 
 const app = express();
 
@@ -43,6 +49,20 @@ app.use('/api/installments', installmentRoutes); // auth + role-based filtering 
 app.use('/api/upsells', upsellRoutes); // auth + role-based filtering (reps see their own)
 app.use('/webhook', callWebhookRoutes); // /webhook/call (TeleCMI), /webhook/deal (Bigin)
 
+// v3: WhatsApp campaigns. Admin-only, every route — a send spends money and puts the
+// brand in front of a real person, so there is no rep-facing slice of this module.
+app.use('/api/campaigns', campaignRoutes);
+app.use('/api/contacts', contactRoutes);
+app.use('/api/segments', segmentRoutes);
+app.use('/api/sequences', sequenceRoutes);
+
+app.use('/webhook', campaignWebhookRoutes); // /webhook/wati (delivery, read, reply)
+
+// /r/<code> — the tracked links inside the WhatsApp messages we send. Public by
+// necessity (a lead tapping a link is not logged in) and mounted at the root because
+// the URL goes in the message itself, where every character is read by a human.
+app.use('/', redirectRoutes);
+
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
@@ -73,12 +93,12 @@ app.use((err, req, res, next) => {
   return next(err);
 });
 
-// Re-run the webhook routes after a successful recovery. Both the task webhook
-// and the call/deal webhooks must be re-mounted here — otherwise a recovered
-// TeleCMI/Bigin body would fall through to the task router and be silently
-// dropped (it matches no route there).
+// Re-run the webhook routes after a successful recovery. Every webhook router must
+// be re-mounted here — otherwise a recovered TeleCMI/Bigin/WATI body would fall
+// through to the task router and be silently dropped (it matches no route there).
 app.use('/webhook', webhookRoutes);
 app.use('/webhook', callWebhookRoutes);
+app.use('/webhook', campaignWebhookRoutes);
 
 /**
  * Attempt to parse a raw body that failed strict JSON parsing.
