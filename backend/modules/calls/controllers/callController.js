@@ -101,7 +101,7 @@ async function callStats(req, res) {
 async function listJourneys(req, res) {
   try {
     const {
-      owner, search, outcome, reason,
+      owner, search, outcome, reason, upsold,
       from, to,                       // deal closing date
       status, minDuration, minCalls, hasCalls, // call-level
       page = 1, limit = 50,
@@ -121,6 +121,11 @@ async function listJourneys(req, res) {
       }
       if (lcOwner && (j.ownerEmail || '').toLowerCase() !== lcOwner) return false;
       if (reason && j.lostReason !== reason) return false;
+
+      // Upsold = Bigin's Up_Scale picklist is set. With 159 won deals across 4 pages,
+      // hunting for the badge by eye isn't a feature — this is.
+      if (upsold === 'yes' && !j.upScale) return false;
+      if (upsold === 'no' && j.upScale) return false;
 
       // closingDate is "YYYY-MM-DD", so string compare is correct here.
       if (from && !(j.closingDate && j.closingDate >= from)) return false;
@@ -174,7 +179,7 @@ async function outcomeStats(req, res) {
     const base = {};
     if (owner) base.ownerEmail = owner.toLowerCase();
 
-    const [byOutcome, byReason, byOwner, byProduct] = await Promise.all([
+    const [byOutcome, byReason, byOwner, byProduct, byUpsell] = await Promise.all([
       Deal.aggregate([
         { $match: { ...base, outcome: { $in: ['won', 'lost'] } } },
         { $group: { _id: '$outcome', n: { $sum: 1 }, value: { $sum: '$amount' } } },
@@ -215,6 +220,14 @@ async function outcomeStats(req, res) {
         },
         { $sort: { revenue: -1 } },
       ]),
+      // Upsells — Bigin's Up_Scale picklist. Counted here rather than in the UI
+      // because the journeys list is paginated: counting the page would report
+      // "3 upsold" when the real answer is 3 out of 159 across every page.
+      Deal.aggregate([
+        { $match: { ...base, outcome: 'won', upScale: { $ne: null } } },
+        { $group: { _id: '$upScale', n: { $sum: 1 }, value: { $sum: '$amount' } } },
+        { $sort: { n: -1 } },
+      ]),
     ]);
 
     const won = byOutcome.find((o) => o._id === 'won') || { n: 0, value: 0 };
@@ -241,6 +254,13 @@ async function outcomeStats(req, res) {
         deals: p.deals,
         units: p.units || 0,
         revenue: Math.round(p.revenue || 0),
+      })),
+      upsold: byUpsell.reduce((a, u) => a + u.n, 0),
+      upsellValue: Math.round(byUpsell.reduce((a, u) => a + (u.value || 0), 0)),
+      upsells: byUpsell.map((u) => ({
+        upScale: u._id,
+        deals: u.n,
+        value: Math.round(u.value || 0),
       })),
     });
   } catch (err) {

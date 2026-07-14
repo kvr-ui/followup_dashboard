@@ -4,6 +4,7 @@ import TaskDetail from './TaskDetail';
 import AdminUsers from './AdminUsers';
 import Analytics from './Analytics';
 import Calls from './Calls';
+import Products from './Products';
 import SummaryCards from './SummaryCards';
 import Filters from './Filters';
 import { api } from '../api';
@@ -88,6 +89,12 @@ export default function Dashboard({ user, onLogout }) {
                 Calls
               </button>
               <button
+                className={view === 'products' ? 'tab active' : 'tab'}
+                onClick={() => setView('products')}
+              >
+                Products
+              </button>
+              <button
                 className={view === 'users' ? 'tab active' : 'tab'}
                 onClick={() => setView('users')}
               >
@@ -141,6 +148,8 @@ export default function Dashboard({ user, onLogout }) {
           <Analytics />
         ) : view === 'calls' ? (
           <Calls />
+        ) : view === 'products' ? (
+          <Products />
         ) : (
           <AdminUsers />
         )}

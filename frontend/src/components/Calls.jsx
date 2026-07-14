@@ -23,12 +23,6 @@ function upsellLabel(v) {
   return m ? `upsold to ${m[1]}` : String(v);
 }
 
-function inr(n) {
-  const v = Math.round(n || 0);
-  if (v >= 1e5) return `₹${(v / 1e5).toFixed(2)}L`; // lakhs read better than 9,19,000
-  return `₹${v.toLocaleString('en-IN')}`;
-}
-
 function statusBadge(s) {
   if (s === 'done') return <span className="badge badge-low">transcribed</span>;
   if (s === 'pending') return <span className="badge status-in-progress">pending</span>;
@@ -56,6 +50,7 @@ export default function Calls() {
   const [minDuration, setMinDuration] = useState('');
   const [minCalls, setMinCalls] = useState('');
   const [hasCalls, setHasCalls] = useState('');   // '' = all closed leads
+  const [upsold, setUpsold] = useState('');       // won tab only: '' | yes | no
   const [open, setOpen] = useState({});      // expanded journeys
   const [selected, setSelected] = useState(null); // call id for the drawer
   const [loading, setLoading] = useState(false);
@@ -63,19 +58,19 @@ export default function Calls() {
 
   // Everything the journeys query filters on. Typed fields (search, amounts) are
   // NOT in here — they apply on Enter/Apply, so we don't refetch on every keypress.
-  const auto = [owner, outcome, reason, from, to, status, minDuration, minCalls, hasCalls];
+  const auto = [owner, outcome, reason, from, to, status, minDuration, minCalls, hasCalls, upsold];
 
   // `outcome` is the tab, not a filter — it's always set, so counting it would
   // show "Clear (1)" on a page with nothing filtered, and clearing it would
   // leave the tab bar pointing at nothing.
   const activeCount = [
-    owner, reason, search, from, to, status, minDuration, minCalls, hasCalls,
+    owner, reason, search, from, to, status, minDuration, minCalls, hasCalls, upsold,
   ].filter(Boolean).length;
 
   function clearAll() {
     setOwner(''); setReason(''); setSearch('');
     setFrom(''); setTo('');
-    setStatus(''); setMinDuration(''); setMinCalls(''); setHasCalls('');
+    setStatus(''); setMinDuration(''); setMinCalls(''); setHasCalls(''); setUpsold('');
     setPage(1);
   }
 
@@ -94,6 +89,7 @@ export default function Calls() {
       if (minDuration) qs.set('minDuration', minDuration);
       if (minCalls) qs.set('minCalls', minCalls);
       if (hasCalls) qs.set('hasCalls', hasCalls);
+      if (upsold) qs.set('upsold', upsold);
       qs.set('page', String(page));
 
       const [s, o, j] = await Promise.all([
@@ -160,18 +156,6 @@ export default function Calls() {
     [outcomes]
   );
 
-  // Ranked by revenue, biggest first. Won deals only — the team attaches products
-  // when a sale is made, so lost deals have none and a win rate would be a lie.
-  const productList = useMemo(() => outcomes?.products || [], [outcomes]);
-  const productMax = useMemo(
-    () => Math.max(...productList.map((p) => p.revenue), 1),
-    [productList]
-  );
-  const productTotal = useMemo(
-    () => productList.reduce((a, p) => a + p.revenue, 0),
-    [productList]
-  );
-
   const isWon = outcome === 'won';
 
   // Switching tab is a different question, so drop the filters that only make
@@ -179,7 +163,8 @@ export default function Calls() {
   function switchTab(next) {
     if (next === outcome) return;
     setOutcome(next);
-    setReason('');
+    setReason('');   // lost-only
+    setUpsold('');   // won-only
     setPage(1);
   }
 
@@ -218,10 +203,31 @@ export default function Calls() {
           <div className="num" style={{ opacity: 0.6 }}>{coverage.withoutCalls}</div>
           <div className="label">…with no call</div>
         </div>
-        <div className="card week">
-          <div className="num">{outcomes ? `${outcomes.winRate}%` : '—'}</div>
-          <div className="label">Win rate (overall)</div>
-        </div>
+        {isWon ? (
+          <div
+            className="card"
+            // Click to see exactly who was upsold. Without this you'd be scanning
+            // four pages of won deals hunting for a badge.
+            onClick={() => setUpsold(upsold === 'yes' ? '' : 'yes')}
+            style={{
+              cursor: 'pointer',
+              outline: upsold === 'yes' ? '2px solid var(--green, #27ae60)' : 'none',
+            }}
+            title={upsold === 'yes' ? 'Showing upsold leads — click to clear' : 'Click to see who was upsold'}
+          >
+            {/* Counted server-side across ALL won deals — the journeys list is
+                paginated, so counting the visible page would under-report. */}
+            <div className="num" style={{ color: 'var(--green)' }}>
+              {outcomes?.upsold ?? '—'}
+            </div>
+            <div className="label">Upsold {upsold === 'yes' ? '(filtered)' : ''}</div>
+          </div>
+        ) : (
+          <div className="card week">
+            <div className="num">{outcomes ? `${outcomes.winRate}%` : '—'}</div>
+            <div className="label">Win rate (overall)</div>
+          </div>
+        )}
         <div className="card">
           <div className="num">{totals.mins}</div>
           <div className="label">Minutes of audio</div>
@@ -256,85 +262,6 @@ export default function Calls() {
                 no reason given · {noReasonCount}
               </span>
             )}
-          </div>
-        </div>
-      )}
-
-      {/* What actually sells. Won deals only — see productList above. */}
-      {isWon && productList.length > 0 && (
-        <div className="card" style={{ padding: '14px 16px', marginBottom: 16 }}>
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'baseline',
-              marginBottom: 12,
-            }}
-          >
-            <div className="label">Which products close — highest to lowest</div>
-            <div className="subtle">
-              {productList.length} products · {inr(productTotal)} total
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {productList.map((p, i) => {
-              const top = i === 0;
-              const bottom = i === productList.length - 1;
-              return (
-                <div
-                  key={p.name}
-                  style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: '0.85rem' }}
-                  title={`${p.deals} deal${p.deals === 1 ? '' : 's'} · ${p.units} unit${p.units === 1 ? '' : 's'} · ${inr(p.revenue)}`}
-                >
-                  <span style={{ width: 22, textAlign: 'right', opacity: 0.5 }}>{i + 1}</span>
-
-                  <span style={{ flex: '0 0 240px', fontWeight: top ? 600 : 400 }}>
-                    {p.name}
-                  </span>
-
-                  {/* Bar is relative to the best seller, so the spread is visible. */}
-                  <span
-                    style={{
-                      flex: 1,
-                      background: 'var(--surface-inset)',
-                      borderRadius: 4,
-                      height: 14,
-                      overflow: 'hidden',
-                    }}
-                  >
-                    <span
-                      style={{
-                        display: 'block',
-                        height: '100%',
-                        width: `${Math.max((p.revenue / productMax) * 100, 1)}%`,
-                        background: top
-                          ? 'var(--green, #27ae60)'
-                          : bottom
-                            ? 'var(--red, #c0392b)'
-                            : 'var(--accent, #6b8afd)',
-                        opacity: top || bottom ? 1 : 0.55,
-                      }}
-                    />
-                  </span>
-
-                  <span style={{ flex: '0 0 90px', textAlign: 'right', fontWeight: 600 }}>
-                    {inr(p.revenue)}
-                  </span>
-                  <span
-                    style={{ flex: '0 0 70px', textAlign: 'right' }}
-                    className="subtle"
-                  >
-                    {p.deals} deal{p.deals === 1 ? '' : 's'}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="subtle" style={{ marginTop: 10, fontSize: '0.75rem' }}>
-            Won deals only — products are attached in Bigin when the sale is made, so
-            lost deals carry none.
           </div>
         </div>
       )}
@@ -384,6 +311,19 @@ export default function Calls() {
           Closed to
           <input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
         </label>
+
+        {/* Upsell only exists on won deals — Bigin's Up_Scale is literally
+            "... Closed with Sale - (Upsell - ...)". Meaningless on the lost tab. */}
+        {isWon && (
+          <label>
+            Upsell
+            <select value={upsold} onChange={(e) => setUpsold(e.target.value)}>
+              <option value="">All won leads</option>
+              <option value="yes">Upsold only</option>
+              <option value="no">Not upsold</option>
+            </select>
+          </label>
+        )}
 
         <label>
           Calls
@@ -442,8 +382,37 @@ export default function Calls() {
         {isWon ? 'closed with sale' : 'closed without sale'} —{' '}
         <strong>{coverage.withCalls}</strong> with recorded calls,{' '}
         <strong>{coverage.withoutCalls}</strong> with none.
+        {isWon && outcomes?.upsold != null && (
+          <>
+            {' '}
+            <strong style={{ color: 'var(--green, #27ae60)' }}>{outcomes.upsold}</strong>{' '}
+            upsold.
+          </>
+        )}
         {pages > 1 && ` Showing ${journeys.length} (page ${page} of ${pages}).`}
       </p>
+
+      {/* Column headings for the journey rows. Without these the Upsell column is
+          just an unexplained badge floating in the middle of the row. */}
+      {isWon && journeys.length > 0 && (
+        <div
+          className="subtle"
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            padding: '0 14px 6px',
+            fontSize: '0.72rem',
+            textTransform: 'uppercase',
+            letterSpacing: '0.04em',
+          }}
+        >
+          <span>Lead</span>
+          <span style={{ display: 'flex', gap: 12 }}>
+            <span style={{ flex: '0 0 150px' }}>Upsell</span>
+            <span>Calls · Duration · Dates · Owner · Score</span>
+          </span>
+        </div>
+      )}
 
       <div className="journeys">
         {journeys.map((j) => {
@@ -472,32 +441,36 @@ export default function Calls() {
                           )}
                         </>
                       )}
-                      {j.deal?.upScale && (
-                        <>
-                          {' · '}
-                          <em style={{ color: 'var(--green, #27ae60)' }}>
-                            {upsellLabel(j.deal.upScale)}
-                          </em>
-                        </>
-                      )}
                     </div>
                   </div>
                 </div>
 
                 <div className="journey-meta">
                   {/* No won/lost badge — the tab already says which you're on. */}
-                  {/* Bigin's Up_Scale picklist: the lead bought MORE than they came for
-                      (e.g. asked about Inter G1, left with G1 + G2). Worth surfacing —
-                      an upsell is the most valuable thing a rep can do on a call. */}
-                  {j.deal?.upScale && (
+
+                  {/* UPSELL — a real column on the won tab, not a badge that only
+                      appears sometimes. It renders on EVERY won row, blank when the
+                      rep didn't upsell, so "nobody is upselling" is as visible as
+                      "someone did". A badge that only shows on a hit would hide the
+                      more important fact: how rarely this happens. */}
+                  {isWon && (
                     <span
-                      className="badge badge-low"
-                      title={j.deal.upScale}
-                      style={{ background: 'var(--green, #27ae60)', color: '#fff' }}
+                      style={{ flex: '0 0 150px', textAlign: 'left' }}
+                      title={j.deal?.upScale || 'No upsell recorded in Bigin'}
                     >
-                      ⬆ upsell
+                      {j.deal?.upScale ? (
+                        <span
+                          className="badge"
+                          style={{ background: 'var(--green, #27ae60)', color: '#fff' }}
+                        >
+                          ⬆ {upsellLabel(j.deal.upScale).replace(/^upsold to /, '')}
+                        </span>
+                      ) : (
+                        <span className="subtle">—</span>
+                      )}
                     </span>
                   )}
+
                   {j.totalCalls > 0 ? (
                     <>
                       <span className="badge badge-normal">{j.totalCalls} calls</span>
