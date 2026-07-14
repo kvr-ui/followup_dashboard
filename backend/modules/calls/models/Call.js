@@ -69,6 +69,10 @@ const callSchema = new mongoose.Schema(
     leadPhone: { type: String, default: null, index: true },
     leadName: { type: String, default: null },
 
+    // Strict last-10-digit keys for every phone leg (leadPhone/to/from). A deal
+    // finds its calls by indexed equality on this array instead of a regex scan.
+    phoneKeys: { type: [String], default: [], index: true },
+
     duration: { type: Number, default: 0 }, // seconds
     billedSec: { type: Number, default: 0 },
     startedAt: { type: Date, index: true },

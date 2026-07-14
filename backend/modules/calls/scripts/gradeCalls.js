@@ -182,44 +182,50 @@ function transcriptText(call) {
 }
 
 async function gradeOne(call) {
-  const res = await fetch(API_URL, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${API_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: MODEL,
-      messages: [
-        { role: 'system', content: SYSTEM },
-        {
-          role: 'user',
-          content:
-            `Call: ${Math.round(call.duration / 60)} min, ${call.direction}, ` +
-            `outcome=${call.outcome}, call #${call._pos} of ${call._total} to this lead.\n\n` +
-            `TRANSCRIPT:\n${transcriptText(call)}`,
-        },
-      ],
-      // sarvam-105b is a reasoning model — it spends output tokens thinking before it
-      // answers. Too small a budget and the JSON gets truncated mid-object.
-      max_tokens: 4000,
-      temperature: 0.2,
-    }),
-  });
-
-  const json = await res.json();
-  if (json.error) return { error: JSON.stringify(json.error).slice(0, 150) };
-
-  const raw = ((json.choices && json.choices[0] && json.choices[0].message.content) || '')
-    .trim()
-    .replace(/^```(?:json)?|```$/g, '')
-    .trim();
-
-  let parsed = null;
+  // One network/parse error must not reject the whole Promise.all batch and kill
+  // the run — isolate each call so a single failure just gets reported and skipped.
   try {
-    parsed = JSON.parse(raw);
-  } catch {
-    const m = raw.match(/\{[\s\S]*\}/); // reasoning models sometimes wrap the JSON in prose
-    if (m) { try { parsed = JSON.parse(m[0]); } catch { /* leave null */ } }
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: MODEL,
+        messages: [
+          { role: 'system', content: SYSTEM },
+          {
+            role: 'user',
+            content:
+              `Call: ${Math.round(call.duration / 60)} min, ${call.direction}, ` +
+              `outcome=${call.outcome}, call #${call._pos} of ${call._total} to this lead.\n\n` +
+              `TRANSCRIPT:\n${transcriptText(call)}`,
+          },
+        ],
+        // sarvam-105b is a reasoning model — it spends output tokens thinking before it
+        // answers. Too small a budget and the JSON gets truncated mid-object.
+        max_tokens: 4000,
+        temperature: 0.2,
+      }),
+    });
+
+    const json = await res.json();
+    if (json.error) return { error: JSON.stringify(json.error).slice(0, 150) };
+
+    const raw = ((json.choices && json.choices[0] && json.choices[0].message.content) || '')
+      .trim()
+      .replace(/^```(?:json)?|```$/g, '')
+      .trim();
+
+    let parsed = null;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      const m = raw.match(/\{[\s\S]*\}/); // reasoning models sometimes wrap the JSON in prose
+      if (m) { try { parsed = JSON.parse(m[0]); } catch { /* leave null */ } }
+    }
+    return { parsed, raw, usage: json.usage };
+  } catch (err) {
+    return { error: `request failed: ${err.message}`.slice(0, 150) };
   }
-  return { parsed, raw, usage: json.usage };
 }
 
 /** Did it obey the English-only rule? Tamil script is U+0B80–U+0BFF. */
@@ -267,7 +273,13 @@ async function run() {
             $set: {
               grade: {
                 score: p.total,
-                breakdown: { callType: p.call_type, scores: p.scores },
+                // salespersonSpeaker lets the transcript UI label who's who
+                // correctly — the grader works it out per call; it isn't fixed.
+                breakdown: {
+                  callType: p.call_type,
+                  salespersonSpeaker: p.salesperson_speaker || null,
+                  scores: p.scores,
+                },
                 summary: p.summary,
                 strengths: p.strengths || [],
                 improvements: p.improvements || [],

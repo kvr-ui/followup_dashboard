@@ -80,6 +80,12 @@ const TASK_CACHE_TTL_MS = Number(process.env.TASK_CACHE_TTL_MS || 30000);
 let taskCache = null;
 let taskCacheAt = 0;
 let taskRefreshing = null;
+// Bumped on every write-invalidation. A refresh captures the generation when it
+// starts; if a write lands mid-load, the generation moves and the just-loaded
+// (pre-write) data is kept stale instead of being marked fresh — otherwise a
+// slow read that began before the write could overwrite the cache with old data
+// and hide the write for a full TTL.
+let taskCacheGen = 0;
 
 async function loadTaskList() {
   const docs = await Task.find(
@@ -97,10 +103,13 @@ async function getCachedTasks() {
   if (fresh) return taskCache;
 
   if (!taskRefreshing) {
+    const startGen = taskCacheGen;
     taskRefreshing = loadTaskList()
       .then((rows) => {
         taskCache = rows;
-        taskCacheAt = Date.now();
+        // Only mark fresh if no write invalidated us mid-load; otherwise leave it
+        // stale so the very next read refreshes again, this time seeing the write.
+        taskCacheAt = taskCacheGen === startGen ? Date.now() : 0;
         return rows;
       })
       .finally(() => {
@@ -115,6 +124,7 @@ async function getCachedTasks() {
 /** Called after any write so the next read reflects it immediately. */
 function invalidateTaskCache() {
   taskCacheAt = 0;
+  taskCacheGen += 1;
 }
 
 /** Warm at boot so the first dashboard load isn't the slow one. */

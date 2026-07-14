@@ -19,6 +19,21 @@ function key10(value) {
   return d.length >= 10 ? d.slice(-10) : d || null;
 }
 
+// A *strict* match key for cross-linking a call to a deal: the last 10 digits,
+// but ONLY when the number has 10+ digits. Unlike key10, a shorter fragment is
+// rejected (returns null) — so a 6-digit landline (or a malformed number) can't
+// loosely match an unrelated number that merely ends the same way. This is the
+// cross-link guard the old regex-suffix match lacked.
+function phoneKey(value) {
+  const d = String(value || '').replace(/\D/g, '');
+  return d.length >= 10 ? d.slice(-10) : null;
+}
+
+// The distinct strict keys for a call — any of its phone legs may identify the lead.
+function phoneKeysOf({ leadPhone, to, from } = {}) {
+  return [...new Set([phoneKey(leadPhone), phoneKey(to), phoneKey(from)].filter(Boolean))];
+}
+
 /**
  * Build an in-memory index of every lead phone -> lead, so matching 700 calls
  * doesn't mean 700 database queries.
@@ -134,6 +149,8 @@ function toCallDoc(row, leadIndex, agents) {
     startedAt: row.time ? new Date(Number(row.time)) : null,
     filename: row.filename || null,
     hasRecording,
+    // Precomputed match keys so deals can find this call by indexed equality.
+    phoneKeys: phoneKeysOf({ leadPhone, to, from }),
   };
 }
 
@@ -159,4 +176,13 @@ async function upsertCall(row, leadIndex, agents, { minDurationSec = 0 } = {}) {
   return { call, created: true };
 }
 
-module.exports = { agentMap, buildLeadIndex, warmLeadIndex, upsertCall, toCallDoc, key10 };
+module.exports = {
+  agentMap,
+  buildLeadIndex,
+  warmLeadIndex,
+  upsertCall,
+  toCallDoc,
+  key10,
+  phoneKey,
+  phoneKeysOf,
+};

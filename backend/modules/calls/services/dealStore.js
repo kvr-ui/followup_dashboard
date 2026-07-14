@@ -2,7 +2,7 @@ const zoho = require('../../../services/zoho');
 const Task = require('../../../models/Task');
 const Deal = require('../models/Deal');
 const Call = require('../models/Call');
-const { key10 } = require('./callStore');
+const { phoneKey } = require('./callStore');
 
 const WON_STAGE = process.env.BIGIN_WON_STAGE || 'Closed with Sale';
 const LOST_STAGE = process.env.BIGIN_LOST_STAGE || 'Closed without Sale';
@@ -186,6 +186,7 @@ async function upsertDeal(raw, source = 'poll') {
     contactId: contactId ? String(contactId) : null,
     contactName: (resolved && resolved.name) || (raw.Contact_Name && raw.Contact_Name.name) || null,
     contactPhone: (resolved && resolved.phone) || null,
+    contactPhoneKey: phoneKey((resolved && resolved.phone) || null),
     modifiedTime: raw.Modified_Time ? new Date(raw.Modified_Time) : new Date(),
     source,
   };
@@ -214,18 +215,12 @@ async function upsertDeal(raw, source = 'poll') {
  */
 async function tagCallsForDeal(deal) {
   if (deal.outcome !== 'won' && deal.outcome !== 'lost') return 0;
-  if (!deal.contactPhone) return 0;
-  const k = key10(deal.contactPhone);
+  const k = deal.contactPhoneKey || phoneKey(deal.contactPhone);
   if (!k) return 0;
 
-  // Find the contact's calls by matching either leg of the call.
-  const calls = await Call.find({
-    $or: [
-      { leadPhone: { $regex: `${k}$` } },
-      { to: { $regex: `${k}$` } },
-      { from: { $regex: `${k}$` } },
-    ],
-  });
+  // Indexed equality on the call's precomputed phone keys (any leg matched) —
+  // replaces three regex-suffix scans of the whole calls collection.
+  const calls = await Call.find({ phoneKeys: k });
 
   const embedded = {
     id: deal.zohoId,

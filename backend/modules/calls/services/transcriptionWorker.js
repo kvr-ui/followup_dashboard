@@ -4,6 +4,12 @@ const elevenlabs = require('./elevenlabs');
 
 const MAX_ATTEMPTS = 3;
 
+// Out-of-credits / billing errors are transient: top up the account and the same
+// call transcribes fine. They must NOT count against the retry budget, or a quota
+// outage permanently marks calls `failed` and they're never retried once credits
+// return. Real errors (bad audio, unknown model) still count and eventually fail.
+const isQuotaError = (msg) => /quota|credits|insufficient|payment|402/i.test(msg || '');
+
 /**
  * Transcribe a single call. Idempotent: a call already `done` is never redone,
  * so re-running the worker costs nothing extra.
@@ -28,11 +34,13 @@ async function transcribeCall(call, { force = false } = {}) {
     const result = await elevenlabs.transcribe(buffer, call.filename);
 
     if (!result.ok) {
-      call.transcriptionAttempts = (call.transcriptionAttempts || 0) + 1;
+      const quota = isQuotaError(result.error);
+      if (!quota) call.transcriptionAttempts = (call.transcriptionAttempts || 0) + 1;
       call.transcriptionError = result.error || 'Transcription failed';
-      // Leave it retryable until we've genuinely given up.
+      // Quota errors stay pending forever (no attempt burned); real errors are
+      // retryable until we've genuinely given up.
       call.transcriptionStatus =
-        call.transcriptionAttempts >= MAX_ATTEMPTS ? 'failed' : 'pending';
+        !quota && call.transcriptionAttempts >= MAX_ATTEMPTS ? 'failed' : 'pending';
       await call.save();
       return { ok: false, error: call.transcriptionError };
     }
@@ -52,10 +60,11 @@ async function transcribeCall(call, { force = false } = {}) {
 
     return { ok: true, chars: (result.text || '').length, language: result.language };
   } catch (err) {
-    call.transcriptionAttempts = (call.transcriptionAttempts || 0) + 1;
+    const quota = isQuotaError(err.message);
+    if (!quota) call.transcriptionAttempts = (call.transcriptionAttempts || 0) + 1;
     call.transcriptionError = err.message;
     call.transcriptionStatus =
-      call.transcriptionAttempts >= MAX_ATTEMPTS ? 'failed' : 'pending';
+      !quota && call.transcriptionAttempts >= MAX_ATTEMPTS ? 'failed' : 'pending';
     await call.save();
     return { ok: false, error: err.message };
   }

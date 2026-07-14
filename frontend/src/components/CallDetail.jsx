@@ -22,7 +22,15 @@ export default function CallDetail({ callId, onClose }) {
 
   // The recording route needs an auth header, so <audio src> can't fetch it
   // directly — pull it as a blob and hand the player an object URL.
+  // Wait for the call to load and only fetch when it actually has a recording,
+  // otherwise we fire a guaranteed 404 on every call that has no audio.
   useEffect(() => {
+    if (!call) return;
+    if (!call.hasRecording) {
+      setAudioUrl(null);
+      setLoadingAudio(false);
+      return;
+    }
     let revoked = null;
     setLoadingAudio(true);
     fetch(`/api/calls/${callId}/recording`, {
@@ -39,7 +47,7 @@ export default function CallDetail({ callId, onClose }) {
     return () => {
       if (revoked) URL.revokeObjectURL(revoked);
     };
-  }, [callId]);
+  }, [call, callId]);
 
   function seek(seconds) {
     if (audioRef.current) {
@@ -49,8 +57,14 @@ export default function CallDetail({ callId, onClose }) {
   }
 
   const segments = call?.transcript?.segments || [];
-  // speaker_0 / speaker_1 -> friendly labels
-  const speakerLabel = (id) => (id === 'speaker_1' ? 'Agent' : id === 'speaker_0' ? 'Customer' : id);
+  // The diarizer's speaker_0/speaker_1 labels are arbitrary — which one is the
+  // salesperson differs per call. The grader works it out and stores it, so use
+  // that when available; fall back to speaker_1 for ungraded calls.
+  const agentSpeaker = call?.grade?.breakdown?.salespersonSpeaker || 'speaker_1';
+  const speakerLabel = (id) => {
+    if (id !== 'speaker_0' && id !== 'speaker_1') return id;
+    return id === agentSpeaker ? 'Agent' : 'Customer';
+  };
 
   return (
     <div className="drawer-backdrop" onClick={onClose}>
@@ -145,7 +159,7 @@ export default function CallDetail({ callId, onClose }) {
                   {segments.map((s, i) => (
                     <div
                       key={i}
-                      className={`turn ${s.speaker === 'speaker_1' ? 'turn-agent' : 'turn-customer'}`}
+                      className={`turn ${s.speaker === agentSpeaker ? 'turn-agent' : 'turn-customer'}`}
                       onClick={() => seek(s.start)}
                       title="Jump to this moment"
                     >

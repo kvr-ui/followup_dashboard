@@ -1,7 +1,7 @@
 const Call = require('../models/Call');
 const Deal = require('../models/Deal');
 const telecmi = require('../services/telecmi');
-const { agentMap, buildLeadIndex, upsertCall, key10 } = require('../services/callStore');
+const { agentMap, buildLeadIndex, upsertCall, phoneKeysOf } = require('../services/callStore');
 const { upsertDeal, shouldTranscribe } = require('../services/dealStore');
 
 /**
@@ -55,11 +55,12 @@ async function afterCallStored(callDoc) {
     if (!fresh) return;
     if (fresh.transcriptionStatus === 'done' || fresh.transcriptionStatus === 'processing') return;
 
-    // Find the most recently closed deal for either leg of this call.
-    const keys = [key10(fresh.leadPhone), key10(fresh.to), key10(fresh.from)].filter(Boolean);
+    // Find the most recently closed deal for any leg of this call — indexed
+    // equality on the strict phone keys, served by the compound Deal index.
+    const keys = fresh.phoneKeys && fresh.phoneKeys.length ? fresh.phoneKeys : phoneKeysOf(fresh);
     if (keys.length) {
       const deal = await Deal.findOne({
-        contactPhone: { $regex: `(${keys.join('|')})$` },
+        contactPhoneKey: { $in: keys },
         outcome: { $in: ['won', 'lost'] },
       }).sort({ modifiedTime: -1 });
 

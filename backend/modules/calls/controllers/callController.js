@@ -7,6 +7,10 @@ const { getJourneys } = require('../services/journeyCache');
 
 const MIN_DURATION = Number(process.env.TELECMI_MIN_DURATION_SEC || 30);
 
+// Guards against two concurrent POST /api/calls/sync runs processing the same
+// TeleCMI window at once (idempotent on cmiuid, so not corrupting — just wasteful).
+let syncRunning = false;
+
 /** GET /api/calls — list with filters (admin only). */
 async function listCalls(req, res) {
   try {
@@ -312,11 +316,17 @@ async function streamRecording(req, res) {
 
 /** POST /api/calls/sync — pull recent calls from TeleCMI (incremental). */
 async function syncCalls(req, res) {
-  try {
-    if (!telecmi.isConfigured()) {
-      return res.status(400).json({ success: false, message: 'TeleCMI not configured' });
-    }
+  if (!telecmi.isConfigured()) {
+    return res.status(400).json({ success: false, message: 'TeleCMI not configured' });
+  }
+  // Acquire the lock before the try, so an early 409 return never trips the
+  // finally that would release a *different* run's lock.
+  if (syncRunning) {
+    return res.status(409).json({ success: false, message: 'A sync is already running' });
+  }
+  syncRunning = true;
 
+  try {
     const days = Number(req.body?.days || 2);
     const from = Date.now() - days * 24 * 60 * 60 * 1000;
     const to = Date.now();
@@ -343,6 +353,8 @@ async function syncCalls(req, res) {
   } catch (err) {
     console.error('Call sync failed:', err.message);
     res.status(502).json({ success: false, message: err.message });
+  } finally {
+    syncRunning = false;
   }
 }
 

@@ -24,7 +24,12 @@ WORKDIR /app/backend
 
 # ffmpeg: TeleCMI records at MPEG-2.5/8kHz, which browsers can't decode.
 # We transcode call recordings to standard MP3 before streaming them.
-RUN apk add --no-cache ffmpeg
+# tzdata: the "overdue / today / upcoming" buckets use the server's local
+# midnight, so the container must run in IST or evening-IST tasks flip a day.
+RUN apk add --no-cache ffmpeg tzdata
+
+# Run in IST — matches the users and the Bigin due dates.
+ENV TZ=Asia/Kolkata
 
 # Production dependencies only
 COPY backend/package.json backend/package-lock.json ./

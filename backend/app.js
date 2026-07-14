@@ -69,8 +69,12 @@ app.use((err, req, res, next) => {
   return next(err);
 });
 
-// Re-run the webhook route after a successful recovery.
+// Re-run the webhook routes after a successful recovery. Both the task webhook
+// and the call/deal webhooks must be re-mounted here — otherwise a recovered
+// TeleCMI/Bigin body would fall through to the task router and be silently
+// dropped (it matches no route there).
 app.use('/webhook', webhookRoutes);
+app.use('/webhook', callWebhookRoutes);
 
 /**
  * Attempt to parse a raw body that failed strict JSON parsing.

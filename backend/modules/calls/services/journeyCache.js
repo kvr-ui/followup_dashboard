@@ -15,6 +15,9 @@ const TTL_MS = Number(process.env.JOURNEY_CACHE_TTL_MS || 60000);
 let cache = null;
 let cachedAt = 0;
 let refreshing = null;
+// See taskController's taskCacheGen: guards against a refresh that began before a
+// deal/call write completing after invalidate() and re-marking stale data fresh.
+let generation = 0;
 
 /** The expensive bit: join every closed deal to its calls. Runs once per TTL. */
 async function loadJourneys() {
@@ -112,10 +115,13 @@ async function getJourneys() {
   if (fresh) return cache;
 
   if (!refreshing) {
+    const startGen = generation;
     refreshing = loadJourneys()
       .then((rows) => {
         cache = rows;
-        cachedAt = Date.now();
+        // If a write invalidated us mid-load, keep this (pre-write) snapshot stale
+        // so the next read rebuilds with the write included.
+        cachedAt = generation === startGen ? Date.now() : 0;
         return rows;
       })
       .finally(() => {
@@ -131,6 +137,7 @@ async function getJourneys() {
 /** Called after any deal/call write, so the next read reflects it immediately. */
 function invalidate() {
   cachedAt = 0;
+  generation += 1;
 }
 
 async function warm() {

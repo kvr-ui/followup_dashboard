@@ -38,6 +38,9 @@ const dealSchema = new mongoose.Schema(
     contactId: { type: String, index: true },
     contactName: String,
     contactPhone: { type: String, index: true },
+    // Strict last-10-digit key of contactPhone — the indexed join key that matches
+    // this deal to its calls (Call.phoneKeys) by equality, not a regex suffix scan.
+    contactPhoneKey: { type: String, default: null, index: true },
 
     // What was actually sold — Bigin's `Associated_Products` subform on the deal.
     // Not a field on the list endpoint, so it never arrives in the webhook and
@@ -67,5 +70,10 @@ const dealSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+// afterCallStored looks up "the most recently closed deal for this contact":
+// match by phone key + outcome, newest first. This compound index serves that
+// query (equality on the first two fields, sort on the third) in one seek.
+dealSchema.index({ contactPhoneKey: 1, outcome: 1, modifiedTime: -1 });
 
 module.exports = mongoose.model('Deal', dealSchema);

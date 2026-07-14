@@ -6,6 +6,7 @@ const seedAdmin = require('./config/seed');
 const Task = require('./models/Task');
 const SyncState = require('./models/SyncState');
 const Call = require('./modules/calls/models/Call');
+const Deal = require('./modules/calls/models/Deal');
 const callJobs = require('./modules/calls/services/scheduler');
 const taskJobs = require('./services/taskSync');
 const { warmTaskCache } = require('./controllers/taskController');
@@ -18,6 +19,7 @@ connectDB()
   .then(() => Task.syncIndexes()) // build the contact-id index (autoIndex is off in prod)
   .then(() => SyncState.syncIndexes()) // unique per-job cursor
   .then(() => Call.syncIndexes()) // incl. deal.id — the journeys join depends on it
+  .then(() => Deal.syncIndexes()) // incl. contactPhoneKey — the call<->deal match
   .then(() => {
     app.listen(PORT, () => {
       console.log(`Server is running on http://localhost:${PORT}`);

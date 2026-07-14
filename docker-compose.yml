@@ -13,3 +13,5 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=7007
+      # Due-date buckets use local midnight — keep the container in IST.
+      - TZ=Asia/Kolkata
