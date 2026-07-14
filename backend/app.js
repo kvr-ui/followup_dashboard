@@ -10,6 +10,7 @@ const analyticsRoutes = require('./routes/analytics');
 const watiRoutes = require('./routes/wati');
 const callRoutes = require('./modules/calls/routes/calls'); // v2: call grading
 const installmentRoutes = require('./modules/calls/routes/installments'); // v2: pending payments
+const upsellRoutes = require('./modules/calls/routes/upsells'); // v2: upsold leads
 const callWebhookRoutes = require('./modules/calls/routes/webhooks'); // v2: TeleCMI + Bigin deal webhooks
 
 const app = express();
@@ -39,6 +40,7 @@ app.use('/api/analytics', analyticsRoutes); // admin-only
 app.use('/api/wati', watiRoutes);
 app.use('/api/calls', callRoutes); // admin-only
 app.use('/api/installments', installmentRoutes); // auth + role-based filtering (reps see their own)
+app.use('/api/upsells', upsellRoutes); // auth + role-based filtering (reps see their own)
 app.use('/webhook', callWebhookRoutes); // /webhook/call (TeleCMI), /webhook/deal (Bigin)
 
 // Health check

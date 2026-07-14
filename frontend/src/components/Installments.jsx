@@ -1,24 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../api';
 import CopyButton from './CopyButton';
-
-function inr(n) {
-  const v = Math.round(n || 0);
-  if (v >= 1e7) return `₹${(v / 1e7).toFixed(2)}Cr`;
-  if (v >= 1e5) return `₹${(v / 1e5).toFixed(2)}L`; // lakhs read better than 9,19,000
-  return `₹${v.toLocaleString('en-IN')}`;
-}
-
-/**
- * Bigin's Up_Scale reads "Inter G1 - Closed with Sale - (Upsell - Inter G2)" — the
- * only part worth a table cell is what they were upsold TO. Falls back to the raw
- * value if the picklist ever stops following that shape.
- */
-function upsoldTo(upScale) {
-  if (!upScale) return null;
-  const m = upScale.match(/\(\s*upsell\s*-\s*(.+?)\s*\)/i);
-  return m ? m[1] : upScale;
-}
+import { inr, upsoldTo } from '../upsell';
 
 /** Days since the deal closed — how long the balance has been outstanding. */
 function daysSince(closingDate) {

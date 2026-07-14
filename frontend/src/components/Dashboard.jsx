@@ -6,6 +6,7 @@ import Analytics from './Analytics';
 import Calls from './Calls';
 import Products from './Products';
 import Installments from './Installments';
+import Upsells from './Upsells';
 import SummaryCards from './SummaryCards';
 import Filters from './Filters';
 import { api } from '../api';
@@ -48,8 +49,8 @@ export default function Dashboard({ user, onLogout }) {
   const allowed = useMemo(
     () =>
       isAdmin
-        ? ['tasks', 'analytics', 'calls', 'products', 'installments', 'users']
-        : ['tasks', 'installments'],
+        ? ['tasks', 'analytics', 'calls', 'products', 'installments', 'upsells', 'users']
+        : ['tasks', 'installments', 'upsells'],
     [isAdmin]
   );
 
@@ -116,6 +117,12 @@ export default function Dashboard({ user, onLogout }) {
             >
               Installments
             </button>
+            <button
+              className={view === 'upsells' ? 'tab active' : 'tab'}
+              onClick={() => setView('upsells')}
+            >
+              Upsells
+            </button>
             {isAdmin && (
               <button
                 className={view === 'users' ? 'tab active' : 'tab'}
@@ -169,6 +176,8 @@ export default function Dashboard({ user, onLogout }) {
           </>
         ) : view === 'installments' ? (
           <Installments isAdmin={isAdmin} />
+        ) : view === 'upsells' ? (
+          <Upsells isAdmin={isAdmin} />
         ) : view === 'analytics' ? (
           <Analytics />
         ) : view === 'calls' ? (

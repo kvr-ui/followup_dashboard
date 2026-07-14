@@ -1,4 +1,5 @@
 const Deal = require('../models/Deal');
+const { ownerScope } = require('../services/ownerScope');
 
 /**
  * GET /api/installments — won deals the lead hasn't finished paying for.
@@ -20,24 +21,17 @@ const Deal = require('../models/Deal');
  */
 async function listInstallments(req, res) {
   try {
-    const isAdmin = req.user.role === 'admin';
-    const mine = (req.user.ownerEmail || '').toLowerCase();
-
-    const q = { outcome: 'won', installment: { $gt: 0 } };
-
-    if (isAdmin) {
-      if (req.query.owner) q.ownerEmail = String(req.query.owner).toLowerCase();
-    } else {
-      // A sales user with no ownerEmail owns no deals — say so, rather than
-      // falling through to an unscoped query that would leak the whole pipeline.
-      if (!mine) {
-        return res.json({ success: true, count: 0, totalPending: 0, totalPaid: 0, data: [] });
-      }
-      q.ownerEmail = mine;
+    const scope = ownerScope(req);
+    if (!scope) {
+      return res.json({
+        success: true, count: 0, totalPending: 0, totalPaid: 0, upsold: 0, data: [],
+      });
     }
 
     // Oldest closing date first: the longest-outstanding balance is the one to chase.
-    const deals = await Deal.find(q).sort({ closingDate: 1 }).lean();
+    const deals = await Deal.find({ ...scope, outcome: 'won', installment: { $gt: 0 } })
+      .sort({ closingDate: 1 })
+      .lean();
 
     const data = deals.map((d) => {
       const amount = Number(d.amount) || 0;
