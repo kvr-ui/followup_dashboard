@@ -1,23 +1,29 @@
 const Task = require('../models/Task');
 const { upsertTask } = require('../services/taskStore');
-const { enrichBody } = require('../services/enrich');
 const { invalidateTaskCache } = require('./taskController');
 
-// Fetch phone/subject from Zoho for a stored record, in the background.
-// Throttled + retried inside the Zoho service, so it never blocks the webhook
-// and never floods Zoho. Errors are swallowed — the task is already saved.
-async function enrichInBackground(doc) {
+/**
+ * Re-store the task with the fields Zoho Flow didn't send.
+ *
+ * Two things are missing from the webhook payload — the contact's phone, and
+ * `Task_Category` (a custom picklist Zoho Flow simply never maps). Both have to be
+ * read back from the Bigin API, which is far too slow to do before responding, so
+ * we do it here, after the 200.
+ *
+ * Note we enrich the ORIGINAL PAYLOAD and re-run upsertTask, rather than enriching
+ * the stored document. That distinction is load-bearing: a lead has many tasks but
+ * we keep only ONE `body` (their newest). When a webhook arrives for an OLDER task,
+ * upsertTask correctly refuses to overwrite `body` — so enriching `body` would fetch
+ * the category of the wrong task and drop the incoming one's on the floor. Enriching
+ * the payload puts the category on the right task's history entry either way.
+ *
+ * upsertTask is keyed by contact, so running it twice is safe.
+ */
+async function enrichInBackground(payload) {
   try {
-    if (!doc || !doc._id) return;
-    const fresh = await Task.findById(doc._id);
-    if (!fresh) return;
-    const changed = await enrichBody(fresh.body);
-    if (changed) {
-      const phone = fresh.body && fresh.body.Who_Id && fresh.body.Who_Id.phone;
-      if (phone) fresh.phone = String(phone);
-      fresh.markModified('body');
-      await fresh.save();
-    }
+    if (!payload || !payload.id) return;
+    await upsertTask(payload, { enrich: true });
+    invalidateTaskCache(); // phone/category are now known — refresh the cached list
   } catch (err) {
     console.warn('Background enrich failed:', err.message);
   }
@@ -38,8 +44,9 @@ async function receiveWebhook(req, res) {
     invalidateTaskCache(); // new lead must show up on the next dashboard poll
     res.status(200).json({ success: true, message: 'Webhook received', count: saved.length });
 
-    // Enrich after responding — does not delay the webhook.
-    saved.filter(Boolean).forEach(enrichInBackground);
+    // Enrich after responding — does not delay the webhook. Pass the payloads, not
+    // the saved docs: see enrichInBackground.
+    payloads.forEach(enrichInBackground);
   } catch (err) {
     console.error('Failed to store webhook:', err.message);
     res.status(500).json({ success: false, message: 'Failed to store webhook' });

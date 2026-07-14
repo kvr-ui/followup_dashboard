@@ -46,20 +46,42 @@ async function enrichContact(task) {
   return changed;
 }
 
-// Fill in the task's Subject (name) — and Description — from Bigin if the
-// webhook didn't send them. No-op once Subject is present.
+/**
+ * Fill in fields the webhook didn't send, by reading the task record from Bigin.
+ *
+ * Two things are missing from the Zoho Flow payload:
+ *   - Subject: sometimes absent.
+ *   - Task_Category: ALWAYS absent. It's a custom picklist (Follow Up, Call Back,
+ *     Final Follow Up, See Response, ...) and Zoho Flow only sends the fields
+ *     mapped into the Flow — nobody mapped this one. The API does return it, so
+ *     we fetch it here.
+ *
+ * `Task_Category === undefined` means the payload never carried the field (webhook).
+ * An explicit null means Bigin told us the picklist is empty — don't keep asking.
+ */
 async function enrichTaskFields(task) {
   if (!task || !task.id) return false;
-  if (task.Subject) return false;
+
+  const needsSubject = !task.Subject;
+  const needsCategory = task.Task_Category === undefined;
+  if (!needsSubject && !needsCategory) return false;
 
   const r = await zoho.getTaskRecord(task.id);
   if (!r.ok) return false;
 
-  task.Subject = r.record.Subject || null;
+  if (needsSubject) task.Subject = r.record.Subject || null;
+  if (needsCategory) task.Task_Category = cleanCategory(r.record.Task_Category);
   if (!task.Description && r.record.Description) {
     task.Description = r.record.Description;
   }
   return true;
+}
+
+/** Bigin writes an unset picklist as the literal "-None-". That isn't a category. */
+function cleanCategory(v) {
+  if (!v) return null;
+  const s = String(v).trim();
+  return !s || s === '-None-' ? null : s;
 }
 
 // Enrich every task inside a stored document body (single object or array).
@@ -74,4 +96,10 @@ async function enrichBody(body) {
   return changed;
 }
 
-module.exports = { enrichContact, enrichTaskFields, enrichBody, normalizeContact };
+module.exports = {
+  enrichContact,
+  enrichTaskFields,
+  enrichBody,
+  normalizeContact,
+  cleanCategory,
+};

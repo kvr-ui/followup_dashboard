@@ -28,6 +28,11 @@ export function extractTasks(record) {
       recordId: record.id,
       task,
       receivedAt: record.receivedAt,
+      // Lives on the record, not inside `body` — Zoho Flow never sends Task_Category,
+      // so the server resolves it (from Bigin, or from the subject line) and stores it
+      // alongside the body rather than in it.
+      category: record.taskCategory || null,
+      categorySource: record.taskCategorySource || null,
     }));
 }
 

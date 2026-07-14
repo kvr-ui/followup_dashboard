@@ -22,6 +22,8 @@ function serialize(doc) {
     id: doc.dedupeKey || doc.zohoId || String(doc._id),
     zohoId: doc.zohoId || null,
     receivedAt: doc.receivedAt,
+    taskCategory: doc.taskCategory || null,
+    taskCategorySource: doc.taskCategorySource || null,
     body: doc.body,
     statusHistory: doc.statusHistory || [],
     notes: doc.notes || [],
@@ -64,6 +66,8 @@ function serializeList(doc) {
     id: doc.dedupeKey || doc.zohoId || String(doc._id),
     zohoId: doc.zohoId || null,
     receivedAt: doc.receivedAt,
+    taskCategory: doc.taskCategory || null,
+    taskCategorySource: doc.taskCategorySource || null,
     body: doc.body,
   };
 }
@@ -80,7 +84,8 @@ let taskRefreshing = null;
 async function loadTaskList() {
   const docs = await Task.find(
     {},
-    { body: 1, receivedAt: 1, dedupeKey: 1, zohoId: 1 } // slim projection
+    // slim projection — the list view renders only these
+    { body: 1, receivedAt: 1, dedupeKey: 1, zohoId: 1, taskCategory: 1, taskCategorySource: 1 }
   )
     .sort({ receivedAt: -1 })
     .lean();

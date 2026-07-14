@@ -1,7 +1,9 @@
 const Task = require('../models/Task');
 const { enrichContact, enrichTaskFields, normalizeContact } = require('./enrich');
+const { resolveCategory } = require('./taskCategory');
 
 function taskSummary(t) {
+  const { category } = resolveCategory(t);
   return {
     zohoId: t.id ? String(t.id) : null,
     subject: t.Subject || null,
@@ -9,6 +11,7 @@ function taskSummary(t) {
     dueDate: t.Due_Date || null,
     createdTime: t.Created_Time ? new Date(t.Created_Time) : null,
     ownerName: (t.Owner && t.Owner.name) || null,
+    category,
   };
 }
 
@@ -46,6 +49,16 @@ function mergeInto(existing, payload, now) {
     existing.body = payload;
     existing.zohoId = payload.id ? String(payload.id) : existing.zohoId;
     if (payload.Who_Id.phone) existing.phone = String(payload.Who_Id.phone);
+
+    // The lead's category is the NEWEST task's category — and we only get here when
+    // this payload IS the newest. Never let a Bigin value be downgraded by a guess
+    // from the subject line.
+    const resolved = resolveCategory(payload);
+    if (resolved.category || existing.taskCategorySource !== 'bigin') {
+      existing.taskCategory = resolved.category;
+      existing.taskCategorySource = resolved.source;
+    }
+
     existing.receivedAt = now;
     existing.markModified('body');
     if (status && status !== prevStatus) {
@@ -93,11 +106,15 @@ async function upsertTask(payload, { enrich = false } = {}) {
   const dedupeKey = contactId ? `contact:${contactId}` : taskId ? `task:${taskId}` : null;
   const phone = payload.Who_Id && payload.Who_Id.phone ? String(payload.Who_Id.phone) : null;
 
+  const resolved = resolveCategory(payload);
+
   try {
     return await Task.create({
       dedupeKey,
       phone,
       zohoId: taskId,
+      taskCategory: resolved.category,
+      taskCategorySource: resolved.source,
       body: payload,
       receivedAt: now,
       statusHistory: status ? [{ status, changedAt: now, source: 'webhook' }] : [],

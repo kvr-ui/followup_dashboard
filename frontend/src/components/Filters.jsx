@@ -1,4 +1,4 @@
-import { DEFAULT_FILTERS } from '../taskStats';
+import { DEFAULT_FILTERS, TASK_CATEGORIES } from '../taskStats';
 
 const TABS = [
   { k: 'all', label: 'All' },
@@ -52,6 +52,19 @@ export default function Filters({ filters, setFilters, owners, isAdmin }) {
             <option>High</option>
             <option>Normal</option>
             <option>Low</option>
+          </select>
+        </label>
+
+        <label>
+          Task Category
+          <select value={filters.category} onChange={(e) => set('category', e.target.value)}>
+            <option value="">All</option>
+            {TASK_CATEGORIES.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+            <option value="(none)">— no category —</option>
           </select>
         </label>
 

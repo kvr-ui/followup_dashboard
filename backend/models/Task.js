@@ -42,6 +42,9 @@ const relatedTaskSchema = new mongoose.Schema(
     dueDate: String,
     createdTime: Date,
     ownerName: String,
+    // Bigin's custom `Task_Category` picklist (Follow Up, Call Back, Final Follow
+    // Up, See Response, ...). Not in the webhook payload — fetched from the API.
+    category: { type: String, default: null },
   },
   { _id: false }
 );
@@ -54,6 +57,22 @@ const taskSchema = new mongoose.Schema(
     dedupeKey: { type: String, unique: true, sparse: true, index: true },
     phone: { type: String, default: null, index: true },
     zohoId: { type: String, default: null, index: true }, // latest task's Bigin id
+
+    // The latest task's Task_Category. Lifted out of `body` into a real indexed
+    // field so the dashboard can filter and group by it — you can't do that on a
+    // Mixed blob without a full collection scan.
+    taskCategory: { type: String, default: null, index: true },
+
+    // Where that category came from. Bigin's Task_Category picklist is brand new
+    // (2 of 2,000 tasks had it), but for years reps typed the category into the
+    // task SUBJECT — "Follow Up", "Call Back", "Followup-NR". Those are inferred,
+    // and a guess must never be mistaken for what Bigin actually says.
+    taskCategorySource: {
+      type: String,
+      enum: ['bigin', 'subject', null],
+      default: null,
+    },
+
     body: { type: mongoose.Schema.Types.Mixed, required: true },
     receivedAt: { type: Date, default: Date.now },
     statusHistory: { type: [statusChangeSchema], default: [] },

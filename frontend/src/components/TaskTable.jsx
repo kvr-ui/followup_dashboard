@@ -2,7 +2,7 @@ import { formatDateTime, priorityClass, statusClass, getContact } from '../utils
 import { classifyDue } from '../taskStats';
 import CopyButton from './CopyButton';
 
-function TaskRow({ task, receivedAt, onSelect }) {
+function TaskRow({ task, receivedAt, category, categorySource, onSelect }) {
   const who = task.Who_Id?.name || '—';
   const owner = task.Owner?.name || '—';
   const { phone } = getContact(task);
@@ -13,6 +13,25 @@ function TaskRow({ task, receivedAt, onSelect }) {
     <tr className={`${rowClass} clickable-row`} onClick={onSelect}>
       <td>
         <div className="who">{task.Subject || '—'}</div>
+      </td>
+      <td>
+        {category ? (
+          <span
+            className="badge badge-normal"
+            // A category read out of the subject line is a guess. Say so, quietly —
+            // don't let it pass as something the rep actually recorded in Bigin.
+            style={categorySource === 'subject' ? { opacity: 0.7, fontStyle: 'italic' } : undefined}
+            title={
+              categorySource === 'bigin'
+                ? 'Set in Bigin'
+                : 'Inferred from the task subject — not set in Bigin'
+            }
+          >
+            {category}
+          </span>
+        ) : (
+          <span className="subtle">—</span>
+        )}
       </td>
       <td>
         <div className="contact-name">{who}</div>
@@ -54,6 +73,7 @@ export default function TaskTable({ tasks, onSelect }) {
       <thead>
         <tr>
           <th>Task</th>
+          <th>Category</th>
           <th>Contact</th>
           <th>Owner</th>
           <th>Status</th>
@@ -64,11 +84,13 @@ export default function TaskTable({ tasks, onSelect }) {
         </tr>
       </thead>
       <tbody>
-        {tasks.map(({ key, recordId, task, receivedAt }) => (
+        {tasks.map(({ key, recordId, task, receivedAt, category, categorySource }) => (
           <TaskRow
             key={key}
             task={task}
             receivedAt={receivedAt}
+            category={category}
+            categorySource={categorySource}
             onSelect={() => onSelect?.(recordId)}
           />
         ))}

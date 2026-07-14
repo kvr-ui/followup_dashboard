@@ -110,6 +110,12 @@ export function applyFilters(items, f) {
   if (f.priority) {
     out = out.filter(({ task }) => (task.Priority || '') === f.priority);
   }
+  if (f.category) {
+    // "(none)" = leads whose task subject matched no known category.
+    out = out.filter(({ category }) =>
+      f.category === '(none)' ? !category : category === f.category
+    );
+  }
   if (f.owner) {
     const owner = f.owner.toLowerCase();
     out = out.filter(
@@ -146,9 +152,24 @@ export const DEFAULT_FILTERS = {
   tab: 'all',
   status: '',
   priority: '',
+  category: '',
   owner: '',
   search: '',
   dueFrom: '',
   dueTo: '',
   sortBy: 'dueDate',
 };
+
+// Bigin's Task_Category picklist, plus "No Response (NR)" — which is NOT in the
+// picklist but is the second most common category the reps actually use (636 tasks).
+// Worth adding to Bigin properly.
+export const TASK_CATEGORIES = [
+  'Follow Up',
+  'No Response (NR)',
+  'Call Back',
+  'Final Call Back',
+  'Final Follow Up',
+  'See Response',
+  'ICAI Not - Foundation',
+  'ICAI Not - Intermediate',
+];
