@@ -174,12 +174,15 @@ function normalizeDealPayload(b) {
   // the email from Bigin — without it the deal has no salesperson to filter by.
   const ownerId = pick('owner_id', 'ownerId') ?? (b.Owner && b.Owner.id);
 
-  // Bigin's custom loss-reason picklist. Zoho Flow doesn't send it today, so this
-  // stays undefined and upsertDeal fetches it by deal id. Left here so that if you
-  // DO add it to the Flow, we use it directly and skip the extra API call.
-  // undefined (field absent) and null (field present but empty) mean different
-  // things downstream — don't collapse them with `|| null`.
+  // Bigin's CUSTOM fields. Zoho Flow sends only the fields mapped into the Flow, and
+  // no custom field is mapped today — so these stay undefined and upsertDeal fetches
+  // them by deal id. Left here so that if you DO add them to the Flow, we use them
+  // directly and skip the extra API call.
+  //
+  // undefined (field absent from the payload) and null (field present but empty) mean
+  // different things downstream — don't collapse them with `|| null`.
   const reasons = pick('Reasons', 'reasons', 'reason', 'lost_reason', 'lostReason');
+  const upScale = pick('Up_Scale', 'up_scale', 'upScale', 'upscale');
 
   return {
     id: String(id),
@@ -188,6 +191,7 @@ function normalizeDealPayload(b) {
     Closing_Date: pick('Closing_Date', 'closing_date', 'closingDate') || null,
     Amount: Number(pick('Amount', 'amount') || 0),
     Reasons: reasons,
+    Up_Scale: upScale,
     Owner: {
       id: ownerId ? String(ownerId) : null,
       name: ownerName || null,

@@ -94,19 +94,21 @@ function cleanReason(v) {
 }
 
 /**
- * Fill in everything the payload didn't carry: the owner's email, why a lost
- * deal was lost, and what was sold.
+ * Fill in everything the webhook payload didn't carry.
  *
- * None of the three arrive in the webhook, and products aren't on the deal LIST
- * endpoint either — only on the deal RECORD. So all three come from one read of
- * that record, and we do it at most once per deal:
+ * Zoho Flow only sends the fields mapped into the Flow, so every CUSTOM field is
+ * missing: `Reasons` (why it was lost), `Up_Scale` (what it was upsold to), and the
+ * `Associated_Products` subform. The owner's email is missing too.
+ *
+ * All of them live on the deal RECORD, so one read gets the lot:
  *
  *   - products    : every CLOSED deal (the subform is the only source)
  *   - owner email : cached by owner id — one call per NEW salesperson
  *   - lost reason : LOST deals whose payload omitted the field
+ *   - up-scale    : any deal whose payload omitted the field
  *
- * A poll that already carries owner email and `Reasons` still needs the record
- * for products, so for closed deals this is one call either way.
+ * A closed deal needs the record for products regardless, so the other three are
+ * free — one API call either way.
  */
 async function hydrate(raw, outcome) {
   const owner = raw.Owner || {};
@@ -116,6 +118,7 @@ async function hydrate(raw, outcome) {
   let email = owner.email ? String(owner.email).toLowerCase() : null;
   let name = owner.name || null;
   let reason = cleanReason(raw.Reasons);
+  let upScale = cleanReason(raw.Up_Scale); // same "-None-" convention
   let products = [];
 
   // The poll path seeds the cache, so the webhook path usually pays nothing.
@@ -127,12 +130,13 @@ async function hydrate(raw, outcome) {
   }
 
   // `undefined` means the payload never had the field (webhook). An explicit
-  // null/"-None-" means Bigin told us there is no reason — don't go asking again.
+  // null/"-None-" means Bigin told us the picklist is empty — don't ask again.
   const needReason = outcome === 'lost' && raw.Reasons === undefined;
+  const needUpScale = raw.Up_Scale === undefined;
   const needOwner = !email;
   const needProducts = closed;
 
-  if ((needOwner || needReason || needProducts) && raw.id) {
+  if ((needOwner || needReason || needUpScale || needProducts) && raw.id) {
     const rec = await fetchDealRecord(raw.id);
     if (rec) {
       if (needOwner && rec.Owner && rec.Owner.email) {
@@ -141,6 +145,7 @@ async function hydrate(raw, outcome) {
         if (ownerId) ownerCache.set(ownerId, { email, name });
       }
       if (needReason) reason = cleanReason(rec.Reasons);
+      if (needUpScale) upScale = cleanReason(rec.Up_Scale);
       if (needProducts) products = productsFromRecord(rec);
     }
   }
@@ -149,6 +154,7 @@ async function hydrate(raw, outcome) {
     ownerEmail: email,
     ownerName: name,
     products,
+    upScale,
     // A won deal has no loss reason, whatever Bigin has lying in the field.
     lostReason: outcome === 'lost' ? reason : null,
   };
@@ -174,6 +180,7 @@ async function upsertDeal(raw, source = 'poll') {
     closingDate: raw.Closing_Date || null,
     amount: Number(raw.Amount) || 0,
     lostReason: extra.lostReason,
+    upScale: extra.upScale,
     ownerName: extra.ownerName,
     ownerEmail: extra.ownerEmail,
     contactId: contactId ? String(contactId) : null,

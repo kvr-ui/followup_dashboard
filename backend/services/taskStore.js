@@ -81,6 +81,14 @@ async function upsertTask(payload, { enrich = false } = {}) {
 
   normalizeContact(payload); // no Zoho — maps Related_To -> Who_Id if needed
 
+  // A payload with neither a task id nor a contact id identifies nothing. Storing
+  // it creates a phantom lead: no name, no phone, empty body, impossible to match
+  // to anything ever again. An empty `{}` POST to /webhook used to do exactly that.
+  // Drop it rather than pollute the leads table.
+  const hasTaskId = Boolean(payload.id);
+  const hasContactId = Boolean(payload.Who_Id && payload.Who_Id.id);
+  if (!hasTaskId && !hasContactId) return null;
+
   if (enrich) {
     await enrichContact(payload);
     await enrichTaskFields(payload);

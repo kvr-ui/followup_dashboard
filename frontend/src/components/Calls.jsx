@@ -15,6 +15,14 @@ function shortDate(d) {
   return x.toLocaleDateString(undefined, { day: '2-digit', month: 'short' });
 }
 
+// Bigin's Up_Scale values are long and repeat the stage:
+//   "Inter G1 - Closed with Sale - (Upsell - Inter G2)"
+// The only part a manager needs on a crowded row is what they were upsold TO.
+function upsellLabel(v) {
+  const m = String(v).match(/\(\s*Upsell\s*-?\s*(.+?)\s*\)/i);
+  return m ? `upsold to ${m[1]}` : String(v);
+}
+
 function inr(n) {
   const v = Math.round(n || 0);
   if (v >= 1e5) return `₹${(v / 1e5).toFixed(2)}L`; // lakhs read better than 9,19,000
@@ -464,12 +472,32 @@ export default function Calls() {
                           )}
                         </>
                       )}
+                      {j.deal?.upScale && (
+                        <>
+                          {' · '}
+                          <em style={{ color: 'var(--green, #27ae60)' }}>
+                            {upsellLabel(j.deal.upScale)}
+                          </em>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
 
                 <div className="journey-meta">
                   {/* No won/lost badge — the tab already says which you're on. */}
+                  {/* Bigin's Up_Scale picklist: the lead bought MORE than they came for
+                      (e.g. asked about Inter G1, left with G1 + G2). Worth surfacing —
+                      an upsell is the most valuable thing a rep can do on a call. */}
+                  {j.deal?.upScale && (
+                    <span
+                      className="badge badge-low"
+                      title={j.deal.upScale}
+                      style={{ background: 'var(--green, #27ae60)', color: '#fff' }}
+                    >
+                      ⬆ upsell
+                    </span>
+                  )}
                   {j.totalCalls > 0 ? (
                     <>
                       <span className="badge badge-normal">{j.totalCalls} calls</span>
