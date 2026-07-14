@@ -5,6 +5,7 @@ import AdminUsers from './AdminUsers';
 import Analytics from './Analytics';
 import Calls from './Calls';
 import Products from './Products';
+import Installments from './Installments';
 import SummaryCards from './SummaryCards';
 import Filters from './Filters';
 import { api } from '../api';
@@ -41,14 +42,24 @@ export default function Dashboard({ user, onLogout }) {
     return () => clearInterval(timer);
   }, [view, loadTasks]);
 
-  // Non-admins only have the tasks view; persist the tab for everyone else.
+  // Sales users get their own follow-ups and their own pending payments — the rest
+  // of the dashboard is admin-only. The server enforces this too; this just keeps
+  // a stale localStorage tab from stranding a rep on a view they can't load.
+  const allowed = useMemo(
+    () =>
+      isAdmin
+        ? ['tasks', 'analytics', 'calls', 'products', 'installments', 'users']
+        : ['tasks', 'installments'],
+    [isAdmin]
+  );
+
   useEffect(() => {
-    if (!isAdmin && view !== 'tasks') {
+    if (!allowed.includes(view)) {
       setView('tasks');
       return;
     }
     localStorage.setItem('fd_view', view);
-  }, [view, isAdmin]);
+  }, [view, allowed]);
 
   const summary = useMemo(() => computeSummary(tasks), [tasks]);
   const filtered = useMemo(() => applyFilters(tasks, filters), [tasks, filters]);
@@ -68,40 +79,52 @@ export default function Dashboard({ user, onLogout }) {
       <header>
         <div className="brand">
           <h1>Followup Dashboard</h1>
-          {isAdmin && (
-            <nav className="tabs">
-              <button
-                className={view === 'tasks' ? 'tab active' : 'tab'}
-                onClick={() => setView('tasks')}
-              >
-                Follow-ups
-              </button>
+          <nav className="tabs">
+            <button
+              className={view === 'tasks' ? 'tab active' : 'tab'}
+              onClick={() => setView('tasks')}
+            >
+              Follow-ups
+            </button>
+            {isAdmin && (
               <button
                 className={view === 'analytics' ? 'tab active' : 'tab'}
                 onClick={() => setView('analytics')}
               >
                 Analytics
               </button>
+            )}
+            {isAdmin && (
               <button
                 className={view === 'calls' ? 'tab active' : 'tab'}
                 onClick={() => setView('calls')}
               >
                 Calls
               </button>
+            )}
+            {isAdmin && (
               <button
                 className={view === 'products' ? 'tab active' : 'tab'}
                 onClick={() => setView('products')}
               >
                 Products
               </button>
+            )}
+            <button
+              className={view === 'installments' ? 'tab active' : 'tab'}
+              onClick={() => setView('installments')}
+            >
+              Installments
+            </button>
+            {isAdmin && (
               <button
                 className={view === 'users' ? 'tab active' : 'tab'}
                 onClick={() => setView('users')}
               >
                 Users
               </button>
-            </nav>
-          )}
+            )}
+          </nav>
         </div>
         <div className="user-box">
           <span className="who-mini">
@@ -144,6 +167,8 @@ export default function Dashboard({ user, onLogout }) {
               <p className="subtle">No follow-ups match the current filters.</p>
             )}
           </>
+        ) : view === 'installments' ? (
+          <Installments isAdmin={isAdmin} />
         ) : view === 'analytics' ? (
           <Analytics />
         ) : view === 'calls' ? (

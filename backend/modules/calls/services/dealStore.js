@@ -94,11 +94,26 @@ function cleanReason(v) {
 }
 
 /**
+ * Bigin currency field -> number|null.
+ *
+ * Not `Number(v) || null`: an instalment genuinely set to 0 is a fact ("nothing
+ * left to pay"), and collapsing it to null would make a settled deal look
+ * unrecorded — and 0 is exactly how a lead leaves the pending-instalments list.
+ * Only a missing/empty/non-numeric value is null.
+ */
+function cleanMoney(v) {
+  if (v === undefined || v === null || v === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+/**
  * Fill in everything the webhook payload didn't carry.
  *
  * Zoho Flow only sends the fields mapped into the Flow, so every CUSTOM field is
- * missing: `Reasons` (why it was lost), `Up_Scale` (what it was upsold to), and the
- * `Associated_Products` subform. The owner's email is missing too.
+ * missing: `Reasons` (why it was lost), `Up_Scale` (what it was upsold to),
+ * `Installment` (the balance still owed), and the `Associated_Products` subform.
+ * The owner's email is missing too.
  *
  * All of them live on the deal RECORD, so one read gets the lot:
  *
@@ -106,8 +121,9 @@ function cleanReason(v) {
  *   - owner email : cached by owner id — one call per NEW salesperson
  *   - lost reason : LOST deals whose payload omitted the field
  *   - up-scale    : any deal whose payload omitted the field
+ *   - installment : any deal whose payload omitted the field
  *
- * A closed deal needs the record for products regardless, so the other three are
+ * A closed deal needs the record for products regardless, so the others are
  * free — one API call either way.
  */
 async function hydrate(raw, outcome) {
@@ -119,6 +135,7 @@ async function hydrate(raw, outcome) {
   let name = owner.name || null;
   let reason = cleanReason(raw.Reasons);
   let upScale = cleanReason(raw.Up_Scale); // same "-None-" convention
+  let installment = cleanMoney(raw.Installment); // currency, not a picklist
   let products = [];
 
   // The poll path seeds the cache, so the webhook path usually pays nothing.
@@ -133,10 +150,11 @@ async function hydrate(raw, outcome) {
   // null/"-None-" means Bigin told us the picklist is empty — don't ask again.
   const needReason = outcome === 'lost' && raw.Reasons === undefined;
   const needUpScale = raw.Up_Scale === undefined;
+  const needInstallment = raw.Installment === undefined;
   const needOwner = !email;
   const needProducts = closed;
 
-  if ((needOwner || needReason || needUpScale || needProducts) && raw.id) {
+  if ((needOwner || needReason || needUpScale || needInstallment || needProducts) && raw.id) {
     const rec = await fetchDealRecord(raw.id);
     if (rec) {
       if (needOwner && rec.Owner && rec.Owner.email) {
@@ -146,6 +164,7 @@ async function hydrate(raw, outcome) {
       }
       if (needReason) reason = cleanReason(rec.Reasons);
       if (needUpScale) upScale = cleanReason(rec.Up_Scale);
+      if (needInstallment) installment = cleanMoney(rec.Installment);
       if (needProducts) products = productsFromRecord(rec);
     }
   }
@@ -155,6 +174,7 @@ async function hydrate(raw, outcome) {
     ownerName: name,
     products,
     upScale,
+    installment,
     // A won deal has no loss reason, whatever Bigin has lying in the field.
     lostReason: outcome === 'lost' ? reason : null,
   };
@@ -181,6 +201,7 @@ async function upsertDeal(raw, source = 'poll') {
     amount: Number(raw.Amount) || 0,
     lostReason: extra.lostReason,
     upScale: extra.upScale,
+    installment: extra.installment,
     ownerName: extra.ownerName,
     ownerEmail: extra.ownerEmail,
     contactId: contactId ? String(contactId) : null,

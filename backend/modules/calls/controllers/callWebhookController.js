@@ -184,6 +184,7 @@ function normalizeDealPayload(b) {
   // different things downstream — don't collapse them with `|| null`.
   const reasons = pick('Reasons', 'reasons', 'reason', 'lost_reason', 'lostReason');
   const upScale = pick('Up_Scale', 'up_scale', 'upScale', 'upscale');
+  const installment = pick('Installment', 'installment', 'instalment');
 
   return {
     id: String(id),
@@ -193,6 +194,7 @@ function normalizeDealPayload(b) {
     Amount: Number(pick('Amount', 'amount') || 0),
     Reasons: reasons,
     Up_Scale: upScale,
+    Installment: installment,
     Owner: {
       id: ownerId ? String(ownerId) : null,
       name: ownerName || null,

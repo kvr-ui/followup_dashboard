@@ -32,6 +32,16 @@ const dealSchema = new mongoose.Schema(
     // grew beyond what the lead first asked for. Also absent from the webhook.
     upScale: { type: String, default: null, index: true },
 
+    // Bigin's custom `Installment` currency field — the balance the lead still OWES
+    // on a won deal (they bought on an instalment plan). It is the pending amount,
+    // NOT the amount paid: paid = amount - installment.
+    //
+    // A number, not a picklist: null means "not set", 0 means "set to zero" — keep
+    // them distinct. 0 is how a deal leaves the pending list once it's paid off, so
+    // collapsing null and 0 would silently mark unrecorded deals as settled.
+    // Absent from the webhook like the other custom fields, so fetched by deal id.
+    installment: { type: Number, default: null },
+
     ownerName: String,
     ownerEmail: { type: String, index: true },
 
@@ -75,5 +85,9 @@ const dealSchema = new mongoose.Schema(
 // match by phone key + outcome, newest first. This compound index serves that
 // query (equality on the first two fields, sort on the third) in one seek.
 dealSchema.index({ contactPhoneKey: 1, outcome: 1, modifiedTime: -1 });
+
+// The installments view asks "which of MY won deals still owe money, oldest first".
+// Equality on ownerEmail + outcome, range on installment, sort on closingDate.
+dealSchema.index({ ownerEmail: 1, outcome: 1, installment: 1, closingDate: 1 });
 
 module.exports = mongoose.model('Deal', dealSchema);

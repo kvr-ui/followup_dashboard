@@ -85,6 +85,25 @@ Last updated: 2026-07-14
 
 ---
 
+## 💡 Ideas / next up
+
+### WhatsApp thread + call recording → lead qualification → Kanban (2026-07-14)
+
+Pull the full WATI conversation for a lead into the dashboard, show it beside the call recordings,
+and use both to qualify. Qualified leads land on a **Kanban board in the Best Leads section**.
+
+Why: qualification today is a guess from a status dropdown. The counsellor already has the whole
+story (WhatsApp thread + call audio) — it's just scattered across three tools.
+
+Open questions before building:
+- [ ] **WATI plan** — confirm the plan exposes the *message-history* endpoint, not just send-message. We already use WATI for outbound templates (`WATI_TOKEN`), but only for sending.
+- [ ] **Phone matching** — reuse the existing `phoneKey()` / `key10` (last-10-digits) convention so WATI contacts link to leads/calls with an indexed equality lookup, not a regex.
+- [ ] **Fetch strategy** — on-demand when a lead detail opens, cached with a TTL. No bulk sync (rate limits, and most threads are never read).
+- [ ] **Kanban stage = source of truth?** — decide whether the board column *is* the Bigin stage (write-back, like the existing status write-back) or a local-only field. Two sources of truth will drift.
+- [ ] **Auto-qualify (stretch)** — feed WhatsApp thread + call transcript to the grader (Sarvam) and surface a lead score + one-line reason ("hot — asked about fees twice") instead of making the counsellor read everything. Reuses the v2 grading pipeline.
+
+---
+
 ## 🧹 Dead / unused code
 
 - [ ] `services/enrich.js:88` `enrichBody()` — exported, never called.
