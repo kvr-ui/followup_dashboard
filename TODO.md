@@ -4,6 +4,10 @@ Last updated: 2026-07-14
 
 > Full-project audit added below (security, config/infra, features, code quality).
 > Items are ordered by severity. Fix the 🔴 CRITICAL security block **before this goes public.**
+>
+> **Status (2026-07-14):** all 10 non-security bugs fixed & verified (see 🐛 section).
+> Security bugs left untouched by request. One deploy action pending: run the
+> phone-key backfill on prod (see the ⚠️ item under the bugs section).
 
 ---
 
@@ -128,7 +132,7 @@ Last updated: 2026-07-14
 
 - [ ] `Task.body` is `Mixed` (`Task.js:76`) — no validation on the core payload; same data denormalized across `body`/`taskHistory`/`statusHistory`, hand-synced in `taskStore.js:26`.
 - [ ] No validation on `User.ownerEmail` format, `Note.text` length, `Deal.amount`, grade `score`/`total` (rubric says 0–100, nothing enforces it).
-- [ ] Add a compound index to support `afterCallStored`'s `Deal.findOne({contactPhone:{$regex}})` sort-by-`modifiedTime` (or replace regex with normalized-phone equality).
+- [x] ~~Add a compound index for `afterCallStored`'s deal lookup~~ — done: `Deal.contactPhoneKey` + compound `{ contactPhoneKey, outcome, modifiedTime }` index; regex replaced with indexed equality (see the bugs section).
 
 ---
 
@@ -140,7 +144,7 @@ Last updated: 2026-07-14
 - [ ] **Upgrade ElevenLabs to Creator** ($22 first month, then $11/mo — 121k credits). Free tier ran out after 22 calls; **152 calls still pending** (~34k credits). Worker resumes automatically once credits exist (but see the quota-failure bug above).
 - [ ] Switch `TRANSCRIBE_SCOPE=won` → `all` once credits allow.
 - [ ] Recreate the 3 sales accounts on production (veera, nithish, amrithia) — ensure each has `ownerEmail` set (task filtering depends on it).
-- [ ] Investigate the 10 failed transcriptions (likely the quota-attempt bug above).
+- [ ] Reset the 10 `failed` transcriptions to `pending` — the quota-attempt bug that stranded them is fixed, but existing calls already marked `failed` won't self-heal. Flip any whose `transcriptionError` mentions quota/credits back to `pending` (a one-liner `updateMany`), then the worker retries them once credits exist.
 
 ---
 

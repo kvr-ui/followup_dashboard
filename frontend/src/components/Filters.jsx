@@ -103,6 +103,7 @@ export default function Filters({ filters, setFilters, owners, isAdmin }) {
         <label>
           Sort by
           <select value={filters.sortBy} onChange={(e) => set('sortBy', e.target.value)}>
+            <option value="newest">Newest first</option>
             <option value="dueDate">Due date</option>
             <option value="priority">Priority</option>
             <option value="created">Created</option>

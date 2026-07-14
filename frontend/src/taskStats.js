@@ -80,7 +80,18 @@ function createdTime(task) {
   return d && !isNaN(d.getTime()) ? d.getTime() : 0;
 }
 
+// When the lead landed in our dashboard (webhook ingest time). Falls back to the
+// Bigin Created_Time for older rows that predate receivedAt.
+function receivedTime(item) {
+  const d = item.receivedAt ? new Date(item.receivedAt) : null;
+  if (d && !isNaN(d.getTime())) return d.getTime();
+  return createdTime(item.task);
+}
+
 function sortComparator(sortBy) {
+  if (sortBy === 'newest') {
+    return (a, b) => receivedTime(b) - receivedTime(a);
+  }
   if (sortBy === 'priority') {
     return (a, b) => priorityRank(a.task) - priorityRank(b.task);
   }
@@ -157,7 +168,7 @@ export const DEFAULT_FILTERS = {
   search: '',
   dueFrom: '',
   dueTo: '',
-  sortBy: 'dueDate',
+  sortBy: 'newest',
 };
 
 // Bigin's Task_Category picklist, plus "No Response (NR)" — which is NOT in the

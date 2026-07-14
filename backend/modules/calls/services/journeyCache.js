@@ -70,7 +70,9 @@ async function buildJourneys() {
         lastCall: { $max: '$calls.startedAt' },
       },
     },
-    { $sort: { totalCalls: -1, lastCall: -1, modifiedTime: -1 } },
+    // Newest closed deals first: sort by close date, then by the deal's last
+    // update and its most recent call as tie-breakers.
+    { $sort: { closingDate: -1, modifiedTime: -1, lastCall: -1 } },
     {
       $project: {
         _id: '$zohoId',
