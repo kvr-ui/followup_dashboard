@@ -358,11 +358,184 @@ async function syncCalls(req, res) {
   }
 }
 
+// The most a criterion can score, per rubric — used to normalise scores to a % so
+// "objection_handling 15/30" and "opening 8/10" can be compared on one axis. Must
+// stay in step with the rubric in scripts/gradeCalls.js.
+const CRITERION_MAX = {
+  opening: 10,
+  needs_discovery: 25,
+  product_pitch: 20,
+  objection_handling: 25,
+  next_step: 10,
+  tone: 10,
+  context_recall: 15,
+  objection_progress: 30,
+  new_value: 20,
+  urgency: 15,
+};
+
+function median(nums) {
+  if (!nums.length) return null;
+  const s = [...nums].sort((a, b) => a - b);
+  const m = Math.floor(s.length / 2);
+  return s.length % 2 ? s[m] : Math.round((s[m - 1] + s[m]) / 2);
+}
+
+const mean = (nums) => (nums.length ? Math.round(nums.reduce((a, b) => a + b, 0) / nums.length) : 0);
+
+/** Four coaching bands. Matches the colour buckets the UI already uses. */
+function bands(scores) {
+  const b = { excellent: 0, good: 0, mediocre: 0, weak: 0 };
+  scores.forEach((s) => {
+    if (s >= 85) b.excellent += 1;
+    else if (s >= 70) b.good += 1;
+    else if (s >= 50) b.mediocre += 1;
+    else b.weak += 1;
+  });
+  return b;
+}
+
+/**
+ * GET /api/calls/grades — the sales scorecard.
+ *
+ * Aggregates the AI call grades into the numbers a manager actually coaches from:
+ * per-rep averages, where the team is weak (by criterion), and the best/worst calls.
+ *
+ * ── One deliberate choice: 'not_gradeable' calls are EXCLUDED from every average. ──
+ * The grader scores a wrong-number or "call me back" as 0/100, correctly — but that
+ * is not the rep failing at selling, it is a call where no selling happened. Letting
+ * those 0s into a rep's average would punish whoever answered the most dead calls,
+ * which is the opposite of what a coaching score is for. They are counted separately
+ * so the number is visible, just never blended into skill.
+ */
+async function gradeAnalytics(req, res) {
+  try {
+    const outcome = req.query.outcome || 'won';
+    const ownerFilter = req.query.owner
+      ? { ownerEmail: String(req.query.owner).toLowerCase() }
+      : {};
+
+    const [calls, eligible] = await Promise.all([
+      Call.find({ outcome, ...ownerFilter, 'grade.score': { $ne: null } })
+        .select('grade agentExt ownerEmail duration leadName leadPhone deal startedAt')
+        .lean(),
+      Call.countDocuments({ outcome, ...ownerFilter, hasRecording: true, duration: { $gte: MIN_DURATION } }),
+    ]);
+
+    const agents = agentMap(); // ext -> email
+
+    // The salesperson is whoever MADE the call (the TeleCMI agent), identified by
+    // ownerEmail. Deliberately NOT deal.ownerName — that is who owns the LEAD in Bigin,
+    // a different person: reps routinely call each other's leads, so naming the row
+    // after the lead owner made one agent's calls show up under another's name (the
+    // "veera veera appears twice" bug). Derive a display name from the agent's email.
+    const pretty = (email) => {
+      const local = String(email).split('@')[0].split('.')[0];
+      return local ? local.charAt(0).toUpperCase() + local.slice(1) : email;
+    };
+    const nameOf = (c) => {
+      const email = c.ownerEmail || agents[c.agentExt];
+      return email ? pretty(email) : c.agentExt || 'unknown';
+    };
+
+    // Split real sales conversations from dead calls.
+    const gradeable = calls.filter((c) => c.grade.breakdown && c.grade.breakdown.callType !== 'not_gradeable');
+    const notGradeable = calls.length - gradeable.length;
+    const scores = gradeable.map((c) => c.grade.score);
+
+    // --- Per rep -----------------------------------------------------------------
+    const repMap = new Map();
+    gradeable.forEach((c) => {
+      // Canonical key: resolve agentExt to the same email ownerEmail uses, so a call
+      // carrying only the extension doesn't spawn a second row for the same person.
+      const key = c.ownerEmail || agents[c.agentExt] || c.agentExt || 'unknown';
+      if (!repMap.has(key)) repMap.set(key, { key, name: nameOf(c), scores: [] });
+      repMap.get(key).scores.push(c.grade.score);
+    });
+    const perRep = [...repMap.values()]
+      .map((r) => ({
+        name: r.name,
+        ownerEmail: r.key,
+        calls: r.scores.length,
+        avg: mean(r.scores),
+        median: median(r.scores),
+        best: Math.max(...r.scores),
+        worst: Math.min(...r.scores),
+        bands: bands(r.scores),
+      }))
+      .sort((a, b) => b.avg - a.avg);
+
+    // --- By call type (the first-call-vs-follow-up insight) ----------------------
+    const typeMap = new Map();
+    calls.forEach((c) => {
+      const t = (c.grade.breakdown && c.grade.breakdown.callType) || 'unknown';
+      if (!typeMap.has(t)) typeMap.set(t, []);
+      typeMap.get(t).push(c.grade.score);
+    });
+    const byCallType = [...typeMap.entries()]
+      .map(([type, s]) => ({ type, calls: s.length, avg: mean(s) }))
+      .sort((a, b) => b.calls - a.calls);
+
+    // --- By criterion, normalised to % — where the team is weakest ---------------
+    const critMap = new Map();
+    gradeable.forEach((c) => {
+      const sc = (c.grade.breakdown && c.grade.breakdown.scores) || {};
+      for (const [k, v] of Object.entries(sc)) {
+        const val = typeof v === 'object' ? v.score : v;
+        const max = CRITERION_MAX[k];
+        if (max == null || val == null) continue;
+        if (!critMap.has(k)) critMap.set(k, []);
+        critMap.get(k).push((val / max) * 100);
+      }
+    });
+    const byCriterion = [...critMap.entries()]
+      .map(([criterion, arr]) => ({ criterion, calls: arr.length, pct: mean(arr) }))
+      .sort((a, b) => a.pct - b.pct); // weakest first — the coaching priority
+
+    // --- Best / worst calls to drill into ----------------------------------------
+    const brief = (c) => ({
+      id: c._id,
+      lead: c.leadName || (c.deal && c.deal.contactName) || c.leadPhone || '—',
+      rep: nameOf(c),
+      score: c.grade.score,
+      callType: c.grade.breakdown && c.grade.breakdown.callType,
+      summary: c.grade.summary,
+      minutes: Math.round(c.duration / 60),
+    });
+    const ranked = [...gradeable].sort((a, b) => b.grade.score - a.grade.score);
+
+    res.json({
+      success: true,
+      coverage: {
+        graded: calls.length,
+        eligible,
+        pct: eligible ? Math.round((calls.length / eligible) * 100) : 0,
+      },
+      overall: {
+        gradeable: gradeable.length,
+        notGradeable,
+        avg: mean(scores),
+        median: median(scores),
+        bands: bands(scores),
+      },
+      perRep,
+      byCallType,
+      byCriterion,
+      topCalls: ranked.slice(0, 5).map(brief),
+      bottomCalls: ranked.slice(-5).reverse().map(brief),
+    });
+  } catch (err) {
+    console.error('Grade analytics failed:', err.message);
+    res.status(500).json({ success: false, message: 'Failed to build the sales scorecard' });
+  }
+}
+
 module.exports = {
   listCalls,
   listJourneys,
   callStats,
   outcomeStats,
+  gradeAnalytics,
   getCall,
   streamRecording,
   syncCalls,

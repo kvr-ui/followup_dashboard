@@ -9,6 +9,7 @@ import Installments from './Installments';
 import Upsells from './Upsells';
 import Campaigns from './Campaigns';
 import Contacts from './Contacts';
+import Scorecard from './Scorecard';
 import SummaryCards from './SummaryCards';
 import Filters from './Filters';
 import { api } from '../api';
@@ -61,6 +62,7 @@ export default function Dashboard({ user, onLogout }) {
             'tasks',
             'analytics',
             'calls',
+            'scorecard',
             'products',
             'installments',
             'upsells',
@@ -119,6 +121,14 @@ export default function Dashboard({ user, onLogout }) {
                 onClick={() => setView('calls')}
               >
                 Calls
+              </button>
+            )}
+            {isAdmin && (
+              <button
+                className={view === 'scorecard' ? 'tab active' : 'tab'}
+                onClick={() => setView('scorecard')}
+              >
+                Scorecard
               </button>
             )}
             {isAdmin && (
@@ -216,6 +226,8 @@ export default function Dashboard({ user, onLogout }) {
           <Analytics />
         ) : view === 'calls' ? (
           <Calls />
+        ) : view === 'scorecard' ? (
+          <Scorecard />
         ) : view === 'products' ? (
           <Products />
         ) : view === 'campaigns' ? (

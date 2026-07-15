@@ -5,6 +5,7 @@ const {
   listJourneys,
   callStats,
   outcomeStats,
+  gradeAnalytics,
   getCall,
   streamRecording,
   syncCalls,
@@ -19,6 +20,7 @@ router.use(authenticate, requireAdmin);
 router.get('/', listCalls);
 router.get('/stats', callStats);
 router.get('/outcomes', outcomeStats); // won/lost + why we lose
+router.get('/grades', gradeAnalytics); // sales scorecard from AI call grades
 router.get('/journeys', listJourneys);
 router.post('/sync', syncCalls);
 router.get('/:id', getCall);
