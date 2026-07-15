@@ -166,11 +166,141 @@ ALL VALUES IN ENGLISH.
   "improvements": ["<max 10 words>", "<max 10 words>"]
 }`;
 
+// A very long call blows the model's OUTPUT budget: it "thinks" roughly in proportion
+// to the input and then truncates the JSON. Keep the call under this many characters.
+// ~12k chars ≈ 4k input tokens, which leaves the 4096 output cap room to finish.
+const MAX_TRANSCRIPT_CHARS = Number(process.env.GRADE_MAX_TRANSCRIPT_CHARS || 12000);
+
+// Middle-out trim: keep the OPENING and CLOSING of the call, drop the repetitive
+// middle. Never blind-cut the tail — next_step and objection_handling are graded from
+// how the call CLOSES, so losing the end would unfairly zero those scores. Head gets
+// the larger share (intro + discovery context) and the tail is always preserved.
+function trimMiddleOut(lines, maxChars) {
+  const full = lines.join('\n');
+  if (full.length <= maxChars) return full;
+
+  const headBudget = Math.floor(maxChars * 0.6);
+  const tailBudget = maxChars - headBudget;
+
+  const head = [];
+  let used = 0;
+  for (const l of lines) {
+    if (used + l.length + 1 > headBudget) break;
+    head.push(l);
+    used += l.length + 1;
+  }
+  const tail = [];
+  used = 0;
+  for (let i = lines.length - 1; i >= head.length; i--) {
+    if (used + lines[i].length + 1 > tailBudget) break;
+    tail.unshift(lines[i]);
+    used += lines[i].length + 1;
+  }
+
+  // Pathological single huge line (flat transcript, no segments): fall back to a raw
+  // character slice so we never return only the marker.
+  if (!head.length && !tail.length) {
+    return `${full.slice(0, headBudget)}\n[… middle of the call omitted for length …]\n${full.slice(full.length - tailBudget)}`;
+  }
+
+  const dropped = lines.length - head.length - tail.length;
+  return [...head, `[… ${dropped} lines from the middle of the call omitted for length …]`, ...tail].join('\n');
+}
+
 /** Speaker-labelled transcript is far more gradeable than the flat text blob. */
 function transcriptText(call) {
   const segs = (call.transcript && call.transcript.segments) || [];
-  if (segs.length) return segs.map((s) => `[${s.speaker}] ${s.text}`).join('\n');
-  return (call.transcript && call.transcript.text) || '';
+  const lines = segs.length
+    ? segs.map((s) => `[${s.speaker}] ${s.text}`)
+    : String((call.transcript && call.transcript.text) || '').split('\n');
+  return trimMiddleOut(lines, MAX_TRANSCRIPT_CHARS);
+}
+
+/** A parse only counts if it carries a usable score — reject half-salvaged garbage. */
+function isValidGrade(p) {
+  return Boolean(p && typeof p.total === 'number' && p.scores && typeof p.scores === 'object');
+}
+
+/** Direct parse, then the reasoning-model-wraps-JSON-in-prose case. */
+function tryParse(raw) {
+  try {
+    return JSON.parse(raw);
+  } catch {
+    const m = raw.match(/\{[\s\S]*\}/);
+    if (m) {
+      try {
+        return JSON.parse(m[0]);
+      } catch {
+        /* fall through */
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * Salvage a TRUNCATED JSON object (the long-call failure mode): the model ran out of
+ * output budget mid-object. Walk back from the end to the last position that parses
+ * once we re-balance the open braces/brackets it never got to close.
+ */
+function salvageJson(raw) {
+  const start = raw.indexOf('{');
+  if (start < 0) return null;
+  const s = raw.slice(start);
+  for (let end = s.length; end > 1; end--) {
+    const c = s[end - 1];
+    // Only bother trying to close at a plausible value boundary.
+    if (c !== '}' && c !== ']' && c !== '"' && !/[0-9a-z]/i.test(c)) continue;
+    let cand = s.slice(0, end);
+    const openBrace = (cand.match(/\{/g) || []).length - (cand.match(/\}/g) || []).length;
+    const openBrack = (cand.match(/\[/g) || []).length - (cand.match(/\]/g) || []).length;
+    if (openBrace < 0 || openBrack < 0) continue;
+    cand += ']'.repeat(openBrack) + '}'.repeat(openBrace);
+    try {
+      const p = JSON.parse(cand);
+      if (isValidGrade(p)) return p;
+    } catch {
+      /* keep shrinking */
+    }
+  }
+  return null;
+}
+
+/**
+ * Last resort for the FLAKY failure mode (a short call where the model just emitted
+ * bad JSON once): hand the broken text back and ask it to return valid JSON only.
+ */
+async function reaskJson(raw) {
+  try {
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: MODEL,
+        messages: [
+          {
+            role: 'system',
+            content:
+              'You repair malformed JSON. Output ONLY the corrected JSON object — no prose, no code fences, no reasoning. Complete any truncated fields sensibly.',
+          },
+          { role: 'user', content: `Fix this into valid JSON:\n\n${raw.slice(0, 6000)}` },
+        ],
+        max_tokens: 4096,
+        temperature: 0,
+        reasoning_effort: 'low',
+      }),
+    });
+    const json = await res.json();
+    if (json.error) return null;
+    const txt = ((json.choices && json.choices[0] && json.choices[0].message.content) || '')
+      .trim()
+      .replace(/^```(?:json)?|```$/g, '')
+      .trim();
+    const p = tryParse(txt);
+    return isValidGrade(p) ? p : null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -211,20 +341,12 @@ async function gradeOne(call) {
       .replace(/^```(?:json)?|```$/g, '')
       .trim();
 
-    let parsed = null;
-    try {
-      parsed = JSON.parse(raw);
-    } catch {
-      const m = raw.match(/\{[\s\S]*\}/); // reasoning models sometimes wrap the JSON in prose
-      if (m) {
-        try {
-          parsed = JSON.parse(m[0]);
-        } catch {
-          /* leave null */
-        }
-      }
-    }
-    return { parsed, raw, usage: json.usage };
+    // 1) normal parse, 2) salvage a truncated object (long calls), 3) ask the model to
+    // repair it (flaky short calls). Each fallback is tried only if the prior failed.
+    let parsed = tryParse(raw);
+    if (!isValidGrade(parsed)) parsed = salvageJson(raw);
+    if (!isValidGrade(parsed)) parsed = await reaskJson(raw);
+    return { parsed: isValidGrade(parsed) ? parsed : null, raw, usage: json.usage };
   } catch (err) {
     return { error: `request failed: ${err.message}`.slice(0, 150) };
   }
@@ -267,6 +389,13 @@ async function positionInJourney(call) {
 async function gradeCall(call) {
   if (!isConfigured()) return { ok: false, error: 'SARVAM_API_KEY not set' };
   if (!call.transcript || !transcriptText(call)) {
+    // Empty transcript (silent / voicemail-length call): nothing to grade, and it will
+    // never become gradeable. Bump attempts so the worker gives up instead of re-picking
+    // it on every poll forever.
+    await Call.updateOne(
+      { _id: call._id },
+      { $set: { gradeError: 'No transcript' }, $inc: { gradeAttempts: 1 } }
+    );
     return { ok: false, error: 'No transcript' };
   }
 

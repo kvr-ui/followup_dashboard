@@ -42,7 +42,8 @@ const prettyDay = (iso) => {
   return date.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
 };
 
-export default function Scorecard() {
+export default function Scorecard({ user } = {}) {
+  const isAdmin = user?.role === 'admin';
   const [res, setRes] = useState(null);
   const [owner, setOwner] = useState('');
   const [period, setPeriod] = useState('all');
@@ -120,18 +121,28 @@ export default function Scorecard() {
         </div>
       </div>
 
+      {!isAdmin && (
+        <h2 style={{ margin: '4px 0 10px' }}>
+          My performance{user?.name ? ` — ${user.name}` : ''}
+        </h2>
+      )}
+
       <div className="filters">
-        <label>
-          Salesperson
-          <select value={owner} onChange={(e) => setOwner(e.target.value)}>
-            <option value="">Whole team</option>
-            {reps.map((r) => (
-              <option key={r.ownerEmail} value={r.ownerEmail}>
-                {r.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        {/* The team dropdown is an admin tool — a rep only ever sees their own numbers
+            (the server scopes it), so showing a one-option picker would just confuse. */}
+        {isAdmin && (
+          <label>
+            Salesperson
+            <select value={owner} onChange={(e) => setOwner(e.target.value)}>
+              <option value="">Whole team</option>
+              {reps.map((r) => (
+                <option key={r.ownerEmail} value={r.ownerEmail}>
+                  {r.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <label>
           Calls
           <select value={outcome} onChange={(e) => setOutcome(e.target.value)}>
@@ -203,6 +214,7 @@ export default function Scorecard() {
             <tr>
               <th>Salesperson</th>
               <th style={{ textAlign: 'right' }}>Total calls</th>
+              <th style={{ textAlign: 'right' }}>Graded</th>
               <th style={{ textAlign: 'right' }}>Avg score</th>
               <th style={{ textAlign: 'right', color: 'var(--green, #4d7a63)' }}>Best (90+)</th>
               <th style={{ textAlign: 'right' }}>Good (70–89)</th>
@@ -220,8 +232,9 @@ export default function Scorecard() {
               return (
                 <tr key={r.ownerEmail}>
                   <td className="contact-name">{r.name}</td>
-                  <td style={{ textAlign: 'right', fontWeight: 600 }}>{r.calls}</td>
-                  <td style={{ textAlign: 'right', fontWeight: 700, color: color(r.avg) }}>{r.avg}</td>
+                  <td style={{ textAlign: 'right', fontWeight: 600 }}>{r.totalCalls ?? r.calls}</td>
+                  <td style={{ textAlign: 'right', color: r.calls ? 'inherit' : 'var(--muted)' }}>{r.calls}</td>
+                  <td style={{ textAlign: 'right', fontWeight: 700, color: color(r.avg) }}>{r.calls ? r.avg : '—'}</td>
                   <td style={{ textAlign: 'right', fontWeight: 700, color: best ? 'var(--green, #4d7a63)' : 'var(--muted)' }}>{best}</td>
                   <td style={{ textAlign: 'right', color: good ? 'inherit' : 'var(--muted)' }}>{good}</td>
                   <td style={{ textAlign: 'right', color: ok ? 'var(--amber, #b8860b)' : 'var(--muted)' }}>{ok}</td>
@@ -234,15 +247,17 @@ export default function Scorecard() {
             })}
             {reps.length === 0 && (
               <tr>
-                <td colSpan={8} className="subtle">No graded calls yet.</td>
+                <td colSpan={9} className="subtle">No graded calls yet.</td>
               </tr>
             )}
           </tbody>
         </table>
         <div className="subtle" style={{ marginTop: 8 }}>
-          The four count columns add up to Total calls. Best = 90+ (a call worth showing a new
-          joiner). "Avg score" is the mean out of 100 across all of that rep's graded calls. Dead
-          calls (wrong number, call-me-back) are excluded — they measure luck, not skill.
+          Total calls = every call the rep made in the period. Graded = the ≥30s recorded calls
+          that were transcribed and scored (the four band columns add up to this). Best = 90+ (a
+          call worth showing a new joiner). "Avg score" is the mean out of 100 across that rep's
+          graded calls. Dead calls (wrong number, call-me-back) are excluded — they measure luck,
+          not skill.
         </div>
       </div>
 

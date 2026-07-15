@@ -70,7 +70,10 @@ export default function Dashboard({ user, onLogout }) {
             'contacts',
             'users',
           ]
-        : ['tasks', 'installments', 'upsells'],
+        : // A sales rep gets their own follow-ups, their own graded calls, their personal
+          // scorecard, and their payments. Every one is hard-scoped to them on the server,
+          // not just hidden here.
+          ['tasks', 'calls', 'scorecard', 'installments', 'upsells'],
     [isAdmin]
   );
 
@@ -115,22 +118,18 @@ export default function Dashboard({ user, onLogout }) {
                 Analytics
               </button>
             )}
-            {isAdmin && (
-              <button
-                className={view === 'calls' ? 'tab active' : 'tab'}
-                onClick={() => setView('calls')}
-              >
-                Calls
-              </button>
-            )}
-            {isAdmin && (
-              <button
-                className={view === 'scorecard' ? 'tab active' : 'tab'}
-                onClick={() => setView('scorecard')}
-              >
-                Scorecard
-              </button>
-            )}
+            <button
+              className={view === 'calls' ? 'tab active' : 'tab'}
+              onClick={() => setView('calls')}
+            >
+              Calls
+            </button>
+            <button
+              className={view === 'scorecard' ? 'tab active' : 'tab'}
+              onClick={() => setView('scorecard')}
+            >
+              {isAdmin ? 'Scorecard' : 'My score'}
+            </button>
             {isAdmin && (
               <button
                 className={view === 'products' ? 'tab active' : 'tab'}
@@ -227,7 +226,7 @@ export default function Dashboard({ user, onLogout }) {
         ) : view === 'calls' ? (
           <Calls />
         ) : view === 'scorecard' ? (
-          <Scorecard />
+          <Scorecard user={user} />
         ) : view === 'products' ? (
           <Products />
         ) : view === 'campaigns' ? (

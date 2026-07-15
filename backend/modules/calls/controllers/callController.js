@@ -7,6 +7,27 @@ const { getJourneys } = require('../services/journeyCache');
 
 const MIN_DURATION = Number(process.env.TELECMI_MIN_DURATION_SEC || 30);
 
+// A sales rep may only ever see their OWN calls/scores. This resolves the owner filter
+// for any list/analytics query: an admin may narrow by ?owner=<email> or see everyone;
+// a non-admin is HARD-pinned to their own ownerEmail, whatever they pass in the query.
+// A rep with no ownerEmail is pinned to a sentinel that matches nothing, so a
+// misconfigured account sees zero calls rather than every unmapped (ownerEmail:null) one.
+function ownerScope(req) {
+  if (req.user && req.user.role === 'admin') {
+    return req.query.owner ? { ownerEmail: String(req.query.owner).toLowerCase() } : {};
+  }
+  const mine = ((req.user && req.user.ownerEmail) || '').toLowerCase();
+  return { ownerEmail: mine || '__no_owner_email__' };
+}
+
+/** True when the logged-in user is allowed to open this specific call. */
+function canSeeCall(req, call) {
+  if (!call) return false;
+  if (req.user && req.user.role === 'admin') return true;
+  const mine = ((req.user && req.user.ownerEmail) || '').toLowerCase();
+  return Boolean(mine) && (call.ownerEmail || '').toLowerCase() === mine;
+}
+
 // Guards against two concurrent POST /api/calls/sync runs processing the same
 // TeleCMI window at once (idempotent on cmiuid, so not corrupting — just wasteful).
 let syncRunning = false;
@@ -16,7 +37,6 @@ async function listCalls(req, res) {
   try {
     const {
       agent,
-      owner,
       status,
       leadId,
       search,
@@ -29,7 +49,6 @@ async function listCalls(req, res) {
 
     const q = {};
     if (agent) q.agentExt = agent;
-    if (owner) q.ownerEmail = owner.toLowerCase();
     if (status) q.transcriptionStatus = status;
     if (leadId) q.leadId = leadId;
     if (minDuration) q.duration = { $gte: Number(minDuration) };
@@ -42,6 +61,8 @@ async function listCalls(req, res) {
       const rx = new RegExp(String(search).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
       q.$or = [{ leadName: rx }, { leadPhone: rx }, { from: rx }, { to: rx }];
     }
+    // Hard-scope to the logged-in rep (admins may pass ?owner=). Overrides any client owner.
+    Object.assign(q, ownerScope(req));
 
     const perPage = Math.min(Number(limit) || 50, 200);
     const skip = (Math.max(Number(page) || 1, 1) - 1) * perPage;
@@ -61,17 +82,20 @@ async function listCalls(req, res) {
 /** GET /api/calls/stats — headline numbers for the admin view. */
 async function callStats(req, res) {
   try {
+    // Reps see stats for their own calls only; admins see everything.
+    const base = ownerScope(req);
     const [total, withRec, byStatus, byAgent, graded] = await Promise.all([
-      Call.countDocuments({}),
-      Call.countDocuments({ hasRecording: true }),
-      Call.aggregate([{ $group: { _id: '$transcriptionStatus', n: { $sum: 1 } } }]),
+      Call.countDocuments({ ...base }),
+      Call.countDocuments({ ...base, hasRecording: true }),
+      Call.aggregate([{ $match: base }, { $group: { _id: '$transcriptionStatus', n: { $sum: 1 } } }]),
       Call.aggregate([
+        { $match: base },
         { $group: { _id: '$agentExt', n: { $sum: 1 }, mins: { $sum: '$duration' } } },
         { $sort: { n: -1 } },
       ]),
-      Call.countDocuments({ 'grade.score': { $ne: null } }),
+      Call.countDocuments({ ...base, 'grade.score': { $ne: null } }),
     ]);
-    const matched = await Call.countDocuments({ leadId: { $ne: null } });
+    const matched = await Call.countDocuments({ ...base, leadId: { $ne: null } });
 
     res.json({
       success: true,
@@ -116,7 +140,10 @@ async function listJourneys(req, res) {
     const rx = search
       ? new RegExp(String(search).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i')
       : null;
-    const lcOwner = owner ? owner.toLowerCase() : null;
+    // Admin: optional ?owner=. Sales rep: hard-pinned to their own ownerEmail (sentinel
+    // if unset, so they match no journeys rather than everyone's).
+    const scoped = ownerScope(req);
+    const lcOwner = scoped.ownerEmail || (owner ? owner.toLowerCase() : null);
 
     const filtered = all.filter((j) => {
       // ---- deal-level
@@ -179,9 +206,8 @@ async function listJourneys(req, res) {
  */
 async function outcomeStats(req, res) {
   try {
-    const { owner } = req.query;
-    const base = {};
-    if (owner) base.ownerEmail = owner.toLowerCase();
+    // Deals carry ownerEmail too, so the same scope applies: reps see only their deals.
+    const base = ownerScope(req);
 
     const [byOutcome, byReason, byOwner, byProduct, byUpsell] = await Promise.all([
       Deal.aggregate([
@@ -278,6 +304,10 @@ async function getCall(req, res) {
   try {
     const call = await Call.findById(req.params.id).lean();
     if (!call) return res.status(404).json({ success: false, message: 'Call not found' });
+    // A rep can only open their own calls — don't let them read a peer's transcript by id.
+    if (!canSeeCall(req, call)) {
+      return res.status(403).json({ success: false, message: 'Not your call' });
+    }
     res.json({ success: true, data: call });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Failed to fetch call' });
@@ -296,6 +326,10 @@ async function streamRecording(req, res) {
   try {
     const call = await Call.findById(req.params.id).lean();
     if (!call) return res.status(404).json({ success: false, message: 'Call not found' });
+    // Same ownership guard as getCall — a rep must not stream a peer's recording by id.
+    if (!canSeeCall(req, call)) {
+      return res.status(403).json({ success: false, message: 'Not your call' });
+    }
     if (!call.filename) {
       return res.status(404).json({ success: false, message: 'No recording for this call' });
     }
@@ -438,12 +472,11 @@ async function gradeAnalytics(req, res) {
     // Default: ALL calls (won, lost, open) — a rep's day is every call they made, not
     // only the ones that closed. Pass ?outcome=won to narrow to closed-won.
     const outcomeFilter = req.query.outcome ? { outcome: req.query.outcome } : {};
-    const ownerFilter = req.query.owner
-      ? { ownerEmail: String(req.query.owner).toLowerCase() }
-      : {};
+    // Admins may ?owner=<email>; a sales rep is hard-scoped to their own calls.
+    const ownerFilter = ownerScope(req);
     const dateFilter = periodFilter(req.query.period);
 
-    const [calls, eligible, recentRaw] = await Promise.all([
+    const [calls, eligible, recentRaw, allCalls] = await Promise.all([
       Call.find({ ...outcomeFilter, ...ownerFilter, ...dateFilter, 'grade.score': { $ne: null } })
         .select('grade agentExt ownerEmail duration leadName leadPhone deal startedAt outcome')
         .lean(),
@@ -457,6 +490,12 @@ async function gradeAnalytics(req, res) {
         startedAt: { $gte: new Date(Date.now() - 14 * 86400000) },
       })
         .select('grade startedAt')
+        .lean(),
+      // EVERY call in the period (any duration, graded or not) — so the scorecard can
+      // show a rep's TOTAL activity next to the graded subset the score is built from.
+      // Transcription/grading still only touch >=30s calls; this is display only.
+      Call.find({ ...outcomeFilter, ...ownerFilter, ...dateFilter })
+        .select('agentExt ownerEmail')
         .lean(),
     ]);
 
@@ -482,26 +521,43 @@ async function gradeAnalytics(req, res) {
     const scores = gradeable.map((c) => c.grade.score);
 
     // --- Per rep -----------------------------------------------------------------
+    // Same canonical key everywhere: resolve agentExt to the email ownerEmail uses, so
+    // a call carrying only the extension doesn't spawn a second row for the same person.
+    const repKey = (c) => c.ownerEmail || agents[c.agentExt] || c.agentExt || 'unknown';
+
     const repMap = new Map();
+    // Seed from EVERY call so a rep who made calls but has nothing graded yet still
+    // shows up with their total activity (calls, not a mysteriously missing row).
+    allCalls.forEach((c) => {
+      const key = repKey(c);
+      if (!repMap.has(key)) repMap.set(key, { key, name: nameOf(c), scores: [], total: 0 });
+      repMap.get(key).total += 1;
+    });
+    // Layer the graded subset on top — this is what the score is built from.
     gradeable.forEach((c) => {
-      // Canonical key: resolve agentExt to the same email ownerEmail uses, so a call
-      // carrying only the extension doesn't spawn a second row for the same person.
-      const key = c.ownerEmail || agents[c.agentExt] || c.agentExt || 'unknown';
-      if (!repMap.has(key)) repMap.set(key, { key, name: nameOf(c), scores: [] });
+      const key = repKey(c);
+      if (!repMap.has(key)) repMap.set(key, { key, name: nameOf(c), scores: [], total: 0 });
       repMap.get(key).scores.push(c.grade.score);
     });
     const perRep = [...repMap.values()]
       .map((r) => ({
         name: r.name,
         ownerEmail: r.key,
-        calls: r.scores.length,
+        totalCalls: r.total, // ALL calls made in the period (any duration, graded or not)
+        calls: r.scores.length, // the graded, gradeable subset the score reflects
         avg: mean(r.scores),
         median: median(r.scores),
-        best: Math.max(...r.scores),
-        worst: Math.min(...r.scores),
+        best: r.scores.length ? Math.max(...r.scores) : null,
+        worst: r.scores.length ? Math.min(...r.scores) : null,
         bands: bands(r.scores),
       }))
-      .sort((a, b) => b.avg - a.avg);
+      // Graded reps ranked by score (unchanged); reps with only ungraded activity
+      // fall to the bottom, ordered by call volume.
+      .sort((a, b) => {
+        if (a.calls && b.calls) return b.avg - a.avg;
+        if (a.calls !== 0 || b.calls !== 0) return b.calls - a.calls;
+        return b.totalCalls - a.totalCalls;
+      });
 
     // --- By call type (the first-call-vs-follow-up insight) ----------------------
     const typeMap = new Map();
