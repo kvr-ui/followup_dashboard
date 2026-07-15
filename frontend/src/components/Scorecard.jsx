@@ -23,9 +23,30 @@ function color(pct) {
   return 'var(--red, #c0392b)';
 }
 
+const PERIODS = [
+  ['all', 'All time'],
+  ['today', 'Today'],
+  ['yesterday', 'Yesterday'],
+  ['7d', 'Last 7 days'],
+  ['30d', 'Last 30 days'],
+];
+
+const prettyDay = (iso) => {
+  const [y, m, d] = iso.split('-').map(Number);
+  const date = new Date(y, m - 1, d);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const diff = Math.round((today - date) / 86400000);
+  if (diff === 0) return 'Today';
+  if (diff === 1) return 'Yesterday';
+  return date.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
+};
+
 export default function Scorecard() {
   const [res, setRes] = useState(null);
   const [owner, setOwner] = useState('');
+  const [period, setPeriod] = useState('all');
+  const [outcome, setOutcome] = useState(''); // '' = all calls
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [selected, setSelected] = useState(null);
@@ -34,14 +55,18 @@ export default function Scorecard() {
     setLoading(true);
     setError('');
     try {
-      const q = owner ? `?owner=${encodeURIComponent(owner)}` : '';
-      setRes(await api(`/api/calls/grades${q}`));
+      const q = new URLSearchParams();
+      if (owner) q.set('owner', owner);
+      if (period !== 'all') q.set('period', period);
+      if (outcome) q.set('outcome', outcome);
+      const qs = q.toString();
+      setRes(await api(`/api/calls/grades${qs ? `?${qs}` : ''}`));
     } catch (e) {
       setError(e.message);
     } finally {
       setLoading(false);
     }
-  }, [owner]);
+  }, [owner, period, outcome]);
 
   useEffect(() => {
     load();
@@ -53,9 +78,23 @@ export default function Scorecard() {
 
   const o = res?.overall || {};
   const cov = res?.coverage || {};
+  const recentDays = res?.recentDays || [];
 
   return (
     <>
+      {/* Period selector — the old (all-time) data stays; this re-cuts it by date. */}
+      <div className="quick-tabs" style={{ marginBottom: 14 }}>
+        {PERIODS.map(([key, label]) => (
+          <button
+            key={key}
+            className={period === key ? 'quick-tab active' : 'quick-tab'}
+            onClick={() => setPeriod(key)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
       <div className="summary-grid">
         <div className="card">
           <div className="num" style={{ color: color(o.avg) }}>{o.avg ?? '—'}</div>
@@ -63,9 +102,9 @@ export default function Scorecard() {
         </div>
         <div className="card">
           <div className="num" style={{ color: 'var(--green, #4d7a63)' }}>
-            {(o.bands?.excellent || 0) + (o.bands?.good || 0)}
+            {o.bands?.best || 0}
           </div>
-          <div className="label">Good calls (70+)</div>
+          <div className="label">Best calls (90+)</div>
         </div>
         <div className="card">
           <div className="num" style={{ color: 'var(--red, #c0392b)' }}>{o.bands?.weak ?? 0}</div>
@@ -93,6 +132,15 @@ export default function Scorecard() {
             ))}
           </select>
         </label>
+        <label>
+          Calls
+          <select value={outcome} onChange={(e) => setOutcome(e.target.value)}>
+            <option value="">All calls</option>
+            <option value="won">Won only</option>
+            <option value="lost">Lost only</option>
+            <option value="open">Open only</option>
+          </select>
+        </label>
         <button onClick={load} disabled={loading}>
           {loading ? 'Loading…' : 'Refresh'}
         </button>
@@ -107,6 +155,46 @@ export default function Scorecard() {
         </div>
       )}
 
+      {/* --- Day by day (last 14 days), independent of the period filter --- */}
+      <div className="card" style={{ padding: '16px 18px', marginTop: 12 }}>
+        <h2 style={{ marginTop: 0 }}>Day by day</h2>
+        {recentDays.length === 0 ? (
+          <p className="subtle">No graded calls in the last 14 days.</p>
+        ) : (
+          <table className="tasks">
+            <thead>
+              <tr>
+                <th>Day</th>
+                <th style={{ textAlign: 'right' }}>Calls</th>
+                <th style={{ textAlign: 'right' }}>Avg score</th>
+                <th style={{ textAlign: 'right' }}>Best (90+)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {recentDays.map((d) => (
+                <tr key={d.date}>
+                  <td className="contact-name">{prettyDay(d.date)}</td>
+                  <td style={{ textAlign: 'right' }}>{d.calls}</td>
+                  <td style={{ textAlign: 'right', fontWeight: 700, color: color(d.avg) }}>{d.avg}</td>
+                  <td style={{ textAlign: 'right', color: d.best ? 'var(--green, #4d7a63)' : 'var(--muted)' }}>{d.best}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        <div className="subtle" style={{ marginTop: 8 }}>
+          Every won call graded in the last 14 days, by the day the call happened. New calls
+          appear here once they're transcribed and graded.
+        </div>
+      </div>
+
+      {o.gradeable === 0 && period !== 'all' && (
+        <div className="hint">
+          No graded calls in this period yet. Either no won calls happened, or they haven't been
+          graded. Switch to "All time" to see the full history.
+        </div>
+      )}
+
       {/* --- Per rep --- */}
       <div className="card" style={{ padding: '16px 18px', marginTop: 12 }}>
         <h2 style={{ marginTop: 0 }}>By salesperson</h2>
@@ -114,36 +202,47 @@ export default function Scorecard() {
           <thead>
             <tr>
               <th>Salesperson</th>
-              <th style={{ textAlign: 'right' }}>Calls</th>
-              <th style={{ textAlign: 'right' }}>Average</th>
-              <th style={{ textAlign: 'right' }}>Best</th>
-              <th style={{ textAlign: 'right' }}>Worst</th>
+              <th style={{ textAlign: 'right' }}>Total calls</th>
+              <th style={{ textAlign: 'right' }}>Avg score</th>
+              <th style={{ textAlign: 'right', color: 'var(--green, #4d7a63)' }}>Best (90+)</th>
+              <th style={{ textAlign: 'right' }}>Good (70–89)</th>
+              <th style={{ textAlign: 'right', color: 'var(--amber, #b8860b)' }}>OK (50–69)</th>
+              <th style={{ textAlign: 'right', color: 'var(--red, #c0392b)' }}>Weak (&lt;50)</th>
               <th>Spread</th>
             </tr>
           </thead>
           <tbody>
-            {reps.map((r) => (
-              <tr key={r.ownerEmail}>
-                <td className="contact-name">{r.name}</td>
-                <td style={{ textAlign: 'right' }}>{r.calls}</td>
-                <td style={{ textAlign: 'right', fontWeight: 700, color: color(r.avg) }}>{r.avg}</td>
-                <td style={{ textAlign: 'right' }} className="subtle">{r.best}</td>
-                <td style={{ textAlign: 'right' }} className="subtle">{r.worst}</td>
-                <td style={{ minWidth: 160 }}>
-                  <BandBar bands={r.bands} total={r.calls} />
-                </td>
-              </tr>
-            ))}
+            {reps.map((r) => {
+              const best = r.bands.best || 0;
+              const good = r.bands.good || 0;
+              const ok = r.bands.ok || 0;
+              const weak = r.bands.weak || 0;
+              return (
+                <tr key={r.ownerEmail}>
+                  <td className="contact-name">{r.name}</td>
+                  <td style={{ textAlign: 'right', fontWeight: 600 }}>{r.calls}</td>
+                  <td style={{ textAlign: 'right', fontWeight: 700, color: color(r.avg) }}>{r.avg}</td>
+                  <td style={{ textAlign: 'right', fontWeight: 700, color: best ? 'var(--green, #4d7a63)' : 'var(--muted)' }}>{best}</td>
+                  <td style={{ textAlign: 'right', color: good ? 'inherit' : 'var(--muted)' }}>{good}</td>
+                  <td style={{ textAlign: 'right', color: ok ? 'var(--amber, #b8860b)' : 'var(--muted)' }}>{ok}</td>
+                  <td style={{ textAlign: 'right', fontWeight: weak ? 600 : 400, color: weak ? 'var(--red, #c0392b)' : 'var(--muted)' }}>{weak}</td>
+                  <td style={{ minWidth: 140 }}>
+                    <BandBar bands={r.bands} total={r.calls} />
+                  </td>
+                </tr>
+              );
+            })}
             {reps.length === 0 && (
               <tr>
-                <td colSpan={6} className="subtle">No graded calls yet.</td>
+                <td colSpan={8} className="subtle">No graded calls yet.</td>
               </tr>
             )}
           </tbody>
         </table>
         <div className="subtle" style={{ marginTop: 8 }}>
-          Green = 85+, teal = 70–84, amber = 50–69, red = below 50. Dead calls (wrong number,
-          call-me-back) are excluded — they measure luck, not skill.
+          The four count columns add up to Total calls. Best = 90+ (a call worth showing a new
+          joiner). "Avg score" is the mean out of 100 across all of that rep's graded calls. Dead
+          calls (wrong number, call-me-back) are excluded — they measure luck, not skill.
         </div>
       </div>
 
@@ -210,9 +309,9 @@ export default function Scorecard() {
 function BandBar({ bands, total }) {
   if (!total) return <span className="subtle">—</span>;
   const seg = [
-    ['excellent', 'var(--green, #4d7a63)'],
+    ['best', 'var(--green, #4d7a63)'],
     ['good', '#6b9b83'],
-    ['mediocre', 'var(--amber, #b8860b)'],
+    ['ok', 'var(--amber, #b8860b)'],
     ['weak', 'var(--red, #c0392b)'],
   ];
   return (

@@ -91,9 +91,19 @@ const callSchema = new mongoose.Schema(
     transcript: { type: transcriptSchema, default: null },
 
     grade: { type: gradeSchema, default: null },
+    // Auto-grading bookkeeping (mirrors the transcription fields above). A grade is
+    // "pending" once a won call has a transcript; the worker grades it and writes the
+    // score into `grade`. Attempts are capped so a call that always fails (e.g. a
+    // transcript too long to fit the model's token budget) stops being retried
+    // forever instead of burning credits on every poll.
+    gradeError: { type: String, default: null },
+    gradeAttempts: { type: Number, default: 0 },
   },
   { timestamps: true }
 );
+
+// The auto-grade worker's queue: won calls that are transcribed but not yet scored.
+callSchema.index({ outcome: 1, transcriptionStatus: 1, 'grade.score': 1 });
 
 // The journeys view joins every closed deal to its calls on this field. Without
 // the index that join scans the whole calls collection once per deal — it took

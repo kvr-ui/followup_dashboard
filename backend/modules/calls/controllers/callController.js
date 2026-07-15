@@ -383,13 +383,17 @@ function median(nums) {
 
 const mean = (nums) => (nums.length ? Math.round(nums.reduce((a, b) => a + b, 0) / nums.length) : 0);
 
-/** Four coaching bands. Matches the colour buckets the UI already uses. */
+/**
+ * Four coaching bands. 90+ is "best" — a call you would actually show a new joiner,
+ * which the rubric reserves for genuinely excellent selling (the grader is told 85+ is
+ * already rare, so 90+ is a real bar, not a participation trophy).
+ */
 function bands(scores) {
-  const b = { excellent: 0, good: 0, mediocre: 0, weak: 0 };
+  const b = { best: 0, good: 0, ok: 0, weak: 0 };
   scores.forEach((s) => {
-    if (s >= 85) b.excellent += 1;
+    if (s >= 90) b.best += 1;
     else if (s >= 70) b.good += 1;
-    else if (s >= 50) b.mediocre += 1;
+    else if (s >= 50) b.ok += 1;
     else b.weak += 1;
   });
   return b;
@@ -408,18 +412,52 @@ function bands(scores) {
  * which is the opposite of what a coaching score is for. They are counted separately
  * so the number is visible, just never blended into skill.
  */
+/**
+ * Turn a period name into a startedAt filter. Day boundaries are the SERVER's local
+ * midnight — the container runs TZ=Asia/Kolkata, so "today" means today in IST, which
+ * is what a Tamil Nadu sales floor means by it. 'all' applies no date filter.
+ */
+function periodFilter(period) {
+  if (!period || period === 'all') return {};
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+
+  if (period === 'today') return { startedAt: { $gte: start } };
+  if (period === 'yesterday') {
+    const y = new Date(start);
+    y.setDate(y.getDate() - 1);
+    return { startedAt: { $gte: y, $lt: start } };
+  }
+  if (period === '7d') return { startedAt: { $gte: new Date(Date.now() - 7 * 86400000) } };
+  if (period === '30d') return { startedAt: { $gte: new Date(Date.now() - 30 * 86400000) } };
+  return {};
+}
+
 async function gradeAnalytics(req, res) {
   try {
-    const outcome = req.query.outcome || 'won';
+    // Default: ALL calls (won, lost, open) — a rep's day is every call they made, not
+    // only the ones that closed. Pass ?outcome=won to narrow to closed-won.
+    const outcomeFilter = req.query.outcome ? { outcome: req.query.outcome } : {};
     const ownerFilter = req.query.owner
       ? { ownerEmail: String(req.query.owner).toLowerCase() }
       : {};
+    const dateFilter = periodFilter(req.query.period);
 
-    const [calls, eligible] = await Promise.all([
-      Call.find({ outcome, ...ownerFilter, 'grade.score': { $ne: null } })
-        .select('grade agentExt ownerEmail duration leadName leadPhone deal startedAt')
+    const [calls, eligible, recentRaw] = await Promise.all([
+      Call.find({ ...outcomeFilter, ...ownerFilter, ...dateFilter, 'grade.score': { $ne: null } })
+        .select('grade agentExt ownerEmail duration leadName leadPhone deal startedAt outcome')
         .lean(),
-      Call.countDocuments({ outcome, ...ownerFilter, hasRecording: true, duration: { $gte: MIN_DURATION } }),
+      Call.countDocuments({ ...outcomeFilter, ...ownerFilter, ...dateFilter, hasRecording: true, duration: { $gte: MIN_DURATION } }),
+      // Last 14 days, day by day — the trend, independent of the chosen period so the
+      // strip is always there to show "how did today/yesterday go".
+      Call.find({
+        ...outcomeFilter,
+        ...ownerFilter,
+        'grade.score': { $ne: null },
+        startedAt: { $gte: new Date(Date.now() - 14 * 86400000) },
+      })
+        .select('grade startedAt')
+        .lean(),
     ]);
 
     const agents = agentMap(); // ext -> email
@@ -504,8 +542,27 @@ async function gradeAnalytics(req, res) {
     });
     const ranked = [...gradeable].sort((a, b) => b.grade.score - a.grade.score);
 
+    // --- Day-by-day (last 14 days) -----------------------------------------------
+    // Local-date key so a call at 11pm IST lands on the right day, not the UTC next day.
+    const dayKey = (d) => {
+      const x = new Date(d);
+      return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
+    };
+    const dayMap = new Map();
+    recentRaw
+      .filter((c) => c.grade.breakdown && c.grade.breakdown.callType !== 'not_gradeable')
+      .forEach((c) => {
+        const k = dayKey(c.startedAt);
+        if (!dayMap.has(k)) dayMap.set(k, []);
+        dayMap.get(k).push(c.grade.score);
+      });
+    const recentDays = [...dayMap.entries()]
+      .map(([date, s]) => ({ date, calls: s.length, avg: mean(s), best: s.filter((x) => x >= 90).length }))
+      .sort((a, b) => (a.date < b.date ? 1 : -1)); // newest first
+
     res.json({
       success: true,
+      period: req.query.period || 'all',
       coverage: {
         graded: calls.length,
         eligible,
@@ -521,6 +578,7 @@ async function gradeAnalytics(req, res) {
       perRep,
       byCallType,
       byCriterion,
+      recentDays,
       topCalls: ranked.slice(0, 5).map(brief),
       bottomCalls: ranked.slice(-5).reverse().map(brief),
     });

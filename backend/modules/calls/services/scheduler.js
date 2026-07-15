@@ -14,12 +14,15 @@ const elevenlabs = require('./elevenlabs');
 const { agentMap, buildLeadIndex, warmLeadIndex, upsertCall } = require('./callStore');
 const { upsertDeal, fetchDealsModifiedSince, shouldTranscribe } = require('./dealStore');
 const { runBatch } = require('./transcriptionWorker');
+const grader = require('./grader');
 const { sinceFor, commit, fmtWindow } = require('../../../services/lookback');
 
 const CALL_POLL_MIN = Number(process.env.CALL_POLL_MINUTES || 15);
 const DEAL_POLL_MIN = Number(process.env.DEAL_POLL_MINUTES || 15);
 const TRANSCRIBE_EVERY_MIN = Number(process.env.TRANSCRIBE_POLL_MINUTES || 10);
 const TRANSCRIBE_BATCH = Number(process.env.TRANSCRIBE_BATCH || 10);
+const GRADE_EVERY_MIN = Number(process.env.GRADE_POLL_MINUTES || 10);
+const GRADE_BATCH = Number(process.env.GRADE_BATCH || 10);
 
 // First run only (no cursor yet): open the window at the newest record we hold,
 // so a fresh deploy doesn't cold-start at 2h and skip what was already missed.
@@ -39,7 +42,7 @@ const seedFromNewestDeal = async () => {
 let quotaBlockedUntil = 0;
 const QUOTA_COOLDOWN_MS = 60 * 60 * 1000; // 1 hour
 
-let running = { calls: false, deals: false, transcribe: false };
+let running = { calls: false, deals: false, transcribe: false, grade: false };
 
 async function reconcileCalls() {
   if (running.calls || !telecmi.isConfigured()) return;
@@ -149,6 +152,35 @@ async function transcribePending() {
   }
 }
 
+/**
+ * Grade won calls that have a transcript but no score yet. The last stage of the
+ * pipeline: reconcile → transcribe → GRADE. A call that closes won is transcribed by
+ * the job above, then scored here on the next tick — no manual step, so "today's
+ * calls" on the scorecard fill in on their own.
+ */
+async function gradePending() {
+  if (running.grade || !grader.isConfigured()) return;
+
+  running.grade = true;
+  try {
+    const pending = await Call.countDocuments({
+      transcriptionStatus: 'done',
+      'grade.score': null,
+      gradeAttempts: { $not: { $gte: grader.MAX_ATTEMPTS } }, // matches missing field too
+    });
+    if (!pending) return;
+
+    const res = await grader.gradePending({ limit: GRADE_BATCH, concurrency: 3 });
+    if (res.ok || res.failed) {
+      console.log(`[grade] ${res.ok} graded, ${res.failed} failed (${pending} were pending)`);
+    }
+  } catch (err) {
+    console.warn('[grade] failed:', err.message);
+  } finally {
+    running.grade = false;
+  }
+}
+
 function start() {
   if (process.env.CALL_JOBS_ENABLED === 'false') {
     console.log('Call jobs disabled (CALL_JOBS_ENABLED=false)');
@@ -156,7 +188,7 @@ function start() {
   }
 
   console.log(
-    `Call jobs: calls/${CALL_POLL_MIN}m, deals/${DEAL_POLL_MIN}m, transcribe/${TRANSCRIBE_EVERY_MIN}m`
+    `Call jobs: calls/${CALL_POLL_MIN}m, deals/${DEAL_POLL_MIN}m, transcribe/${TRANSCRIBE_EVERY_MIN}m, grade/${GRADE_EVERY_MIN}m`
   );
 
   // Warm the lead index immediately so the first webhook is fast.
@@ -165,10 +197,14 @@ function start() {
   // Stagger so they don't all fire at once on boot.
   setTimeout(reconcileCalls, 20 * 1000);
   setTimeout(reconcileDeals, 60 * 1000);
+  // Grade runs after transcribe in the stagger — a call must be transcribed before it
+  // can be graded, so there's no point racing them on boot.
+  setTimeout(gradePending, 90 * 1000);
 
   setInterval(reconcileCalls, CALL_POLL_MIN * 60 * 1000);
   setInterval(reconcileDeals, DEAL_POLL_MIN * 60 * 1000);
   setInterval(transcribePending, TRANSCRIBE_EVERY_MIN * 60 * 1000);
+  setInterval(gradePending, GRADE_EVERY_MIN * 60 * 1000);
 }
 
-module.exports = { start, reconcileCalls, reconcileDeals, transcribePending };
+module.exports = { start, reconcileCalls, reconcileDeals, transcribePending, gradePending };
