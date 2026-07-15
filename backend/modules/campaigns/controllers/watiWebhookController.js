@@ -37,34 +37,62 @@ const STATUS_WINDOW_HOURS = Number(process.env.CAMPAIGN_ATTRIBUTION_HOURS || 72)
 const REPLY_WINDOW_DAYS = Number(process.env.CAMPAIGN_REPLY_ATTRIBUTION_DAYS || 14);
 
 /**
- * WATI's event names, mapped to ours. The right-hand side is a closed set; anything
- * not on this list is stored raw and left alone rather than guessed at.
+ * Map a WATI eventType to one of ours by KEYWORD, not by an exact string.
+ *
+ * This is deliberately not a lookup table, because WATI's real event names are a
+ * moving target. The live account fires: templateMessageSent, sentMessageDELIVERED,
+ * sentMessageREAD, sentMessageREPLIED, message, newContactMessageReceived,
+ * templateMessageFailed, sessionMessageFailed, ctaButtonClicked — PLUS a parallel
+ * "v2" set (sentMessageDELIVERED_v2, …) that carries the same meaning in a different
+ * payload shape. An exact-match table would silently drop half of those the moment
+ * WATI renamed one or shipped a v3, and a dropped status event means an empty funnel
+ * with no error to point at. Keywords survive the renames.
+ *
+ * ORDER MATTERS. "sentMessageREPLIED" contains both "sent" and "repli"; "sentMessage
+ * DELIVERED" contains "sent" and "deliver". The specific signal has to be tested
+ * before the generic "sent", or every status would collapse to 'sent'.
  */
-const EVENT_MAP = {
-  sentmessage: 'sent',
-  messagesent: 'sent',
-  templatemessagesent: 'sent',
-  deliveredmessage: 'delivered',
-  messagedelivered: 'delivered',
-  readmessage: 'read',
-  messageread: 'read',
-  failedmessage: 'failed',
-  messagefailed: 'failed',
-  // Inbound. WATI uses several names for "the contact wrote to us".
-  message: 'replied',
-  newcontactmessage: 'replied',
-  sessionmessagesent: null, // outbound free-text from an agent — not a campaign event
-};
+function classify(rawEventType) {
+  const s = String(rawEventType || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (!s) return undefined;
+
+  // Agent-typed outbound free-text. Not a campaign event, and it must be ruled out
+  // before the "sent" keyword below claims it.
+  if (s.includes('session') && (s.includes('sent') || s.includes('message'))) {
+    if (s.includes('fail')) return null; // a failed agent message still isn't ours
+    return null;
+  }
+
+  if (s.includes('fail')) return 'failed';
+  if (s.includes('repli')) return 'replied';
+  if (s.includes('read')) return 'read';
+  if (s.includes('deliver')) return 'delivered';
+
+  // A tap on a template's built-in URL/quick-reply button. This is a genuine click
+  // signal, and for templates whose links live in the button (not in a variable) it
+  // is the ONLY click signal — the /r/ redirect only sees URLs we injected ourselves.
+  if (s.includes('button') || s.includes('cta')) return 'clicked';
+
+  // Inbound message from the contact. "message" exactly, or "newContactMessage…".
+  if (s === 'message' || s.includes('received') || s.includes('newcontact')) return 'replied';
+
+  // templateMessageSent — our own send, echoed back. Harmless (idempotent, forward-
+  // only) but recorded so the sent count reconciles even for messages fired elsewhere.
+  if (s.includes('sent')) return 'sent';
+
+  // callStatus, paymentCaptured — real WATI events, just nothing to do with campaigns.
+  return undefined;
+}
 
 function eventTypeOf(body) {
-  const raw = String(body.eventType || body.type || body.event || '').toLowerCase();
-  if (EVENT_MAP[raw] !== undefined) return EVENT_MAP[raw];
+  const byName = classify(body.eventType || body.type || body.event);
+  if (byName !== undefined) return byName;
 
-  // Some WATI accounts post a generic status event with the state in a field instead.
+  // Fallback: some payloads carry the state in a status field instead of the name.
   const status = String(body.status || body.statusString || '').toLowerCase();
   if (['sent', 'delivered', 'read', 'failed'].includes(status)) return status;
 
-  return undefined; // unknown — caller stores it and moves on
+  return undefined; // unknown — caller stores it raw and moves on
 }
 
 /** WATI is inconsistent about where the message id lives. Look everywhere it has been. */
@@ -138,6 +166,33 @@ async function resolveMessage(watiMessageId, phoneKey, type) {
 
 /** Apply an event to a message, its contact, and its campaign. Forward-only. */
 async function applyEvent(msg, type, body, occurredAt) {
+  // A CTA/button tap is a click, not a status. It never moves the status ladder (a
+  // click must not demote a message that was already replied), it just records intent.
+  // The unique (watiMessageId, 'clicked') event index upstream means a repeated tap on
+  // the same message is already deduped before we get here — so this is a first click.
+  if (type === 'clicked') {
+    const isFirst = !msg.clickCount;
+    await CampaignMessage.updateOne(
+      { _id: msg._id },
+      {
+        $inc: { clickCount: 1 },
+        ...(msg.firstClickAt ? {} : { $set: { firstClickAt: occurredAt } }),
+      }
+    );
+    if (isFirst) {
+      // stats.clicked is UNIQUE clickers, so it only moves on the first click — same
+      // rule the /r/ redirect follows, so the two click sources stay consistent.
+      await Promise.all([
+        Campaign.updateOne({ _id: msg.campaignId }, { $inc: { 'stats.clicked': 1 } }),
+        Contact.updateOne(
+          { _id: msg.contactId },
+          { $inc: { 'stats.clicked': 1 }, $set: { lastClickAt: occurredAt } }
+        ),
+      ]);
+    }
+    return;
+  }
+
   const stampField = {
     sent: 'sentAt',
     delivered: 'deliveredAt',
@@ -160,6 +215,24 @@ async function applyEvent(msg, type, body, occurredAt) {
     set.errorCode = String(body.errorCode || body.failedCode || '') || null;
   }
 
+  // Backfill the stages a later event PROVES already happened. A reply cannot occur
+  // unless the message was delivered and seen; a read cannot occur unless it was
+  // delivered. WATI does not reliably send every intermediate event — and `read`
+  // never fires at all if the contact has read receipts switched off — so without
+  // this the funnel shows impossible states like "1 replied, 0 delivered". Each
+  // backfill is guarded by the stamp being absent, which is also what stops it
+  // double-counting when the real delivered/read webhook turns up later (by then the
+  // stamp is set, and the forward-only status means that event no longer advances).
+  const backfillInc = {};
+  const implied = type === 'replied' ? ['delivered', 'read'] : type === 'read' ? ['delivered'] : [];
+  for (const stage of implied) {
+    const field = stage === 'delivered' ? 'deliveredAt' : 'readAt';
+    if (!msg[field] && !set[field]) {
+      set[field] = occurredAt;
+      backfillInc[`stats.${stage}`] = 1;
+    }
+  }
+
   const advances = CampaignMessage.advances(msg.status, type);
   if (advances) set.status = type;
 
@@ -167,10 +240,10 @@ async function applyEvent(msg, type, body, occurredAt) {
     await CampaignMessage.updateOne({ _id: msg._id }, { $set: set });
   }
 
-  // Campaign and contact counters move only on a real forward transition, so a
-  // retried webhook that slipped past the event index still can't inflate them.
+  // Campaign and contact counters move only on a real forward transition (so a
+  // retried webhook can't inflate them), plus any stages a reply/read just proved.
+  const inc = { ...backfillInc };
   if (advances) {
-    const inc = {};
     if (type === 'delivered') inc['stats.delivered'] = 1;
     if (type === 'read') inc['stats.read'] = 1;
     if (type === 'replied') inc['stats.replied'] = 1;
@@ -178,13 +251,13 @@ async function applyEvent(msg, type, body, occurredAt) {
       inc['stats.failed'] = 1;
       inc['stats.queued'] = -1;
     }
+  }
 
-    if (Object.keys(inc).length) {
-      await Promise.all([
-        Campaign.updateOne({ _id: msg.campaignId }, { $inc: inc }),
-        Contact.updateOne({ _id: msg.contactId }, { $inc: inc }),
-      ]);
-    }
+  if (Object.keys(inc).length) {
+    await Promise.all([
+      Campaign.updateOne({ _id: msg.campaignId }, { $inc: inc }),
+      Contact.updateOne({ _id: msg.contactId }, { $inc: inc }),
+    ]);
   }
 }
 
@@ -338,4 +411,4 @@ async function receive(req, res) {
   }
 }
 
-module.exports = { receive, isOptOut, eventTypeOf, EVENT_MAP };
+module.exports = { receive, isOptOut, eventTypeOf, classify };

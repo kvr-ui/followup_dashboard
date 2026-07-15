@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../api';
 import { formatDateTime } from '../utils';
 import { money, pct, relative, STATUS_BADGE } from '../campaigns';
-import CampaignForm from './CampaignForm';
+import CampaignComposer from './CampaignComposer';
 import CampaignDetail from './CampaignDetail';
 import Segments from './Segments';
 import CampaignHealth from './CampaignHealth';
@@ -247,11 +247,11 @@ export default function Campaigns() {
       </div>
 
       {creating && (
-        <CampaignForm
+        <CampaignComposer
           onClose={() => setCreating(false)}
-          onSaved={(id) => {
+          onSent={(id, msg) => {
             setCreating(false);
-            setNotice('Draft saved. Nothing sends until you press Send.');
+            setNotice(msg || 'Done.');
             load();
             setSelectedId(id);
           }}

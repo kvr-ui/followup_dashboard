@@ -692,6 +692,41 @@ async function getTemplates(req, res) {
   }
 }
 
+/**
+ * POST /api/campaigns/test-send — fire one template to one number, right now.
+ *
+ * No campaign, no contact row, no tracking. This is the "send it to my own phone so I
+ * can see what it looks like" button, and coupling it to the whole campaign machinery
+ * would defeat its point — the entire value is that it is instant and disposable.
+ * Links are NOT rewritten here: a test is about eyeballing the wording, and a tracked
+ * link would pollute a real campaign's click stats with your own test taps.
+ */
+async function testSend(req, res) {
+  try {
+    const { phone, templateName, variables } = req.body || {};
+    if (!phone || !templateName) {
+      return res.status(400).json({ success: false, message: 'A number and a template are required' });
+    }
+
+    const parameters = render.toWatiParameters(
+      // Accept either the composer's {name: value} map or WATI's [{name,value}] array.
+      Array.isArray(variables)
+        ? Object.fromEntries(variables.map((v) => [v.name, v.value]))
+        : variables || {}
+    );
+
+    const result = await wati.sendTemplate(phone, templateName, parameters, 'Test send');
+    if (!result.ok) {
+      return res.status(502).json({ success: false, message: result.error || 'WATI rejected the test' });
+    }
+
+    res.json({ success: true, message: `Test sent to ${result.number}. Check your WhatsApp.` });
+  } catch (err) {
+    console.error('Test send failed:', err.message);
+    res.status(500).json({ success: false, message: 'Failed to send the test' });
+  }
+}
+
 async function getHealth(req, res) {
   try {
     res.json({ success: true, ...(await health.check()) });
@@ -720,5 +755,6 @@ module.exports = {
   timing,
   inbox,
   getTemplates,
+  testSend,
   getHealth,
 };

@@ -1,6 +1,6 @@
 # Followup Dashboard — TODO
 
-Last updated: 2026-07-14
+Last updated: 2026-07-15
 
 > Full-project audit added below (security, config/infra, features, code quality).
 > Items are ordered by severity. Fix the 🔴 CRITICAL security block **before this goes public.**
@@ -82,6 +82,79 @@ Last updated: 2026-07-14
 - [ ] **Surface the full grade in the UI** — `CallDetail.jsx:115-124` renders only `score` + `summary`; the stored `breakdown` (per-criterion), `strengths`, and `improvements` (`Call.js:17`) are captured and thrown away.
 - [ ] **Validate the single-call rubric** — a real two-rubric (first-call / follow-up) grader with score anchors already exists in `gradeCalls.js`; validate against the 22 transcripts, then productionize per above.
 - [ ] **Document the Sarvam dependency** — grading uses Sarvam AI (`SARVAM_API_KEY`, model `sarvam-105b`), absent from `.env.example` and this file's config list.
+
+---
+
+## 🟣 WhatsApp Campaigns (v3) — status 2026-07-15 (PAUSED — fix these first)
+
+Built and **working end-to-end**: one live campaign (`test` / `workout_batch`) was sent
+through the dashboard and its reply was captured and attributed. But it is **not
+production-ready**. Fix the blockers below before relying on it or building more.
+
+Module lives in `backend/modules/campaigns/` + `frontend/src/components/Campaign*.jsx`,
+`Contacts.jsx`, `Segments.jsx`, `CampaignComposer.jsx`. Admin-only, all routes.
+
+### 🔴 Blockers — reliable operation
+- [ ] **Stable public URL.** ngrok free URL (`sparrowless-…ngrok-free.dev`) changes on every
+  restart; when it does, BOTH `PUBLIC_BASE_URL` in `.env` AND the WATI webhook URL go stale —
+  links break and delivery/read/reply events silently stop. Move to `follo.focasedu.in` (same
+  domain as the call/deal webhooks), fixed paths `/webhook/wati` and `/r/:code`.
+- [ ] **Confirm URL/port line up.** App serves on **7007** in Docker (dev **3000**). Whatever
+  ngrok/proxy points at must be the port actually serving `/webhook/wati` + `/r/`. Right now the
+  tunnel + `PUBLIC_BASE_URL` must match the running port.
+- [ ] **Restart backend to load two fixes not yet live:** (1) real WATI event-name classifier
+  (`sentMessageDELIVERED/READ/REPLIED`, +v2, CTA) — without it the funnel stays empty even though
+  webhooks arrive; (2) reply-backfill (a reply now stamps delivered+read). Existing campaigns won't
+  retro-fix.
+- [ ] **`/webhook/wati` token check is on ✓ but `/r/:code` is public + unthrottled.** No rate
+  limiting on either. Ties into the app-wide rate-limit gap (see 🟠 HIGH security).
+
+### 🟠 Feature gaps — built but incomplete
+- [ ] **Contacts must exist before sending** — the composer can't upload a list inline; you import
+  via Contacts → CSV/Bigin first. Add "upload list" directly in the composer's audience step (WATI
+  lets you attach a list in the broadcast itself).
+- [ ] **Bigin → Contacts is a one-shot import, not a sync.** A new Bigin lead won't appear as a
+  contact automatically. Decide: periodic sync job, or leave as import-on-demand.
+- [ ] **A/B testing has no UI.** Backend supports `abGroupId/abVariant/abSplit` and the smoke test
+  exercises the split, but nothing in the UI creates an A/B test. Build it or drop the fields.
+- [ ] **Drip sequences never run live.** Models + scheduler + `SequenceForm.jsx` built and unit-path
+  tested, but no real multi-step drip has fired end-to-end. Test one before relying on it.
+- [ ] **CTA button-click tracking untested live.** Added (maps `ctaButtonClicked` → click), not yet
+  verified against a real template that has URL buttons.
+- [ ] **Cost figures are estimates** from hardcoded default rates (`WA_RATE_*`), not your actual WATI
+  invoice. UI already hedges ("estimate"), but verify against one real bill and adjust the rates.
+
+### 🟡 Correctness / robustness
+- [ ] **Verify WATI id matching.** Attribution prefers the provider message id; when the send
+  response has no id it falls back to phone + time-window (inference). Confirm whether WATI's
+  send-response id == the webhook `whatsappMessageId` — if so, primary matching is exact and the
+  fallback is rarely used. If not, the fallback is load-bearing and worth hardening.
+- [ ] **Single-process sender only.** Safe to crash/resume (queue lives in Mongo), NOT safe across
+  2+ replicas — two workers would double-send. Documented in `campaigns/services/scheduler.js`.
+  Fine for the single container; revisit if scaled (findOneAndUpdate lease per message).
+- [ ] **Scheduler `setInterval`s not cleared on shutdown** — same graceful-shutdown gap as the rest
+  of the app (see 🟠 HIGH). Add to the SIGTERM handler when that's built.
+- [ ] **Events lost while the tunnel is down.** Delivered/read/reply only populate if the webhook is
+  reachable during + after a send. Raw payloads are kept 30 days (`WatiWebhook`) but are NOT
+  reprocessed — there's no replay job. Consider one if downtime is common.
+
+### 🧹 Cleanup
+- [ ] **Delete `frontend/src/components/CampaignForm.jsx`** — replaced by `CampaignComposer.jsx`,
+  now unused (still compiles, just dead).
+- [ ] **No tests** for the campaigns module (consistent with the project). The stub-WATI smoke test +
+  classifier unit test live only in a scratch dir — move them into the repo if/when tests are added.
+- [ ] **`.env.example` campaigns keys added ✓;** real `.env` has `PUBLIC_BASE_URL` +
+  `WATI_WEBHOOK_TOKEN` set ✓ (rotate the token if it ever leaks — it's in the webhook URL).
+
+### ✅ Done (v3)
+- [x] Send pipeline: draft → throttled send → WATI, admin-only, opt-out gate on the send path
+- [x] Funnel with **click-outranks-read** ordering, retarget-by-state, campaign lineage/children
+- [x] Own `/r/:code` click tracking with **bot filtering** (Meta's link-preview crawler excluded)
+- [x] Opt-out: reply STOP detection + **phone-level suppression** that survives contact delete / CSV re-import
+- [x] WATI webhook receiver: raw-store-first, **idempotent** (retry-safe), out-of-order safe, real event names, reply-backfill
+- [x] **WATI-style composer** — one screen, live WhatsApp preview, send-test-to-my-number
+- [x] Contacts (CSV + Bigin import, tags, opt-out, history), Segments (safe rule engine), Replies inbox (24h window), Number-health monitor
+- [x] End-to-end smoke test (26 assertions) + classifier unit test (17 real event names) passing
 
 ---
 

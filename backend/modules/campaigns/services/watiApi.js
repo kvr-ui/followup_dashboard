@@ -118,14 +118,37 @@ async function listTemplates() {
     const arr = json.messageTemplates || json.data || (Array.isArray(json) ? json : []);
 
     const templates = (Array.isArray(arr) ? arr : [])
-      .map((t) => ({
-        name: t.elementName || t.name,
-        status: t.status || 'UNKNOWN',
-        category: (t.category || 'MARKETING').toUpperCase(),
-        language: (t.language && t.language.text) || t.languageCode || '',
-        params: (t.customParams || []).map((p) => p.paramName),
-        body: t.body || (t.customParams ? null : t.bodyOriginal) || null,
-      }))
+      .map((t) => {
+        const header = t.header || {};
+        return {
+          name: t.elementName || t.name,
+          status: t.status || 'UNKNOWN',
+          category: (t.category || 'MARKETING').toUpperCase(),
+          language: (t.language && t.language.text) || t.languageCode || '',
+          params: (t.customParams || []).map((p) => p.paramName),
+          // Sample values WATI stores per param ("santhosh"), so the preview shows a
+          // realistic message before any contact is picked, and the composer can
+          // pre-fill sensible defaults.
+          sampleValues: Object.fromEntries(
+            (t.customParams || []).map((p) => [p.paramName, p.paramValue || ''])
+          ),
+          // bodyOriginal keeps the NAMED placeholders ({{name}}); body has them
+          // numbered ({{1}}). The composer renders the named one so the preview lines
+          // up with the variable editor.
+          body: t.bodyOriginal || t.body || '',
+          // The WhatsApp chrome around the message, so the preview looks like the
+          // real thing rather than a bare paragraph.
+          header:
+            header.headerTypeString && header.headerTypeString !== 'none'
+              ? { type: header.headerTypeString, text: header.text || '' }
+              : null,
+          footer: t.footer || '',
+          buttons: (t.buttons || []).map((b) => ({
+            text: b.text || b.buttonText || '',
+            type: b.type || b.buttonType || 'text',
+          })),
+        };
+      })
       .sort((a, b) => a.name.localeCompare(b.name));
 
     return { ok: true, templates };

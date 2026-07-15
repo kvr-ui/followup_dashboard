@@ -16,6 +16,7 @@ router.use(authenticate, requireAdmin);
 
 // Collection-level. These sit above /:id so "templates" is never read as an id.
 router.get('/templates', c.getTemplates);
+router.post('/test-send', c.testSend);
 router.get('/health', c.getHealth);
 router.get('/inbox', c.inbox);
 router.get('/timing/all', c.timing);
