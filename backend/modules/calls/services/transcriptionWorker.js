@@ -4,6 +4,11 @@ const elevenlabs = require('./elevenlabs');
 
 const MAX_ATTEMPTS = 3;
 
+// A call held in `processing` longer than this was almost certainly stranded by a
+// crash/deploy mid-transcribe (nothing legitimately takes 20 min). The reaper below
+// re-queues it so the next poll retries it instead of it being stuck forever.
+const PROCESSING_TIMEOUT_MS = 20 * 60 * 1000;
+
 // Out-of-credits / billing errors are transient: top up the account and the same
 // call transcribes fine. They must NOT count against the retry budget, or a quota
 // outage permanently marks calls `failed` and they're never retried once credits
@@ -26,8 +31,23 @@ async function transcribeCall(call, { force = false } = {}) {
     return { ok: false, error: 'No recording' };
   }
 
-  call.transcriptionStatus = 'processing';
-  await call.save();
+  // Atomically claim the call: pending -> processing. If another worker (the scheduler
+  // batch or the webhook fast-path) already claimed it, findOneAndUpdate returns null and
+  // we skip — this is what stops the same recording being downloaded and transcribed (and
+  // paid for) twice. `force` (manual re-run) bypasses the claim and re-transcribes.
+  if (force) {
+    call.transcriptionStatus = 'processing';
+    call.processingStartedAt = new Date();
+    await call.save();
+  } else {
+    const claimed = await Call.findOneAndUpdate(
+      { _id: call._id, transcriptionStatus: 'pending' },
+      { $set: { transcriptionStatus: 'processing', processingStartedAt: new Date() } },
+      { new: true }
+    );
+    if (!claimed) return { ok: false, skipped: true, reason: 'already claimed' };
+    call = claimed;
+  }
 
   try {
     const { buffer } = await telecmi.downloadRecording(call.filename);
@@ -71,6 +91,26 @@ async function transcribeCall(call, { force = false } = {}) {
 }
 
 /**
+ * Re-queue calls stranded in `processing`. A crash/deploy between claiming a call and
+ * writing its terminal status leaves it `processing` forever, and every selector only
+ * looks for `pending` — so without this the call is never transcribed again. Run this
+ * before each transcribe poll. Returns how many were recovered.
+ */
+async function requeueStale() {
+  const cutoff = new Date(Date.now() - PROCESSING_TIMEOUT_MS);
+  const res = await Call.updateMany(
+    {
+      transcriptionStatus: 'processing',
+      // Recent leases are a worker actively transcribing — leave them. Null covers rows
+      // stuck before this field existed.
+      $or: [{ processingStartedAt: { $lt: cutoff } }, { processingStartedAt: null }],
+    },
+    { $set: { transcriptionStatus: 'pending' } }
+  );
+  return res.modifiedCount || 0;
+}
+
+/**
  * Work through pending calls with a small worker pool.
  * `limit` caps how many we process in a run — a hard guard against runaway cost.
  * `concurrency` stays low; ElevenLabs 429s are retried with backoff anyway.
@@ -107,4 +147,4 @@ async function runBatch({ limit = 10, concurrency = 3, onProgress } = {}) {
   return { processed: pending.length, ok, failed };
 }
 
-module.exports = { transcribeCall, runBatch, MAX_ATTEMPTS };
+module.exports = { transcribeCall, runBatch, requeueStale, MAX_ATTEMPTS };

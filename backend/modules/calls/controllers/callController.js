@@ -525,6 +525,23 @@ async function gradeAnalytics(req, res) {
     // a call carrying only the extension doesn't spawn a second row for the same person.
     const repKey = (c) => c.ownerEmail || agents[c.agentExt] || c.agentExt || 'unknown';
 
+    // "Joined" proxy for ordering new joiners first: a rep's earliest call EVER (all-time,
+    // ignoring the period filter). The latest first-call date is the newest joiner.
+    // Group by BOTH ownerEmail and agentExt, then fold into the SAME repKey used for the
+    // rows — otherwise a rep whose calls carry only an extension (that maps to an email)
+    // keys as the email but has no joinedAt entry, and sinks to the bottom wrongly.
+    const firstCallAgg = await Call.aggregate([
+      { $match: { ...ownerFilter } },
+      { $group: { _id: { email: '$ownerEmail', ext: '$agentExt' }, firstCall: { $min: '$startedAt' } } },
+    ]);
+    const joinedMap = new Map();
+    for (const r of firstCallAgg) {
+      if (!r.firstCall) continue;
+      const key = repKey({ ownerEmail: r._id.email, agentExt: r._id.ext });
+      const prev = joinedMap.get(key);
+      if (!prev || new Date(r.firstCall) < new Date(prev)) joinedMap.set(key, r.firstCall);
+    }
+
     const repMap = new Map();
     // Seed from EVERY call so a rep who made calls but has nothing graded yet still
     // shows up with their total activity (calls, not a mysteriously missing row).
@@ -550,12 +567,14 @@ async function gradeAnalytics(req, res) {
         best: r.scores.length ? Math.max(...r.scores) : null,
         worst: r.scores.length ? Math.min(...r.scores) : null,
         bands: bands(r.scores),
+        joinedAt: joinedMap.get(r.key) || null, // earliest call ever — "when they joined"
       }))
-      // Graded reps ranked by score (unchanged); reps with only ungraded activity
-      // fall to the bottom, ordered by call volume.
+      // New joiners first: whoever started calling most recently is on top. Reps with no
+      // known start date (unmapped extensions) fall to the bottom, ordered by call volume.
       .sort((a, b) => {
-        if (a.calls && b.calls) return b.avg - a.avg;
-        if (a.calls !== 0 || b.calls !== 0) return b.calls - a.calls;
+        if (a.joinedAt && b.joinedAt) return new Date(b.joinedAt) - new Date(a.joinedAt);
+        if (a.joinedAt) return -1;
+        if (b.joinedAt) return 1;
         return b.totalCalls - a.totalCalls;
       });
 

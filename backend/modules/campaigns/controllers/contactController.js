@@ -215,8 +215,20 @@ async function importContacts(req, res) {
     const result = { imported: 0, updated: 0, suppressed: 0, failed: 0, errors: [] };
     const seen = new Set();
 
+    // CSV exports vary header casing ("Mobile", "WhatsApp", "Number", "Phone"). Pick and
+    // exclude columns case-insensitively — otherwise a capitalised phone column is neither
+    // used as the number nor stripped, and it leaks into the template variables.
+    const PHONE_COLS = ['phone', 'number', 'mobile', 'whatsapp'];
+    const RESERVED_COLS = [...PHONE_COLS, 'name', 'email'];
+    const pick = (row, names) => {
+      for (const [k, v] of Object.entries(row)) {
+        if (names.includes(String(k).trim().toLowerCase())) return v;
+      }
+      return undefined;
+    };
+
     for (const [i, row] of rows.entries()) {
-      const phone = row.phone || row.Phone || row.number || row.mobile || row.whatsapp;
+      const phone = pick(row, PHONE_COLS);
       const phoneKey = normalizeNumber(phone);
 
       if (!phoneKey) {
@@ -237,9 +249,7 @@ async function importContacts(req, res) {
       const attributes = {};
       for (const [k, v] of Object.entries(row)) {
         const key = String(k).trim();
-        if (['phone', 'Phone', 'number', 'mobile', 'whatsapp', 'name', 'Name', 'email', 'Email'].includes(key)) {
-          continue;
-        }
+        if (RESERVED_COLS.includes(key.toLowerCase())) continue;
         if (key && v !== undefined && v !== '') attributes[key] = v;
       }
 
@@ -247,8 +257,8 @@ async function importContacts(req, res) {
         const existing = await Contact.exists({ phoneKey });
         const r = await upsertOne({
           phone: phoneKey,
-          name: row.name || row.Name || null,
-          email: row.email || row.Email || null,
+          name: pick(row, ['name']) || null,
+          email: pick(row, ['email']) || null,
           tags,
           attributes,
           source,

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api';
 import { relative } from '../campaigns';
 
@@ -182,13 +182,22 @@ function SegmentBuilder({ segment, schema, onClose, onSaved }) {
   const [name, setName] = useState(segment.name || '');
   const [description, setDescription] = useState(segment.description || '');
   const [match, setMatch] = useState(segment.rule?.match || 'all');
-  const [conditions, setConditions] = useState(segment.rule?.conditions || []);
+  // Each condition carries a stable client-only `_cid` so React keys survive add/remove
+  // in the middle of the list (an index key would misassign inputs to the wrong row).
+  // It's stripped before the rule is sent to the server.
+  const cidRef = useRef(0);
+  const [conditions, setConditions] = useState(() =>
+    (segment.rule?.conditions || []).map((c) => ({ ...c, _cid: (cidRef.current += 1) }))
+  );
   const [preview, setPreview] = useState(null);
   const [counting, setCounting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
-  const rule = useMemo(() => ({ match, conditions }), [match, conditions]);
+  const rule = useMemo(
+    () => ({ match, conditions: conditions.map(({ _cid, ...c }) => c) }),
+    [match, conditions]
+  );
 
   // Live count as the rule changes, debounced. This is the number that stops someone
   // pointing a marketing blast at 40,000 people by accident.
@@ -210,7 +219,7 @@ function SegmentBuilder({ segment, schema, onClose, onSaved }) {
 
   const addCondition = () => {
     const first = schema.fields[0];
-    setConditions((c) => [...c, { field: first.field, op: first.ops[0], value: '' }]);
+    setConditions((c) => [...c, { field: first.field, op: first.ops[0], value: '', _cid: (cidRef.current += 1) }]);
   };
 
   const setCondition = (i, patch) =>
@@ -286,7 +295,7 @@ function SegmentBuilder({ segment, schema, onClose, onSaved }) {
 
             return (
               <div
-                key={i}
+                key={c._cid}
                 style={{
                   display: 'flex',
                   gap: 8,

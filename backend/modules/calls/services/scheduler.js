@@ -13,7 +13,7 @@ const telecmi = require('./telecmi');
 const elevenlabs = require('./elevenlabs');
 const { agentMap, buildLeadIndex, warmLeadIndex, upsertCall } = require('./callStore');
 const { upsertDeal, fetchDealsModifiedSince, shouldTranscribe } = require('./dealStore');
-const { runBatch } = require('./transcriptionWorker');
+const { runBatch, requeueStale } = require('./transcriptionWorker');
 const grader = require('./grader');
 const { sinceFor, commit, fmtWindow } = require('../../../services/lookback');
 
@@ -127,6 +127,10 @@ async function transcribePending() {
 
   running.transcribe = true;
   try {
+    // Recover any call stranded in `processing` by an earlier crash/deploy before we count.
+    const revived = await requeueStale();
+    if (revived) console.warn(`[transcribe] re-queued ${revived} call(s) stuck in processing`);
+
     const pending = await Call.countDocuments({ transcriptionStatus: 'pending' });
     if (!pending) return;
 

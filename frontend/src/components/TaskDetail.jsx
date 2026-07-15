@@ -21,19 +21,22 @@ export default function TaskDetail({ recordId, onClose, onUpdated }) {
   const [waBusy, setWaBusy] = useState(false);
   const [waMsg, setWaMsg] = useState('');
 
-  async function load() {
+  async function load(guard) {
     setError('');
     try {
       const { data, zohoSync } = await api(`/api/tasks/${encodeURIComponent(recordId)}`);
+      if (guard && guard.cancelled) return; // a newer record was selected mid-flight
       setDetail(data);
       setZohoSync(zohoSync);
     } catch (err) {
-      setError(err.message);
+      if (!(guard && guard.cancelled)) setError(err.message);
     }
   }
 
   useEffect(() => {
-    load();
+    const guard = { cancelled: false };
+    load(guard);
+    return () => { guard.cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recordId]);
 
@@ -267,10 +270,10 @@ export default function TaskDetail({ recordId, onClose, onUpdated }) {
             <section className="drawer-section">
               <span className="field-label">Status history</span>
               <ul className="timeline">
-                {detail.statusHistory.length === 0 && (
+                {(detail.statusHistory || []).length === 0 && (
                   <li className="subtle">No history yet</li>
                 )}
-                {[...detail.statusHistory].reverse().map((h, i) => (
+                {[...(detail.statusHistory || [])].reverse().map((h, i) => (
                   <li key={i}>
                     <span className={statusClass(h.status)}>{h.status}</span>
                     <span className="subtle">
@@ -353,8 +356,8 @@ export default function TaskDetail({ recordId, onClose, onUpdated }) {
             <section className="drawer-section">
               <span className="field-label">Notes</span>
               <ul className="notes">
-                {detail.notes.length === 0 && <li className="subtle">No notes yet</li>}
-                {[...detail.notes].reverse().map((n, i) => (
+                {(detail.notes || []).length === 0 && <li className="subtle">No notes yet</li>}
+                {[...(detail.notes || [])].reverse().map((n, i) => (
                   <li key={i}>
                     <div>{n.text}</div>
                     <div className="subtle">

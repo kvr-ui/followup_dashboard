@@ -15,9 +15,14 @@ export default function CallDetail({ callId, onClose }) {
   const audioRef = useRef(null);
 
   useEffect(() => {
+    let cancelled = false;
+    setCall(null);
+    setError('');
     api(`/api/calls/${callId}`)
-      .then((r) => setCall(r.data))
-      .catch((e) => setError(e.message));
+      .then((r) => { if (!cancelled) setCall(r.data); })
+      .catch((e) => { if (!cancelled) setError(e.message); });
+    // Guard against a slow response for a previous callId landing after we switched.
+    return () => { cancelled = true; };
   }, [callId]);
 
   // The recording route needs an auth header, so <audio src> can't fetch it
@@ -32,6 +37,7 @@ export default function CallDetail({ callId, onClose }) {
       return;
     }
     let revoked = null;
+    let cancelled = false;
     setLoadingAudio(true);
     fetch(`/api/calls/${callId}/recording`, {
       headers: { Authorization: `Bearer ${getToken()}` },
@@ -39,12 +45,16 @@ export default function CallDetail({ callId, onClose }) {
       .then((r) => (r.ok ? r.blob() : Promise.reject(new Error('Recording unavailable'))))
       .then((blob) => {
         const url = URL.createObjectURL(blob);
+        // If we switched calls while the blob was downloading, drop it — don't hand a
+        // stale recording to the player.
+        if (cancelled) return URL.revokeObjectURL(url);
         revoked = url;
         setAudioUrl(url);
       })
-      .catch(() => setAudioUrl(null))
-      .finally(() => setLoadingAudio(false));
+      .catch(() => { if (!cancelled) setAudioUrl(null); })
+      .finally(() => { if (!cancelled) setLoadingAudio(false); });
     return () => {
+      cancelled = true;
       if (revoked) URL.revokeObjectURL(revoked);
     };
   }, [call, callId]);

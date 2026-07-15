@@ -26,35 +26,41 @@ export default function CampaignDetail({ campaignId, onClose, onChanged, onOpenC
   const [scheduleAt, setScheduleAt] = useState('');
   const [drip, setDrip] = useState(false);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (guard) => {
     try {
       const json = await api(`/api/campaigns/${campaignId}`);
+      if (guard?.cancelled) return; // switched campaigns mid-flight — ignore stale data
       setRes(json);
       setError('');
     } catch (e) {
-      setError(e.message);
+      if (!guard?.cancelled) setError(e.message);
     } finally {
-      setLoading(false);
+      if (!guard?.cancelled) setLoading(false);
     }
   }, [campaignId]);
 
-  const loadMessages = useCallback(async () => {
+  const loadMessages = useCallback(async (guard) => {
     try {
       const q = state ? `?state=${encodeURIComponent(state)}` : '';
       const json = await api(`/api/campaigns/${campaignId}/messages${q}`);
+      if (guard?.cancelled) return;
       setMessages(json.data || []);
     } catch (e) {
-      setError(e.message);
+      if (!guard?.cancelled) setError(e.message);
     }
   }, [campaignId, state]);
 
   useEffect(() => {
     setLoading(true);
-    load();
+    const guard = { cancelled: false };
+    load(guard);
+    return () => { guard.cancelled = true; };
   }, [load]);
 
   useEffect(() => {
-    loadMessages();
+    const guard = { cancelled: false };
+    loadMessages(guard);
+    return () => { guard.cancelled = true; };
   }, [loadMessages]);
 
   const campaign = res?.data;
@@ -70,15 +76,18 @@ export default function CampaignDetail({ campaignId, onClose, onChanged, onOpenC
   }, [campaign?.status, load, loadMessages]);
 
   useEffect(() => {
-    if (!campaign) return;
-    if (['draft', 'scheduled'].includes(campaign.status)) {
+    const status = campaign?.status;
+    if (!status) return;
+    // Depend on status/id only — NOT the whole `campaign` object, which gets a new
+    // reference on every 8s poll and would otherwise re-issue preview/timing each tick.
+    if (['draft', 'scheduled'].includes(status)) {
       api(`/api/campaigns/${campaignId}/preview`, { method: 'POST' })
         .then(setPreview)
         .catch(() => {});
     } else {
       api(`/api/campaigns/${campaignId}/timing`).then(setTiming).catch(() => {});
     }
-  }, [campaign?.status, campaignId, campaign]);
+  }, [campaign?.status, campaignId]);
 
   const act = async (path, body, successMsg) => {
     setBusy(path);
@@ -338,7 +347,7 @@ export default function CampaignDetail({ campaignId, onClose, onChanged, onOpenC
             <div className="row-between">
               <h3 style={{ marginTop: 0 }}>What happened</h3>
               <span className="subtle">
-                {campaign.stats.sent} sent · {money(campaign.actualCost, campaign.currency)} spent
+                {campaign.stats?.sent || 0} sent · {money(campaign.actualCost, campaign.currency)} spent
               </span>
             </div>
 
@@ -397,13 +406,13 @@ export default function CampaignDetail({ campaignId, onClose, onChanged, onOpenC
               <div className="panel-sm">
                 <h3>Click rate</h3>
                 <div className="num" style={{ fontSize: '1.4rem', color: 'var(--green)' }}>
-                  {pct(campaign.rates.clickRate)}
+                  {pct(campaign.rates?.clickRate)}
                 </div>
               </div>
               <div className="panel-sm">
                 <h3>Read rate</h3>
                 <div className="num" style={{ fontSize: '1.4rem' }}>
-                  {pct(campaign.rates.readRate)}
+                  {pct(campaign.rates?.readRate)}
                 </div>
                 <div className="subtle">blue ticks only</div>
               </div>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api';
 import { money } from '../campaigns';
 
@@ -127,20 +127,27 @@ export default function CampaignComposer({ onClose, onSent }) {
 
   const canSend = name.trim() && templateName && audienceReady && (count?.count ?? 0) > 0;
 
+  // Remembers a draft created by an attempt whose send/schedule then failed, so a retry
+  // reuses (and updates) that draft instead of piling up orphan drafts.
+  const createdIdRef = useRef(null);
+
   const create = async () => {
-    const res = await api('/api/campaigns', {
-      method: 'POST',
-      body: {
-        name,
-        templateName,
-        templateCategory: template?.category || 'MARKETING',
-        templateLanguage: template?.language || '',
-        variables: variablesPayload(),
-        audience: buildAudience(),
-        ratePerMinute: Number(ratePerMinute) || 20,
-        trackLinks,
-      },
-    });
+    const body = {
+      name,
+      templateName,
+      templateCategory: template?.category || 'MARKETING',
+      templateLanguage: template?.language || '',
+      variables: variablesPayload(),
+      audience: buildAudience(),
+      ratePerMinute: Number(ratePerMinute) || 20,
+      trackLinks,
+    };
+    if (createdIdRef.current) {
+      await api(`/api/campaigns/${createdIdRef.current}`, { method: 'PATCH', body });
+      return createdIdRef.current;
+    }
+    const res = await api('/api/campaigns', { method: 'POST', body });
+    createdIdRef.current = res.data.id;
     return res.data.id;
   };
 

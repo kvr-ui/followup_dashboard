@@ -88,6 +88,9 @@ const callSchema = new mongoose.Schema(
     },
     transcriptionError: { type: String, default: null },
     transcriptionAttempts: { type: Number, default: 0 },
+    // When the call was claimed for transcription (status set to 'processing'). Used to
+    // reap calls stranded in 'processing' by a crash/deploy — a stale lease is re-queued.
+    processingStartedAt: { type: Date, default: null },
     transcript: { type: transcriptSchema, default: null },
 
     grade: { type: gradeSchema, default: null },
@@ -98,6 +101,9 @@ const callSchema = new mongoose.Schema(
     // forever instead of burning credits on every poll.
     gradeError: { type: String, default: null },
     gradeAttempts: { type: Number, default: 0 },
+    // Lease timestamp for grading — mirrors processingStartedAt. Prevents the webhook
+    // fast-path and the scheduler batch from grading (and paying for) the same call twice.
+    gradeStartedAt: { type: Date, default: null },
   },
   { timestamps: true }
 );

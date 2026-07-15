@@ -31,17 +31,6 @@ const PERIODS = [
   ['30d', 'Last 30 days'],
 ];
 
-const prettyDay = (iso) => {
-  const [y, m, d] = iso.split('-').map(Number);
-  const date = new Date(y, m - 1, d);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const diff = Math.round((today - date) / 86400000);
-  if (diff === 0) return 'Today';
-  if (diff === 1) return 'Yesterday';
-  return date.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
-};
-
 export default function Scorecard({ user } = {}) {
   const isAdmin = user?.role === 'admin';
   const [res, setRes] = useState(null);
@@ -75,11 +64,21 @@ export default function Scorecard({ user } = {}) {
 
   const reps = useMemo(() => res?.perRep || [], [res]);
 
+  // The "calls" column counts calls made within the selected period, so name it after
+  // that period — "Today lead calls" on the Today view, "Total lead calls" on All time.
+  const CALLS_COL = {
+    all: 'Total lead calls',
+    today: 'Today lead calls',
+    yesterday: 'Yesterday lead calls',
+    '7d': 'Last 7d lead calls',
+    '30d': 'Last 30d lead calls',
+  };
+  const callsColLabel = CALLS_COL[period] || 'Total lead calls';
+
   if (!res && !error) return <p className="subtle">Loading scorecard…</p>;
 
   const o = res?.overall || {};
   const cov = res?.coverage || {};
-  const recentDays = res?.recentDays || [];
 
   return (
     <>
@@ -166,39 +165,6 @@ export default function Scorecard({ user } = {}) {
         </div>
       )}
 
-      {/* --- Day by day (last 14 days), independent of the period filter --- */}
-      <div className="card" style={{ padding: '16px 18px', marginTop: 12 }}>
-        <h2 style={{ marginTop: 0 }}>Day by day</h2>
-        {recentDays.length === 0 ? (
-          <p className="subtle">No graded calls in the last 14 days.</p>
-        ) : (
-          <table className="tasks">
-            <thead>
-              <tr>
-                <th>Day</th>
-                <th style={{ textAlign: 'right' }}>Calls</th>
-                <th style={{ textAlign: 'right' }}>Avg score</th>
-                <th style={{ textAlign: 'right' }}>Best (90+)</th>
-              </tr>
-            </thead>
-            <tbody>
-              {recentDays.map((d) => (
-                <tr key={d.date}>
-                  <td className="contact-name">{prettyDay(d.date)}</td>
-                  <td style={{ textAlign: 'right' }}>{d.calls}</td>
-                  <td style={{ textAlign: 'right', fontWeight: 700, color: color(d.avg) }}>{d.avg}</td>
-                  <td style={{ textAlign: 'right', color: d.best ? 'var(--green, #4d7a63)' : 'var(--muted)' }}>{d.best}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-        <div className="subtle" style={{ marginTop: 8 }}>
-          Every won call graded in the last 14 days, by the day the call happened. New calls
-          appear here once they're transcribed and graded.
-        </div>
-      </div>
-
       {o.gradeable === 0 && period !== 'all' && (
         <div className="hint">
           No graded calls in this period yet. Either no won calls happened, or they haven't been
@@ -213,7 +179,7 @@ export default function Scorecard({ user } = {}) {
           <thead>
             <tr>
               <th>Salesperson</th>
-              <th style={{ textAlign: 'right' }}>Total calls</th>
+              <th style={{ textAlign: 'right' }}>{callsColLabel}</th>
               <th style={{ textAlign: 'right' }}>Graded</th>
               <th style={{ textAlign: 'right' }}>Avg score</th>
               <th style={{ textAlign: 'right', color: 'var(--green, #4d7a63)' }}>Best (90+)</th>

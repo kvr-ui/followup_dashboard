@@ -51,8 +51,10 @@ function inThisArm(campaign, contactId) {
   if (!campaign.abGroupId) return true;
   const bucket = bucketOf(contactId, campaign.abGroupId);
   const share = Number(campaign.abSplit) || 50;
-  // A takes the bottom of the range, B takes the top. Two arms, no overlap, no gap.
-  return campaign.abVariant === 'B' ? bucket >= 100 - share : bucket < share;
+  // `share` is arm A's percentage. A takes buckets [0, share); B takes [share, 100).
+  // A single split point means no overlap and no gap for ANY ratio, not only 50/50 —
+  // e.g. share=70 gives A 70% and B 30%.
+  return campaign.abVariant === 'B' ? bucket >= share : bucket < share;
 }
 
 /** The Contact filter for a campaign's audience. */
@@ -225,6 +227,7 @@ async function sendOne(campaign, msg) {
       { _id: msg._id },
       { $set: { status: 'skipped', skipReason: 'contact_deleted' } }
     );
+    await Campaign.updateOne({ _id: campaign._id }, { $inc: { 'stats.skipped': 1, 'stats.queued': -1 } });
     return { ok: false };
   }
 
@@ -236,6 +239,7 @@ async function sendOne(campaign, msg) {
       { _id: msg._id },
       { $set: { status: 'skipped', skipReason: contact.optedOut ? 'opted_out' : 'invalid' } }
     );
+    await Campaign.updateOne({ _id: campaign._id }, { $inc: { 'stats.skipped': 1, 'stats.queued': -1 } });
     return { ok: false, skipped: true };
   }
 

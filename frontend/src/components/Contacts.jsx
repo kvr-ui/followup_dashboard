@@ -27,7 +27,7 @@ export default function Contacts() {
   const [importing, setImporting] = useState(false);
   const [selected, setSelected] = useState(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (guard) => {
     setLoading(true);
     setError('');
     try {
@@ -40,18 +40,21 @@ export default function Contacts() {
         api(`/api/contacts?${q.toString()}`),
         api('/api/contacts/tags'),
       ]);
+      // Ignore a response for an older search/page that resolved after a newer one.
+      if (guard?.cancelled) return;
       setRes(c);
       setTags(t.data || []);
     } catch (e) {
-      setError(e.message);
+      if (!guard?.cancelled) setError(e.message);
     } finally {
-      setLoading(false);
+      if (!guard?.cancelled) setLoading(false);
     }
   }, [search, tag, status, page]);
 
   useEffect(() => {
-    const t = setTimeout(load, search ? 300 : 0);
-    return () => clearTimeout(t);
+    const guard = { cancelled: false };
+    const t = setTimeout(() => load(guard), search ? 300 : 0);
+    return () => { guard.cancelled = true; clearTimeout(t); };
   }, [load, search]);
 
   const rows = useMemo(() => res?.data || [], [res]);
@@ -210,17 +213,17 @@ export default function Contacts() {
                 </td>
                 <td className="subtle">{(c.tags || []).join(', ') || '—'}</td>
                 <td className="subtle">{c.source}</td>
-                <td style={{ textAlign: 'right' }}>{c.stats.sent || 0}</td>
+                <td style={{ textAlign: 'right' }}>{c.stats?.sent || 0}</td>
                 <td
                   style={{
                     textAlign: 'right',
                     fontWeight: 600,
-                    color: c.stats.clicked ? 'var(--green)' : 'inherit',
+                    color: c.stats?.clicked ? 'var(--green)' : 'inherit',
                   }}
                 >
-                  {c.stats.clicked || 0}
+                  {c.stats?.clicked || 0}
                 </td>
-                <td style={{ textAlign: 'right' }}>{c.stats.replied || 0}</td>
+                <td style={{ textAlign: 'right' }}>{c.stats?.replied || 0}</td>
                 <td className="subtle">
                   {c.lastCampaignAt ? relative(c.lastCampaignAt) : 'never'}
                 </td>
@@ -650,16 +653,20 @@ function ContactDetail({ contactId, onClose, onChanged }) {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (guard) => {
     try {
-      setRes(await api(`/api/contacts/${contactId}/history`));
+      const r = await api(`/api/contacts/${contactId}/history`);
+      if (guard?.cancelled) return; // switched contacts mid-flight — ignore stale data
+      setRes(r);
     } catch (e) {
-      setError(e.message);
+      if (!guard?.cancelled) setError(e.message);
     }
   }, [contactId]);
 
   useEffect(() => {
-    load();
+    const guard = { cancelled: false };
+    load(guard);
+    return () => { guard.cancelled = true; };
   }, [load]);
 
   const c = res?.data;

@@ -23,6 +23,9 @@ const MODEL = process.env.SARVAM_MODEL || 'sarvam-30b';
 // long to fit the token budget). It stays ungraded rather than costing credits forever.
 const MAX_ATTEMPTS = Number(process.env.GRADE_MAX_ATTEMPTS || 3);
 
+// A grade lease held longer than this is stale (crashed mid-grade) and can be reclaimed.
+const GRADE_LEASE_MS = 10 * 60 * 1000;
+
 function isConfigured() {
   return Boolean(API_KEY);
 }
@@ -399,6 +402,19 @@ async function gradeCall(call) {
     return { ok: false, error: 'No transcript' };
   }
 
+  // Claim the call so only one worker pays Sarvam to grade it. The webhook fast-path
+  // and the scheduler batch both target `grade.score: null` calls; a fresh lease blocks
+  // the loser, a stale lease (crashed mid-grade) is reclaimable after GRADE_LEASE_MS.
+  const claimed = await Call.findOneAndUpdate(
+    {
+      _id: call._id,
+      'grade.score': null,
+      $or: [{ gradeStartedAt: null }, { gradeStartedAt: { $lt: new Date(Date.now() - GRADE_LEASE_MS) } }],
+    },
+    { $set: { gradeStartedAt: new Date() } }
+  );
+  if (!claimed) return { ok: false, skipped: true, reason: 'already grading or graded' };
+
   const { pos, total } = await positionInJourney(call);
   call._pos = pos;
   call._total = total;
@@ -407,16 +423,17 @@ async function gradeCall(call) {
 
   if (!r.parsed) {
     const error = r.error || 'unparseable JSON';
+    // Release the lease so the next poll can retry (until attempts hit the cap).
     await Call.updateOne(
       { _id: call._id },
-      { $set: { gradeError: error.slice(0, 200) }, $inc: { gradeAttempts: 1 } }
+      { $set: { gradeError: error.slice(0, 200), gradeStartedAt: null }, $inc: { gradeAttempts: 1 } }
     );
     return { ok: false, error };
   }
 
   await Call.updateOne(
     { _id: call._id },
-    { $set: { grade: toGrade(r.parsed), gradeError: null }, $inc: { gradeAttempts: 1 } }
+    { $set: { grade: toGrade(r.parsed), gradeError: null, gradeStartedAt: null }, $inc: { gradeAttempts: 1 } }
   );
   return { ok: true, score: r.parsed.total, usage: r.usage };
 }

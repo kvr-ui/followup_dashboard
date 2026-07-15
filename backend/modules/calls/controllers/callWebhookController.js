@@ -42,6 +42,38 @@ function normalizeCallPayload(b) {
 }
 
 /**
+ * Transcribe AND grade a just-arrived call immediately, instead of waiting up to
+ * ~20 min for the two scheduler polls. This is what makes a rep's score realtime: the
+ * webhook stores the call, then this runs it straight through STT + grading.
+ *
+ * Fully fire-and-forget and self-healing: any failure (quota, API blip) just leaves the
+ * call `pending`, and the scheduler picks it up on its next poll exactly as before —
+ * so this is a fast-path, never a single point of failure.
+ */
+async function gradeCallNow(callId) {
+  const { transcribeCall } = require('../services/transcriptionWorker');
+  const grader = require('../services/grader');
+  const elevenlabs = require('../services/elevenlabs');
+
+  if (!elevenlabs.isConfigured()) return; // no STT — let the scheduler handle it later
+
+  const call = await Call.findById(callId);
+  if (!call || call.transcriptionStatus !== 'pending') return;
+
+  const t = await transcribeCall(call);
+  if (!t.ok) return; // failed/quota — stays pending, scheduler retries
+
+  if (!grader.isConfigured()) return;
+  // Re-read as a plain object for the grader (it reads transcript/duration and writes
+  // the grade with its own update). Skip if something already graded it in the gap.
+  const fresh = await Call.findById(callId).lean();
+  if (fresh && fresh.transcriptionStatus === 'done' && !(fresh.grade && fresh.grade.score != null)) {
+    await grader.gradeCall(fresh);
+    require('../services/journeyCache').invalidate();
+  }
+}
+
+/**
  * Background: attach the lead's existing deal outcome to this new call, then
  * decide whether it's worth transcribing.
  *
@@ -87,6 +119,15 @@ async function afterCallStored(callDoc) {
 
     // A new call changes the lead's journey — drop the snapshot.
     require('../services/journeyCache').invalidate();
+
+    // Realtime score: a gradeable call (>=30s, recorded) is transcribed and graded now,
+    // so the rep sees their mark within a minute of hanging up. Fire-and-forget — if it
+    // fails the call stays pending and the scheduler grades it on the next poll.
+    if (fresh.transcriptionStatus === 'pending') {
+      gradeCallNow(fresh._id).catch((err) =>
+        console.warn('instant grade failed (scheduler will retry):', err.message)
+      );
+    }
   } catch (err) {
     console.warn('afterCallStored failed:', err.message);
   }

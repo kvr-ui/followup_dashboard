@@ -159,106 +159,126 @@ async function getTasks(req, res) {
 }
 
 async function getTask(req, res) {
-  const doc = await loadAccessible(req, res);
-  if (!doc) return;
+  try {
+    const doc = await loadAccessible(req, res);
+    if (!doc) return;
 
-  res.json({ success: true, data: serialize(doc), zohoSync: zoho.isConfigured() });
+    res.json({ success: true, data: serialize(doc), zohoSync: zoho.isConfigured() });
+  } catch (err) {
+    console.error('Failed to fetch task:', err.message);
+    res.status(500).json({ success: false, message: 'Failed to fetch task' });
+  }
 }
 
 async function updateStatus(req, res) {
-  const doc = await loadAccessible(req, res);
-  if (!doc) return;
+  try {
+    const doc = await loadAccessible(req, res);
+    if (!doc) return;
 
-  const { status } = req.body || {};
-  if (!status) {
-    return res.status(400).json({ success: false, message: 'status is required' });
+    const { status } = req.body || {};
+    if (!status) {
+      return res.status(400).json({ success: false, message: 'status is required' });
+    }
+
+    // Update the local snapshot + history immediately.
+    if (!doc.body || typeof doc.body !== 'object' || Array.isArray(doc.body)) {
+      doc.body = { ...(doc.body || {}) };
+    }
+    doc.body.Status = status;
+    doc.markModified('body');
+    doc.statusHistory.push({
+      status,
+      changedAt: new Date(),
+      source: 'dashboard',
+      by: req.user.username,
+    });
+
+    // Best-effort write-back to Zoho.
+    let sync = { ok: false, skipped: true };
+    if (doc.zohoId) sync = await zoho.updateTaskStatus(doc.zohoId, status);
+
+    await doc.save();
+    invalidateTaskCache();
+
+    res.json({ success: true, data: serialize(doc), zohoSync: sync });
+  } catch (err) {
+    console.error('Failed to update status:', err.message);
+    res.status(500).json({ success: false, message: 'Failed to update status' });
   }
-
-  // Update the local snapshot + history immediately.
-  if (!doc.body || typeof doc.body !== 'object' || Array.isArray(doc.body)) {
-    doc.body = { ...(doc.body || {}) };
-  }
-  doc.body.Status = status;
-  doc.markModified('body');
-  doc.statusHistory.push({
-    status,
-    changedAt: new Date(),
-    source: 'dashboard',
-    by: req.user.username,
-  });
-
-  // Best-effort write-back to Zoho.
-  let sync = { ok: false, skipped: true };
-  if (doc.zohoId) sync = await zoho.updateTaskStatus(doc.zohoId, status);
-
-  await doc.save();
-  invalidateTaskCache();
-
-  res.json({ success: true, data: serialize(doc), zohoSync: sync });
 }
 
 async function addNote(req, res) {
-  const doc = await loadAccessible(req, res);
-  if (!doc) return;
+  try {
+    const doc = await loadAccessible(req, res);
+    if (!doc) return;
 
-  const { text } = req.body || {};
-  if (!text || !text.trim()) {
-    return res.status(400).json({ success: false, message: 'Note text is required' });
+    const { text } = req.body || {};
+    if (!text || !text.trim()) {
+      return res.status(400).json({ success: false, message: 'Note text is required' });
+    }
+
+    let sync = { ok: false, skipped: true };
+    if (doc.zohoId) {
+      sync = await zoho.addNote(doc.zohoId, 'Follow-up note', text.trim());
+    }
+
+    doc.notes.push({
+      text: text.trim(),
+      author: req.user.username,
+      createdAt: new Date(),
+      syncedToZoho: Boolean(sync.ok),
+    });
+    await doc.save();
+    invalidateTaskCache();
+
+    res.json({ success: true, data: serialize(doc), zohoSync: sync });
+  } catch (err) {
+    console.error('Failed to add note:', err.message);
+    res.status(500).json({ success: false, message: 'Failed to add note' });
   }
-
-  let sync = { ok: false, skipped: true };
-  if (doc.zohoId) {
-    sync = await zoho.addNote(doc.zohoId, 'Follow-up note', text.trim());
-  }
-
-  doc.notes.push({
-    text: text.trim(),
-    author: req.user.username,
-    createdAt: new Date(),
-    syncedToZoho: Boolean(sync.ok),
-  });
-  await doc.save();
-  invalidateTaskCache();
-
-  res.json({ success: true, data: serialize(doc), zohoSync: sync });
 }
 
 // Send a WhatsApp template to this lead's phone via WATI, and log it.
 async function sendWhatsapp(req, res) {
-  const doc = await loadAccessible(req, res);
-  if (!doc) return;
+  try {
+    const doc = await loadAccessible(req, res);
+    if (!doc) return;
 
-  const { template, parameters } = req.body || {};
-  if (!template) {
-    return res.status(400).json({ success: false, message: 'template is required' });
-  }
+    const { template, parameters } = req.body || {};
+    if (!template) {
+      return res.status(400).json({ success: false, message: 'template is required' });
+    }
 
-  const phone = doc.body && doc.body.Who_Id && doc.body.Who_Id.phone;
-  if (!phone) {
-    return res.status(400).json({ success: false, message: 'This lead has no phone number' });
-  }
+    const phone = doc.body && doc.body.Who_Id && doc.body.Who_Id.phone;
+    if (!phone) {
+      return res.status(400).json({ success: false, message: 'This lead has no phone number' });
+    }
 
-  const result = await wati.sendTemplate(phone, template, parameters || []);
+    const result = await wati.sendTemplate(phone, template, parameters || []);
 
-  doc.whatsappLog.push({
-    template,
-    number: result.number || phone,
-    sentBy: req.user.username,
-    sentAt: new Date(),
-    ok: Boolean(result.ok),
-    error: result.ok ? null : result.error || (result.skipped ? 'WATI not configured' : 'Failed'),
-  });
-  await doc.save();
-
-  if (!result.ok) {
-    return res.status(result.skipped ? 400 : 502).json({
-      success: false,
-      message: result.error || 'WATI not configured',
-      data: serialize(doc),
+    doc.whatsappLog.push({
+      template,
+      number: result.number || phone,
+      sentBy: req.user.username,
+      sentAt: new Date(),
+      ok: Boolean(result.ok),
+      error: result.ok ? null : result.error || (result.skipped ? 'WATI not configured' : 'Failed'),
     });
-  }
+    await doc.save();
 
-  res.json({ success: true, data: serialize(doc) });
+    if (!result.ok) {
+      return res.status(result.skipped ? 400 : 502).json({
+        success: false,
+        message: result.error || 'WATI not configured',
+        data: serialize(doc),
+      });
+    }
+
+    res.json({ success: true, data: serialize(doc) });
+  } catch (err) {
+    console.error('Failed to send WhatsApp:', err.message);
+    res.status(500).json({ success: false, message: 'Failed to send WhatsApp message' });
+  }
 }
 
 module.exports = {

@@ -100,16 +100,17 @@ async function listCampaigns(req, res) {
         read: a.read + (c.stats.read || 0),
         clicked: a.clicked + (c.stats.clicked || 0),
         replied: a.replied + (c.stats.replied || 0),
+        failed: a.failed + (c.stats.failed || 0),
         cost: a.cost + (c.actualCost || 0),
       }),
-      { sent: 0, delivered: 0, read: 0, clicked: 0, replied: 0, cost: 0 }
+      { sent: 0, delivered: 0, read: 0, clicked: 0, replied: 0, failed: 0, cost: 0 }
     );
 
     res.json({
       success: true,
       count: data.length,
       totals,
-      rates: ratesOf({ ...totals, failed: 0 }),
+      rates: ratesOf(totals),
       efficiency: cost.efficiency({ ...totals, cost: totals.cost }),
       sending: data.filter((c) => c.status === 'sending').length,
       data,
@@ -441,10 +442,20 @@ async function scheduleCampaign(req, res) {
   }
 }
 
-async function setStatus(req, res, status, verb) {
+async function setStatus(req, res, status, verb, allowedFrom) {
   try {
     const campaign = await Campaign.findById(req.params.id);
     if (!campaign) return res.status(404).json({ success: false, message: 'Campaign not found' });
+
+    // Guard the transition: you can't resume a completed campaign, pause one that isn't
+    // sending, or cancel one already finished. Without this a resume drags a terminal
+    // campaign back through `sending` and its stats/completedAt go inconsistent.
+    if (allowedFrom && !allowedFrom.includes(campaign.status)) {
+      return res.status(409).json({
+        success: false,
+        message: `Cannot ${verb.replace(/d$/, '')} a ${campaign.status} campaign`,
+      });
+    }
 
     campaign.status = status;
     if (status === 'cancelled') campaign.completedAt = new Date();
@@ -467,9 +478,10 @@ async function setStatus(req, res, status, verb) {
   }
 }
 
-const pauseCampaign = (req, res) => setStatus(req, res, 'paused', 'paused');
-const resumeCampaign = (req, res) => setStatus(req, res, 'sending', 'resumed');
-const cancelCampaign = (req, res) => setStatus(req, res, 'cancelled', 'cancelled');
+const pauseCampaign = (req, res) => setStatus(req, res, 'paused', 'paused', ['sending', 'scheduled']);
+const resumeCampaign = (req, res) => setStatus(req, res, 'sending', 'resumed', ['paused']);
+const cancelCampaign = (req, res) =>
+  setStatus(req, res, 'cancelled', 'cancelled', ['draft', 'scheduled', 'sending', 'paused']);
 
 async function approveCampaign(req, res) {
   try {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from '../api';
 
 /**
@@ -12,8 +12,12 @@ import { api } from '../api';
 export default function SequenceForm({ campaign, funnel, onSaved }) {
   const [templates, setTemplates] = useState([]);
   const [name, setName] = useState(`${campaign.name} follow-up`);
+  // Stable client-only `_cid` per step keeps React keys correct when a middle step is
+  // removed (an index key would shift inputs onto the wrong step). The save mapping below
+  // builds its own step objects, so `_cid` never reaches the server.
+  const cidRef = useRef(1);
   const [steps, setSteps] = useState([
-    { delayHours: 48, templateName: '', audience: 'delivered_not_read' },
+    { delayHours: 48, templateName: '', audience: 'delivered_not_read', _cid: 1 },
   ]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -74,7 +78,7 @@ export default function SequenceForm({ campaign, funnel, onSaved }) {
         const target = chaseable.find((f) => f.key === step.audience);
         return (
           <div
-            key={i}
+            key={step._cid}
             className="card"
             style={{ padding: 12, marginTop: 10, background: 'var(--surface-inset)' }}
           >
@@ -157,6 +161,7 @@ export default function SequenceForm({ campaign, funnel, onSaved }) {
                 delayHours: (s[s.length - 1]?.delayHours || 48) + 72,
                 templateName: '',
                 audience: 'read_no_click',
+                _cid: (cidRef.current += 1),
               },
             ])
           }
