@@ -29,7 +29,12 @@ const Call = require('../models/Call');
 
 const API_URL = 'https://api.sarvam.ai/v1/chat/completions';
 const API_KEY = process.env.SARVAM_API_KEY;
-const MODEL = process.env.SARVAM_MODEL || 'sarvam-105b';
+// sarvam-30b, not 105b. Both are reasoning models that spend hidden output tokens
+// "thinking" before answering, and the starter tier caps output at 4096. 105b burns
+// so much of that budget reasoning that the marks JSON gets truncated mid-object;
+// 30b reasons ~5x less, leaving room for the full answer. Override with SARVAM_MODEL
+// if you upgrade the tier (105b is the sharper grader when it can actually finish).
+const MODEL = process.env.SARVAM_MODEL || 'sarvam-30b';
 
 const APPLY = process.argv.includes('--apply');
 const CONCURRENCY = Number(process.env.GRADE_CONCURRENCY || 3);
@@ -161,17 +166,23 @@ call was genuinely excellent and you would show it to new joiners as an example.
 find yourself giving everything 90+, you are being lazy. Reward only what ACTUALLY
 HAPPENED in the transcript. If the rep did not do something, score it 0 and say so plainly.
 
-Reply with ONLY a JSON object, no markdown fence, ALL VALUES IN ENGLISH:
+OUTPUT — this is critical. Start your reply with '{' and output ONLY the JSON object,
+no markdown fence, no text before or after it. Your output budget is SMALL, so keep
+every text value SHORT or the answer gets cut off and thrown away:
+  - each "why": ONE short phrase, max ~12 words, may quote a few Tamil words as evidence
+  - "summary": 1-2 short sentences
+  - at most 2 strengths and 2 improvements, each max ~10 words
+ALL VALUES IN ENGLISH.
 {
   "salesperson_speaker": "speaker_0" | "speaker_1",
-  "speaker_evidence": "<English>",
+  "speaker_evidence": "<max 10 words>",
   "call_type": "first_call" | "follow_up" | "closing" | "not_gradeable",
-  "call_type_reason": "<English>",
-  "scores": { "<criterion>": {"score": <n>, "why": "<English, quote the evidence>"} },
+  "call_type_reason": "<max 10 words>",
+  "scores": { "<criterion>": {"score": <n>, "why": "<max 12 words>"} },
   "total": <0-100>,
-  "summary": "<2-3 sentences in English: what actually happened on this call>",
-  "strengths": ["<English>"],
-  "improvements": ["<English, specific and actionable>"]
+  "summary": "<1-2 sentences: what actually happened>",
+  "strengths": ["<max 10 words>", "<max 10 words>"],
+  "improvements": ["<max 10 words>", "<max 10 words>"]
 }`;
 
 /** Speaker-labelled transcript is far more gradeable than the flat text blob. */
@@ -200,10 +211,17 @@ async function gradeOne(call) {
               `TRANSCRIPT:\n${transcriptText(call)}`,
           },
         ],
-        // sarvam-105b is a reasoning model — it spends output tokens thinking before it
-        // answers. Too small a budget and the JSON gets truncated mid-object.
-        max_tokens: 4000,
+        // Starter tier hard-caps output at 4096 (incl. the model's hidden reasoning).
+        // Paired with sarvam-30b + the COMPACT output spec in SYSTEM, the marks JSON
+        // fits comfortably. Raise this only after upgrading the Sarvam tier.
+        max_tokens: 4096,
         temperature: 0.2,
+        // The decisive setting. Left to reason freely, sarvam-30b burns the entire
+        // 4096-token output budget "thinking" through the 6-criterion rubric and the
+        // JSON gets truncated. 'low' caps the reasoning so it spends the budget on the
+        // answer instead — the anchored rubric does the heavy lifting, so it doesn't
+        // need to deliberate at length to score against explicit evidence levels.
+        reasoning_effort: 'low',
       }),
     });
 
