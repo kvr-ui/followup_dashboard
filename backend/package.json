@@ -4,8 +4,8 @@
   "description": "Backend server that receives webhook data for the Followup Dashboard",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "nodemon server.js"
+    "start": "node --max-http-header-size=65536 server.js",
+    "dev": "nodemon --exec \"node --max-http-header-size=65536\" server.js"
   },
   "dependencies": {
     "@santhosh785/meta-ads": "^1.0.0",
