@@ -13,6 +13,7 @@ const installmentRoutes = require('./modules/calls/routes/installments'); // v2:
 const upsellRoutes = require('./modules/calls/routes/upsells'); // v2: upsold leads
 const callWebhookRoutes = require('./modules/calls/routes/webhooks'); // v2: TeleCMI + Bigin deal webhooks
 const webLeadRoutes = require('./modules/ads/routes/webLeads'); // v2: public landing-page lead ingest
+const adsRoutes = require('./modules/ads/routes/ads'); // v2: admin ads reporting (Marketing + Ad Leads)
 
 const app = express();
 
@@ -52,6 +53,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes); // admin-only
 app.use('/api/tasks', taskRoutes); // auth + role-based filtering
 app.use('/api/analytics', analyticsRoutes); // admin-only
+app.use('/api/ads', adsRoutes); // admin-only (ad spend + lead PII: reps have no access)
 app.use('/api/wati', watiRoutes);
 app.use('/api/calls', callRoutes); // admin-only
 app.use('/api/installments', installmentRoutes); // auth + role-based filtering (reps see their own)
