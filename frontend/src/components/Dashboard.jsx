@@ -7,8 +7,6 @@ import Calls from './Calls';
 import Products from './Products';
 import Installments from './Installments';
 import Upsells from './Upsells';
-import Campaigns from './Campaigns';
-import Contacts from './Contacts';
 import Scorecard from './Scorecard';
 import SummaryCards from './SummaryCards';
 import Filters from './Filters';
@@ -49,12 +47,6 @@ export default function Dashboard({ user, onLogout }) {
   // Sales users get their own follow-ups and their own pending payments — the rest
   // of the dashboard is admin-only. The server enforces this too; this just keeps
   // a stale localStorage tab from stranding a rep on a view they can't load.
-  //
-  // Campaigns and Contacts are admin-only for a stronger reason than the others: a
-  // send spends real money and puts the brand in front of a real person, and the
-  // contact book IS the send list. Every /api/campaigns, /api/contacts, /api/segments
-  // and /api/sequences route sits behind requireAdmin on the server — this list only
-  // keeps the tab from showing.
   const allowed = useMemo(
     () =>
       isAdmin
@@ -66,8 +58,6 @@ export default function Dashboard({ user, onLogout }) {
             'products',
             'installments',
             'upsells',
-            'campaigns',
-            'contacts',
             'users',
           ]
         : // A sales rep gets their own follow-ups, their own graded calls, their personal
@@ -152,22 +142,6 @@ export default function Dashboard({ user, onLogout }) {
             </button>
             {isAdmin && (
               <button
-                className={view === 'campaigns' ? 'tab active' : 'tab'}
-                onClick={() => setView('campaigns')}
-              >
-                Campaigns
-              </button>
-            )}
-            {isAdmin && (
-              <button
-                className={view === 'contacts' ? 'tab active' : 'tab'}
-                onClick={() => setView('contacts')}
-              >
-                Contacts
-              </button>
-            )}
-            {isAdmin && (
-              <button
                 className={view === 'users' ? 'tab active' : 'tab'}
                 onClick={() => setView('users')}
               >
@@ -229,10 +203,6 @@ export default function Dashboard({ user, onLogout }) {
           <Scorecard user={user} />
         ) : view === 'products' ? (
           <Products />
-        ) : view === 'campaigns' ? (
-          <Campaigns />
-        ) : view === 'contacts' ? (
-          <Contacts />
         ) : (
           <AdminUsers />
         )}
