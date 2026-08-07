@@ -12,11 +12,9 @@ const callRoutes = require('./modules/calls/routes/calls'); // v2: call grading
 const installmentRoutes = require('./modules/calls/routes/installments'); // v2: pending payments
 const upsellRoutes = require('./modules/calls/routes/upsells'); // v2: upsold leads
 const callWebhookRoutes = require('./modules/calls/routes/webhooks'); // v2: TeleCMI + Bigin deal webhooks
+const webLeadRoutes = require('./modules/ads/routes/webLeads'); // v2: public landing-page lead ingest
 
 const app = express();
-
-// Middleware
-app.use(cors());
 
 // Keep a copy of the raw request body so we can recover from senders
 // that post malformed / concatenated JSON.
@@ -26,6 +24,23 @@ const keepRawBody = (req, res, buf) => {
 
 app.use(express.json({ verify: keepRawBody }));
 app.use(express.urlencoded({ extended: true, verify: keepRawBody }));
+
+// --- The one unauthenticated write surface ----------------------------------
+// Mounted HERE on purpose, and the position is load-bearing in two ways:
+//
+//   * BEFORE `app.use(cors())` below — the ingest endpoint must not inherit the
+//     dashboard's blanket `Access-Control-Allow-Origin: *`. It sets its own
+//     allowlist from CORS_ORIGINS instead.
+//   * BEFORE every authenticated router — so it can neither pick up JWT
+//     protection it was never designed for, nor have its own openness leak
+//     sideways onto a neighbouring route.
+//
+// The router itself is the boundary: POST is public (guarded by the
+// LEAD_INGEST_TOKEN shared secret + a per-IP rate limit), GET is admin-only.
+app.use('/api/leads/web', webLeadRoutes);
+
+// Middleware
+app.use(cors());
 
 // Serve the built React frontend (run `npm run build` in ../frontend).
 // In development, use the Vite dev server (npm run dev) which proxies to this API.
