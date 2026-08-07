@@ -127,6 +127,13 @@ export function applyFilters(items, f) {
       f.category === '(none)' ? !category : category === f.category
     );
   }
+  if (f.source) {
+    // "untracked" = no ad origin at all (no linked ad lead), which is itself
+    // worth isolating. Otherwise match the denormalised 'meta' / 'web' value.
+    out = out.filter(({ leadSource }) =>
+      f.source === 'untracked' ? !leadSource : leadSource === f.source
+    );
+  }
   if (f.owner) {
     const owner = f.owner.toLowerCase();
     out = out.filter(
@@ -164,6 +171,7 @@ export const DEFAULT_FILTERS = {
   status: '',
   priority: '',
   category: '',
+  source: '',
   owner: '',
   search: '',
   dueFrom: '',

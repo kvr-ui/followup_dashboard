@@ -56,6 +56,17 @@ export default function Filters({ filters, setFilters, owners, isAdmin }) {
         </label>
 
         <label>
+          Source
+          <select value={filters.source} onChange={(e) => set('source', e.target.value)}>
+            <option value="">All</option>
+            <option value="meta">Meta</option>
+            <option value="web">Web</option>
+            {/* Leads with no ad origin at all — worth isolating on its own. */}
+            <option value="untracked">Untracked</option>
+          </select>
+        </label>
+
+        <label>
           Task Category
           <select value={filters.category} onChange={(e) => set('category', e.target.value)}>
             <option value="">All</option>
