@@ -88,8 +88,16 @@ const taskSchema = new mongoose.Schema(
     // The WebLead or MetaLead this contact was matched to. Deliberately un-`ref`ed:
     // it points into one of two collections, so which model to populate from is
     // decided by `leadSource`, not by the schema.
+    //
+    // Typed Mixed, not ObjectId, because the two collections do not agree on an id
+    // type: a WebLead is created here and gets a generated ObjectId, while a
+    // MetaLead's `_id` is Meta's own numeric string id (kept verbatim so the Atlas
+    // migration is a straight copy). Narrowing this to ObjectId would silently
+    // exclude every Meta lead from ever being linked — which is exactly what it
+    // did before. Readers must therefore compare with String() rather than
+    // `.equals()`, and resolve the collection from `leadSource`.
     linkedLeadId: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: mongoose.Schema.Types.Mixed,
       default: null,
       index: true,
       sparse: true,

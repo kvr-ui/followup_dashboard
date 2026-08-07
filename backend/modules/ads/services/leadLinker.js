@@ -180,33 +180,30 @@ function taskPhoneKey(task) {
 }
 
 // ---------------------------------------------------------------------------
-// The Meta-lead storage gap
+// The Meta-lead storage gap — CLOSED (task 7)
 // ---------------------------------------------------------------------------
 //
 // `MetaLead._id` is Meta's own numeric string id (task 1, deliberate — it makes
-// the Atlas migration a straight copy) while `Task.linkedLeadId` is typed
-// ObjectId (task 3). A 16-digit Meta id does not cast to an ObjectId, and
-// MetaLead has no `linkedTaskId` of its own, so as the two schemas stand today a
-// Meta lead link CANNOT be persisted on either side.
+// the Atlas migration a straight copy) while `Task.linkedLeadId` used to be typed
+// ObjectId. A 16-digit Meta id does not cast to an ObjectId, so a Meta lead's link
+// could not be persisted and such leads were excluded from matching entirely.
 //
-// Both those files are outside this task's boundary, so rather than write half a
-// link — a Task with `leadSource: 'meta'` and a null `linkedLeadId`, which the
-// lead-detail API would render as "from Meta" with no campaign, no cost and no
-// answers — such leads are excluded from matching entirely and reported once.
-// The matching code below is otherwise type-agnostic: widening
-// `Task.linkedLeadId` to Mixed is all that is needed to switch them on.
-function isStorableLeadId(id) {
+// `Task.linkedLeadId` is now Mixed, so both id shapes store. The matching code
+// below was always type-agnostic and needs no id filter — the only rule that
+// remains is that ids are compared with String(), never `.equals()`.
+//
+// MetaLead still has no `linkedTaskId` of its own, so a Meta link lives on the
+// Task side only. That is not a gap: `{ linkedTaskId: null }` matches a missing
+// field in Mongo, so a Meta lead always reads as "free" and `applyLink` writes the
+// lead side for web leads only.
+//
+// The one place the id shape still matters is a WebLead lookup by `_id`, which
+// mongoose casts to ObjectId and which therefore throws on a Meta id.
+function isObjectIdLike(id) {
   if (id instanceof mongoose.Types.ObjectId) return true;
   if (typeof id !== 'string') return false;
   // `isValid` also accepts any 12-character string, so round-trip it.
   return mongoose.Types.ObjectId.isValid(id) && String(new mongoose.Types.ObjectId(id)) === id;
-}
-
-const warned = new Set();
-function warnOnce(key, message) {
-  if (warned.has(key)) return;
-  warned.add(key);
-  console.warn(`[leadLinker] ${message}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -260,17 +257,7 @@ async function candidatesForTask(task) {
 
   const candidates = [
     ...webLeads.map((lead) => ({ lead, kind: 'web' })),
-    ...metaLeads
-      .filter((lead) => {
-        if (isStorableLeadId(lead._id)) return true;
-        warnOnce(
-          'meta-id',
-          'Meta leads cannot be linked: MetaLead._id is a Meta string id and ' +
-            'Task.linkedLeadId is typed ObjectId. Widen Task.linkedLeadId to Mixed to enable them.'
-        );
-        return false;
-      })
-      .map((lead) => ({ lead, kind: 'meta' })),
+    ...metaLeads.map((lead) => ({ lead, kind: 'meta' })),
   ];
 
   if (!candidates.length) return null;
@@ -314,7 +301,14 @@ async function applyLink(task, winner, matchedBy) {
     // The Task was pointing at a weaker match (phone) and a stronger one (Bigin
     // id) has since appeared. Release the old lead so it is not orphaned holding
     // a link this Task no longer honours.
-    await WebLead.updateOne({ _id: previous, linkedTaskId: task._id }, { $set: { linkedTaskId: null } });
+    //
+    // Only web leads hold a link of their own, and `WebLead._id` is an ObjectId —
+    // now that `Task.linkedLeadId` is Mixed, `previous` may be a Meta string id,
+    // which mongoose would fail to cast here. A Meta lead has nothing to release,
+    // so skip it rather than throw.
+    if (isObjectIdLike(previous)) {
+      await WebLead.updateOne({ _id: previous, linkedTaskId: task._id }, { $set: { linkedTaskId: null } });
+    }
     console.warn(
       `[leadLinker] task ${task._id} re-pointed from lead ${previous} to ${leadId} (${matchedBy})`
     );
@@ -450,15 +444,6 @@ async function linkLead(leadDoc) {
   if (!leadDoc || !leadDoc._id) return unlinked;
 
   const kind = leadKind(leadDoc);
-  if (kind === 'meta' && !isStorableLeadId(leadDoc._id)) {
-    warnOnce(
-      'meta-id',
-      'Meta leads cannot be linked: MetaLead._id is a Meta string id and ' +
-        'Task.linkedLeadId is typed ObjectId. Widen Task.linkedLeadId to Mixed to enable them.'
-    );
-    return unlinked;
-  }
-
   const task = await findTaskForLead(leadDoc, kind);
   if (!task) return unlinked;
 
