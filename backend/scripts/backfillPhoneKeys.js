@@ -5,7 +5,13 @@
 // New contacts get their key on write (services/taskStore.js), but the thousands
 // already in the database predate the field. Without this they can never match a
 // Meta or web lead by phone. Idempotent — a second run reports 0 updated.
-require('dotenv').config();
+//
+// `.env` is resolved from THIS file, not from the shell's cwd. Run from the repo
+// root and a bare `dotenv.config()` finds nothing, MONGO_URI falls back to the
+// localhost default, and the script quietly backfills a dev database while
+// reporting success against what looks like production. That is not a footgun a
+// one-shot migration script gets to have.
+require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
 
 const mongoose = require('mongoose');
 const connectDB = require('../config/db');

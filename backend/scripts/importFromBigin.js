@@ -1,6 +1,10 @@
 // One-time import: pull all Tasks from Zoho Bigin into MongoDB.
 // Usage: node scripts/importFromBigin.js
-require('dotenv').config();
+//
+// `.env` is resolved from THIS file, not from the shell's cwd — see the same note
+// in backfillPhoneKeys.js. A bare `dotenv.config()` run from the repo root finds
+// nothing and this script imports into a dev database while reporting success.
+require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
 
 const mongoose = require('mongoose');
 const connectDB = require('../config/db');

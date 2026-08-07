@@ -12,12 +12,16 @@
 // sync is useful on its own, and the retired CRM ran leads separately for exactly
 // that reason.
 //
-// `phoneKey` is deliberately NOT written here. It is derived from fieldData by the
-// attribution task, which owns that normalisation for both lead sources.
+// `phoneKey` IS written here, by the linker's `phoneFromFieldData` — the single
+// implementation that owns this normalisation for both lead sources. It used to be
+// deferred to the one-shot backfill, which meant every lead synced after that run
+// arrived with no key and was permanently unmatchable from the Task side, since
+// `leadLinker.candidatesForTask` joins on exactly this field.
 const MetaCampaign = require('../models/MetaCampaign');
 const MetaLead = require('../models/MetaLead');
 const meta = require('./metaClient');
 const { keepIfKnown, loadKnownIds } = require('./syncHelpers');
+const { phoneFromFieldData } = require('./leadLinker');
 
 /** Fetch every lead for one lead form and upsert it. Returns the count. */
 async function syncLeads(formId) {
@@ -27,23 +31,27 @@ async function syncLeads(formId) {
 
   if (leads.length) {
     await MetaLead.bulkWrite(
-      leads.map((lead) => ({
-        updateOne: {
-          filter: { _id: lead.id },
-          update: {
-            $set: {
-              createdTime: lead.createdTime,
-              // adId is left as Meta sent it: a lead can outlive the ad that
-              // produced it, and losing the id would lose the attribution.
-              adId: lead.adId,
-              formId: lead.formId,
-              campaignId: keepIfKnown(lead.campaignId, knownCampaigns),
-              fieldData: lead.fieldData,
-            },
-          },
-          upsert: true,
-        },
-      })),
+      leads.map((lead) => {
+        const set = {
+          createdTime: lead.createdTime,
+          // adId is left as Meta sent it: a lead can outlive the ad that
+          // produced it, and losing the id would lose the attribution.
+          adId: lead.adId,
+          formId: lead.formId,
+          campaignId: keepIfKnown(lead.campaignId, knownCampaigns),
+          fieldData: lead.fieldData,
+        };
+
+        // Only ever write a real key. A form with no usable number must not get
+        // an explicit null, and a re-sync returning thinner fieldData than the
+        // first must not erase a key we already derived.
+        const key = phoneFromFieldData(lead.fieldData);
+        if (key) set.phoneKey = key;
+
+        return {
+          updateOne: { filter: { _id: lead.id }, update: { $set: set }, upsert: true },
+        };
+      }),
       { ordered: false }
     );
   }

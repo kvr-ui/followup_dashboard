@@ -18,14 +18,13 @@ import {
 //
 // WHY THE FILTERING IS CLIENT-SIDE
 // --------------------------------
-// The endpoint has `unlinked` and `unresolved` params, but `unresolved` is
-// `resolvedCampaignId: null`, which is true of BOTH a lead nobody has looked at
-// and one an admin has already ruled has no Meta campaign (Google Ads traffic,
-// test data — 28 of them today). Those two need separating, and separating them
-// means reading `resolvedBy` off each row anyway. So the range is fetched once,
-// unfiltered, and every filter is applied here — which also makes the four
-// counts below exact and the filter switches instant. The endpoint caps a page
-// at 1,000; past that the header says so rather than quietly under-counting.
+// The endpoint can serve each of these directly — `unlinked`, `unresolved` and
+// `unmapped` are all real params, and `unresolved` correctly excludes leads an
+// admin already triaged. We fetch the range once, unfiltered, and filter here
+// anyway, for two reasons the server cannot give us: the four counts in the
+// header are then exact rather than one request each, and switching a filter is
+// instant instead of a round trip. The endpoint caps a page at 1,000; past that
+// the header says so rather than quietly under-counting.
 const PAGE_LIMIT = 1000;
 
 const LINK_FILTERS = {

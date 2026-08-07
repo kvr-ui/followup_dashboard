@@ -2,6 +2,7 @@ const Task = require('../models/Task');
 const { enrichContact, enrichTaskFields, normalizeContact } = require('./enrich');
 const { resolveCategory } = require('./taskCategory');
 const { phoneKey } = require('../utils/phone');
+const { linkTask } = require('../modules/ads/services/leadLinker');
 
 function taskSummary(t) {
   const { category } = resolveCategory(t);
@@ -79,6 +80,44 @@ function mergeInto(existing, payload, now) {
 }
 
 /**
+ * Attach this contact to the ad lead it came from, if one is waiting.
+ *
+ * This is the REVERSE direction of the link. The forward one — a lead arriving
+ * and looking for its contact — runs in the ingest route, but it only helps when
+ * the contact already exists. The common ordering is the other way round: someone
+ * fills the ad form, and Bigin creates the contact seconds or days later. Without
+ * this call that lead stays unlinked until the one-shot backfill is re-run by
+ * hand, which is not a thing that happens on a schedule.
+ *
+ * Called on every upsert rather than only on create, so a contact that gains a
+ * Bigin id after being matched on phone alone can be upgraded to the stronger
+ * match — `applyLink` handles the re-point. Both callers of `upsertTask` are
+ * incremental (a single webhook, or the poller's modified-since window), so the
+ * matcher's two or three reads per contact are bounded.
+ */
+async function linkAdLead(doc) {
+  if (!doc) return doc;
+
+  try {
+    const result = await linkTask(doc);
+    if (result) {
+      // `linkTask` writes straight to the collection, so mirror the outcome onto
+      // the in-memory document we are about to hand back — otherwise the caller
+      // returns a contact that reads as unattributed until something loads it again.
+      doc.linkedLeadId = result.leadId;
+      doc.leadSource = result.leadSource;
+    }
+  } catch (err) {
+    // A lead link is derived data; the contact is not. Never let attribution fail
+    // the webhook carrying the contact itself — a dropped contact is unrecoverable,
+    // a dropped link is one `linkLeadsToTasks.js` run away.
+    console.warn(`[taskStore] ad-lead link failed for ${doc._id}: ${err.message}`);
+  }
+
+  return doc;
+}
+
+/**
  * Insert or update a contact record from a task payload.
  *
  * Dedupe is by CONTACT id (Who_Id.id) — which is present in every payload, so
@@ -118,7 +157,7 @@ async function upsertTask(payload, { enrich = false } = {}) {
   if (existing) {
     mergeInto(existing, payload, now);
     await existing.save();
-    return existing;
+    return await linkAdLead(existing);
   }
 
   const dedupeKey = contactId ? `contact:${contactId}` : taskId ? `task:${taskId}` : null;
@@ -127,7 +166,7 @@ async function upsertTask(payload, { enrich = false } = {}) {
   const resolved = resolveCategory(payload);
 
   try {
-    return await Task.create({
+    const created = await Task.create({
       dedupeKey,
       phone,
       // null (not a truncated fragment) when the number is unusable — a 6-digit
@@ -141,6 +180,7 @@ async function upsertTask(payload, { enrich = false } = {}) {
       statusHistory: status ? [{ status, changedAt: now, source: 'webhook' }] : [],
       taskHistory: [taskSummary(payload)],
     });
+    return await linkAdLead(created);
   } catch (err) {
     // Two payloads for a brand-new contact raced — fall back to merge.
     if (err.code === 11000) {
@@ -150,7 +190,7 @@ async function upsertTask(payload, { enrich = false } = {}) {
       if (again) {
         mergeInto(again, payload, now);
         await again.save();
-        return again;
+        return await linkAdLead(again);
       }
     }
     throw err;

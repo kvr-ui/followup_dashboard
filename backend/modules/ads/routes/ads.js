@@ -402,7 +402,9 @@ function clamp(raw, fallback, min, max) {
 // show: which campaign it came from, and whether it reached a Task. The two
 // filters are the actionable ones — `unlinked=true` is the list of leads nobody
 // is following up, and `unresolved=true` is the list of ads whose UTM tagging is
-// broken. Both are worklists, not curiosities.
+// broken. Both are worklists, not curiosities: `unresolved` therefore EXCLUDES
+// leads an admin already triaged as having no Meta campaign. Those are reachable
+// on their own with `unmapped=true`.
 
 const TASK_FIELDS = { _id: 1, phone: 1, 'body.Who_Id': 1 };
 
@@ -482,6 +484,7 @@ router.get('/leads', async (req, res) => {
   const wantLinked = unlinked === true ? false : unlinked === false ? true : linkedParam;
 
   const unresolved = boolParam(req.query.unresolved);
+  const unmapped = boolParam(req.query.unmapped);
   const campaignId = req.query.campaignId ? String(req.query.campaignId) : null;
   const limit = clamp(req.query.limit, 200, 1, 1000);
 
@@ -498,8 +501,18 @@ router.get('/leads', async (req, res) => {
     const webFilter = { createdAt: { $gte: after, $lt: before } };
     if (wantLinked === true) webFilter.linkedTaskId = { $ne: null };
     if (wantLinked === false) webFilter.linkedTaskId = null;
-    if (unresolved === true) webFilter.resolvedCampaignId = null;
+    // `unresolved` is a WORKLIST: UTM strings someone still has to go and fix.
+    // A lead an admin already triaged as having no Meta campaign (Google Ads
+    // traffic, test data) also has a null `resolvedCampaignId`, so filtering on
+    // that column alone hands back a pile of already-answered questions. Ask for
+    // them explicitly with `?unmapped=true` instead.
+    if (unresolved === true) {
+      webFilter.resolvedCampaignId = null;
+      webFilter.resolvedBy = { $ne: 'unmapped' };
+    }
     if (unresolved === false) webFilter.resolvedCampaignId = { $ne: null };
+    if (unmapped === true) webFilter.resolvedBy = 'unmapped';
+    if (unmapped === false) webFilter.resolvedBy = { $ne: 'unmapped' };
     if (campaignId) webFilter.resolvedCampaignId = campaignId;
 
     const metaFilter = { createdTime: { $gte: range.from, $lt: nextDay(range.to) } };
@@ -507,6 +520,10 @@ router.get('/leads', async (req, res) => {
     // "unresolved" here means the lead arrived with no campaign attached at all.
     if (unresolved === true) metaFilter.campaignId = null;
     if (unresolved === false) metaFilter.campaignId = { $ne: null };
+    // Triage is a UTM concept and Meta leads have no UTM, so none of them can be
+    // 'unmapped'. Match nothing rather than quietly ignoring the filter and
+    // returning every Meta lead alongside the web ones the caller asked for.
+    if (unmapped === true) metaFilter._id = null;
     if (campaignId) metaFilter.campaignId = campaignId;
 
     // Each side is capped at `limit` before merging, so the merged page is the
@@ -637,7 +654,14 @@ router.get('/leads', async (req, res) => {
       totals: { web: webTotal, meta: metaMatched, all: webTotal + metaMatched },
       truncated: filtered.length > data.length || webTotal + metaTotal > rows.length,
       range,
-      filters: { source: source || 'all', linked: wantLinked, unresolved, campaignId, limit },
+      filters: {
+        source: source || 'all',
+        linked: wantLinked,
+        unresolved,
+        unmapped,
+        campaignId,
+        limit,
+      },
       data,
     });
   } catch (err) {
