@@ -1,5 +1,6 @@
 const Task = require('../../../models/Task');
 const Call = require('../models/Call');
+const { key10, phoneKey } = require('../../../utils/phone');
 
 // Map a TeleCMI agent extension to a salesperson's owner email.
 // Configure in .env, e.g.  TELECMI_AGENTS=5001=veera@x.com,5003=nithish@x.com
@@ -13,21 +14,8 @@ function agentMap() {
   return map;
 }
 
-// Normalise any phone to its last 10 digits — robust across +91 / 91 / bare formats.
-function key10(value) {
-  const d = String(value || '').replace(/\D/g, '');
-  return d.length >= 10 ? d.slice(-10) : d || null;
-}
-
-// A *strict* match key for cross-linking a call to a deal: the last 10 digits,
-// but ONLY when the number has 10+ digits. Unlike key10, a shorter fragment is
-// rejected (returns null) — so a 6-digit landline (or a malformed number) can't
-// loosely match an unrelated number that merely ends the same way. This is the
-// cross-link guard the old regex-suffix match lacked.
-function phoneKey(value) {
-  const d = String(value || '').replace(/\D/g, '');
-  return d.length >= 10 ? d.slice(-10) : null;
-}
+// key10 / phoneKey now live in backend/utils/phone.js — the ad-lead matcher needs
+// the same normalisation, and two copies would drift. Import, don't re-implement.
 
 // The distinct strict keys for a call — any of its phone legs may identify the lead.
 function phoneKeysOf({ leadPhone, to, from } = {}) {
@@ -182,7 +170,5 @@ module.exports = {
   warmLeadIndex,
   upsertCall,
   toCallDoc,
-  key10,
-  phoneKey,
   phoneKeysOf,
 };

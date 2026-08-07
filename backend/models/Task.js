@@ -56,6 +56,12 @@ const taskSchema = new mongoose.Schema(
     // Unique dedupe key: the phone number when known, else `task:<zohoId>`.
     dedupeKey: { type: String, unique: true, sparse: true, index: true },
     phone: { type: String, default: null, index: true },
+
+    // The last 10 digits of `phone`. `phone` is whatever Bigin sent us — "+91 98765
+    // 43210", "09876543210", "9876543210" — so it can't be joined on. This is the
+    // fallback key that matches a contact to an ad lead when no click id links them.
+    phoneKey: { type: String, default: null, index: true, sparse: true },
+
     zohoId: { type: String, default: null, index: true }, // latest task's Bigin id
 
     // The latest task's Task_Category. Lifted out of `body` into a real indexed
@@ -71,6 +77,22 @@ const taskSchema = new mongoose.Schema(
       type: String,
       enum: ['bigin', 'subject', null],
       default: null,
+    },
+
+    // Where this contact came from. Denormalised onto the Task so the follow-ups
+    // table can render a Source column without one lookup per row. Safe to copy
+    // because a lead's ORIGIN never changes — unlike its cost, which is re-derived
+    // from ad spend every day and so must never be cached here.
+    leadSource: { type: String, enum: ['meta', 'web', null], default: null },
+
+    // The WebLead or MetaLead this contact was matched to. Deliberately un-`ref`ed:
+    // it points into one of two collections, so which model to populate from is
+    // decided by `leadSource`, not by the schema.
+    linkedLeadId: {
+      type: mongoose.Schema.Types.ObjectId,
+      default: null,
+      index: true,
+      sparse: true,
     },
 
     body: { type: mongoose.Schema.Types.Mixed, required: true },

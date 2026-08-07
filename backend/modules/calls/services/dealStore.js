@@ -2,7 +2,7 @@ const zoho = require('../../../services/zoho');
 const Task = require('../../../models/Task');
 const Deal = require('../models/Deal');
 const Call = require('../models/Call');
-const { phoneKey } = require('./callStore');
+const { phoneKey } = require('../../../utils/phone');
 
 const WON_STAGE = process.env.BIGIN_WON_STAGE || 'Closed with Sale';
 const LOST_STAGE = process.env.BIGIN_LOST_STAGE || 'Closed without Sale';

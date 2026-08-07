@@ -11,7 +11,8 @@ const mongoose = require('mongoose');
 const connectDB = require('../../../config/db');
 const Call = require('../models/Call');
 const Deal = require('../models/Deal');
-const { phoneKey, phoneKeysOf } = require('../services/callStore');
+const { phoneKeysOf } = require('../services/callStore');
+const { phoneKey } = require('../../../utils/phone');
 
 async function run() {
   await connectDB();

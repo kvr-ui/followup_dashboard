@@ -14,7 +14,7 @@ const mongoose = require('mongoose');
 const connectDB = require('../../../config/db');
 const Task = require('../../../models/Task');
 const Call = require('../models/Call');
-const { key10 } = require('../services/callStore');
+const { key10 } = require('../../../utils/phone');
 const { buildWonPhoneMap } = require('../services/dealSync');
 
 const MIN_DURATION = Number(process.env.TELECMI_MIN_DURATION_SEC || 30);
