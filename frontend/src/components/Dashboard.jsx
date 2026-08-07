@@ -8,6 +8,8 @@ import Products from './Products';
 import Installments from './Installments';
 import Upsells from './Upsells';
 import Scorecard from './Scorecard';
+import Marketing from './Marketing';
+import AdLeads from './AdLeads';
 import SummaryCards from './SummaryCards';
 import Filters from './Filters';
 import { api } from '../api';
@@ -58,6 +60,13 @@ export default function Dashboard({ user, onLogout }) {
             'products',
             'installments',
             'upsells',
+            // Ad spend, cost per lead and raw lead PII are management data.
+            // /api/ads is admin-only at the router, so a rep who reaches these
+            // views gets a 403 and an empty screen — hence they are also absent
+            // from the sales list below, and a rep with either one stored is
+            // redirected to follow-ups by the effect underneath.
+            'marketing',
+            'adleads',
             'users',
           ]
         : // A sales rep gets their own follow-ups, their own graded calls, their personal
@@ -142,6 +151,22 @@ export default function Dashboard({ user, onLogout }) {
             </button>
             {isAdmin && (
               <button
+                className={view === 'marketing' ? 'tab active' : 'tab'}
+                onClick={() => setView('marketing')}
+              >
+                Marketing
+              </button>
+            )}
+            {isAdmin && (
+              <button
+                className={view === 'adleads' ? 'tab active' : 'tab'}
+                onClick={() => setView('adleads')}
+              >
+                Ad Leads
+              </button>
+            )}
+            {isAdmin && (
+              <button
                 className={view === 'users' ? 'tab active' : 'tab'}
                 onClick={() => setView('users')}
               >
@@ -203,6 +228,12 @@ export default function Dashboard({ user, onLogout }) {
           <Scorecard user={user} />
         ) : view === 'products' ? (
           <Products />
+        ) : view === 'marketing' ? (
+          <Marketing />
+        ) : view === 'adleads' ? (
+          // Opening a lead's follow-up reuses the drawer this file already
+          // owns rather than mounting a second copy of it inside the tab.
+          <AdLeads onOpenTask={setSelectedId} />
         ) : (
           <AdminUsers />
         )}

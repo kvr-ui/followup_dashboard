@@ -1,6 +1,7 @@
 const Task = require('../models/Task');
 const zoho = require('../services/zoho');
 const wati = require('../services/wati');
+const { buildAcquisition } = require('../modules/ads/services/acquisitionView');
 
 function ownerEmailOf(task) {
   return task && task.Owner && task.Owner.email
@@ -17,19 +18,52 @@ function canAccess(user, taskDoc) {
   return bodies.some((b) => ownerEmailOf(b) === mine);
 }
 
-function serialize(doc) {
+function serialize(doc, acquisition) {
   return {
     id: doc.dedupeKey || doc.zohoId || String(doc._id),
     zohoId: doc.zohoId || null,
     receivedAt: doc.receivedAt,
     taskCategory: doc.taskCategory || null,
     taskCategorySource: doc.taskCategorySource || null,
+    leadSource: doc.leadSource || null,
     body: doc.body,
     statusHistory: doc.statusHistory || [],
     notes: doc.notes || [],
     taskHistory: doc.taskHistory || [],
     whatsappLog: doc.whatsappLog || [],
+    // Where this lead came from, what it answered, and (admins only) what it
+    // cost. Null — not an object of nulls — when no ad lead is linked.
+    acquisition: acquisition === undefined ? null : acquisition,
   };
+}
+
+/**
+ * The detail payload, including the acquisition block.
+ *
+ * Built here rather than inside `serialize` because it needs the CALLER's role:
+ * the cost sub-object exists only for admins, and "only for admins" is enforced
+ * by never writing the key, not by hiding it in the frontend. Ad spend must not
+ * be inferable from a rep's session, and a rep can read their own raw JSON.
+ *
+ * Every handler that returns a detail payload goes through this — adding a note
+ * or changing a status replaces the whole detail object in the UI, so an
+ * acquisition block present on GET but missing on PATCH would make the panel
+ * vanish mid-call.
+ *
+ * Never throws: attribution is worth less than the lead it hangs off, so a
+ * failure here costs the panel, not the response.
+ */
+async function detailFor(doc, user) {
+  try {
+    return await buildAcquisition(doc, { includeCost: user && user.role === 'admin' });
+  } catch (err) {
+    console.warn('Failed to build acquisition block:', err.message);
+    return null;
+  }
+}
+
+async function serializeDetail(doc, user) {
+  return serialize(doc, await detailFor(doc, user));
 }
 
 // Load a task by its dedupeKey (falling back to zohoId / Mongo _id) and enforce access.
@@ -68,6 +102,10 @@ function serializeList(doc) {
     receivedAt: doc.receivedAt,
     taskCategory: doc.taskCategory || null,
     taskCategorySource: doc.taskCategorySource || null,
+    // Denormalised onto the Task when the lead was linked, so the Source column
+    // costs one string per row and not a lookup per row. Origin never changes;
+    // cost does, which is why only this is carried here.
+    leadSource: doc.leadSource || null,
     body: doc.body,
   };
 }
@@ -91,7 +129,15 @@ async function loadTaskList() {
   const docs = await Task.find(
     {},
     // slim projection — the list view renders only these
-    { body: 1, receivedAt: 1, dedupeKey: 1, zohoId: 1, taskCategory: 1, taskCategorySource: 1 }
+    {
+      body: 1,
+      receivedAt: 1,
+      dedupeKey: 1,
+      zohoId: 1,
+      taskCategory: 1,
+      taskCategorySource: 1,
+      leadSource: 1,
+    }
   )
     .sort({ receivedAt: -1 })
     .lean();
@@ -163,7 +209,11 @@ async function getTask(req, res) {
     const doc = await loadAccessible(req, res);
     if (!doc) return;
 
-    res.json({ success: true, data: serialize(doc), zohoSync: zoho.isConfigured() });
+    res.json({
+      success: true,
+      data: await serializeDetail(doc, req.user),
+      zohoSync: zoho.isConfigured(),
+    });
   } catch (err) {
     console.error('Failed to fetch task:', err.message);
     res.status(500).json({ success: false, message: 'Failed to fetch task' });
@@ -200,7 +250,7 @@ async function updateStatus(req, res) {
     await doc.save();
     invalidateTaskCache();
 
-    res.json({ success: true, data: serialize(doc), zohoSync: sync });
+    res.json({ success: true, data: await serializeDetail(doc, req.user), zohoSync: sync });
   } catch (err) {
     console.error('Failed to update status:', err.message);
     res.status(500).json({ success: false, message: 'Failed to update status' });
@@ -231,7 +281,7 @@ async function addNote(req, res) {
     await doc.save();
     invalidateTaskCache();
 
-    res.json({ success: true, data: serialize(doc), zohoSync: sync });
+    res.json({ success: true, data: await serializeDetail(doc, req.user), zohoSync: sync });
   } catch (err) {
     console.error('Failed to add note:', err.message);
     res.status(500).json({ success: false, message: 'Failed to add note' });
@@ -266,15 +316,17 @@ async function sendWhatsapp(req, res) {
     });
     await doc.save();
 
+    const data = await serializeDetail(doc, req.user);
+
     if (!result.ok) {
       return res.status(result.skipped ? 400 : 502).json({
         success: false,
         message: result.error || 'WATI not configured',
-        data: serialize(doc),
+        data,
       });
     }
 
-    res.json({ success: true, data: serialize(doc) });
+    res.json({ success: true, data });
   } catch (err) {
     console.error('Failed to send WhatsApp:', err.message);
     res.status(500).json({ success: false, message: 'Failed to send WhatsApp message' });

@@ -971,3 +971,367 @@ tr.row-today td {
     padding: 0.75rem 1rem;
   }
 }
+
+/* ---------- Lead source badges (follow-ups table Source column) ----------
+   Appended block — nothing above is modified.
+
+   Deliberately quiet. This table already spends colour on meaning: the
+   overdue and due-today row highlighting, and the priority/status badges
+   either side. So the two sources carry a tinted dot plus their own ink
+   rather than a loud fill — enough to tell apart at a glance without
+   competing with the row states. Meta takes the accent (blue-slate),
+   Web the green; leads with no ad origin get no badge at all, just the
+   table's standard muted dash. */
+.source-cell {
+  white-space: nowrap;
+}
+.source-badge {
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+/* The dot does the at-a-glance work — it reads as source colour even when
+   the pale fills sit next to the grey Category badge in the previous cell. */
+.source-badge::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: none;
+}
+.source-meta {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  border-color: #c7d1e4;
+}
+.source-web {
+  background: var(--green-soft);
+  color: var(--green);
+  border-color: #cadfd2;
+}
+
+/* ============================================================
+   Acquisition panel (lead drawer)
+   Appended block — nothing above is modified.
+   ============================================================ */
+
+/* The field grids inside the section sit under their own small heading. */
+.acq-grid {
+  margin-top: 0.4rem;
+}
+.acq-group {
+  margin-top: 1rem;
+}
+.acq-subhead {
+  display: block;
+}
+
+/* Landing URL / referrer stack full width — they need the room. The explicit
+   minmax(0, …) is what lets the URL inside clip instead of stretching the
+   drawer: a grid track's default min-width is its content. */
+.acq-stack {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.7rem;
+  margin-top: 0.4rem;
+}
+
+/* A campaign matched by normalized string, or by an operator's alias, is a
+   guess. Same quiet treatment as a task category read out of the subject line:
+   dimmed and italic, with the reason on hover. */
+.acq-inferred {
+  opacity: 0.7;
+  font-style: italic;
+}
+.acq-inferred-tag {
+  margin-left: 0.35rem;
+  padding: 0.05rem 0.4rem;
+  border: 1px dashed var(--border-strong);
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  cursor: help;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+/* Long URLs clip to one line; the full value is the hover title. */
+.acq-url {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.acq-cost {
+  font-size: 1.05rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The division that produced the cost, and the form slug under the source —
+   supporting detail, never the headline. */
+.acq-basis {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.72rem;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+/* ============================================================
+   Marketing + Ad Leads tabs (issue #13) — `.mkt-` prefix
+   ------------------------------------------------------------
+   Appended as one block; nothing above this line is modified.
+   Everything here leans on the existing design tokens and on the
+   established .card / .panel / table.tasks conventions, so these
+   two admin tabs read as part of the same dashboard rather than
+   as the retired CRM bolted back on.
+   ============================================================ */
+
+/* ---------- Tab header + date range selector ---------- */
+.mkt-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.9rem;
+  margin-bottom: 1.1rem;
+}
+.mkt-head h2 {
+  font-family: var(--serif);
+  font-size: 1.3rem;
+  font-weight: 600;
+}
+
+.mkt-rangebar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+/* Segmented presets. One button reads as active only when both ends of the
+   range still match it — nudge a date by hand and the highlight drops. */
+.mkt-presets {
+  display: inline-flex;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 2px;
+}
+.mkt-preset {
+  border: none;
+  background: transparent;
+  color: var(--ink-2);
+  font-size: 0.78rem;
+  padding: 0.35rem 0.7rem;
+  border-radius: 6px;
+}
+.mkt-preset:hover {
+  background: var(--surface);
+  border-color: transparent;
+}
+.mkt-preset-on,
+.mkt-preset-on:hover {
+  background: var(--accent);
+  color: #fff;
+}
+
+.mkt-dates {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.mkt-dates input {
+  padding: 0.35rem 0.5rem;
+  font-size: 0.82rem;
+}
+
+/* ---------- Figures ---------- */
+/* Every money / count / percentage cell lines up on the decimal point. */
+.mkt-num {
+  font-variant-numeric: tabular-nums;
+}
+/* A rupee total with Indian grouping is a long string — "₹2,11,681.84" at the
+   card's default 2rem overflows a 160px card, so KPI figures step down. */
+.card .num.mkt-num {
+  font-size: 1.45rem;
+}
+.mkt-right {
+  text-align: right;
+}
+
+.mkt-note {
+  margin: 0.6rem 0 0;
+  line-height: 1.5;
+  max-width: 78ch;
+}
+.mkt-note code {
+  background: var(--surface-inset);
+  padding: 0.05rem 0.3rem;
+  border-radius: 4px;
+  font-size: 0.92em;
+}
+
+/* ---------- Panels ---------- */
+.mkt-panel-head {
+  margin-bottom: 1rem;
+}
+.mkt-panel-head h2 {
+  margin-bottom: 0;
+}
+.mkt-subhead {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  font-weight: 600;
+  margin-bottom: 0.6rem;
+}
+
+/* Wide tables scroll sideways inside the panel instead of stretching the page. */
+.mkt-scroll {
+  overflow-x: auto;
+}
+.mkt-scroll table {
+  min-width: 900px;
+}
+.mkt-table th,
+.mkt-table td {
+  padding: 0.6rem 0.85rem;
+  font-size: 0.84rem;
+}
+.mkt-table tfoot td {
+  background: var(--surface-2);
+  border-top: 1px solid var(--border-strong);
+  font-weight: 600;
+}
+
+/* Sortable headers: the whole cell is the target, and the arrow marks the
+   column currently ordering the table. */
+.mkt-sortable {
+  cursor: pointer;
+  user-select: none;
+}
+.mkt-sortable:hover {
+  color: var(--ink-2);
+}
+
+.mkt-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+  gap: 1.4rem;
+  align-items: start;
+}
+
+/* ---------- Attribution tag ---------- */
+/* How a lead's campaign was decided — 'alias' means an admin asserted the
+   mapping by hand, which is worth seeing next to the campaign name. */
+.mkt-how {
+  display: inline-block;
+  margin-left: 0.35rem;
+  padding: 0.05rem 0.4rem;
+  border: 1px dashed var(--border-strong);
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  cursor: help;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+/* ---------- Reconciliation ---------- */
+.mkt-recon {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-width: 420px;
+}
+.mkt-recon > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+.mkt-recon > div:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+.mkt-recon dt {
+  color: var(--ink-2);
+  font-size: 0.86rem;
+}
+.mkt-recon dd {
+  margin: 0;
+  font-size: 0.95rem;
+}
+/* A non-zero gap is not an error — see the note under the panel — but it is
+   worth the eye landing on it. */
+.mkt-recon-gap dd {
+  color: var(--amber);
+  font-weight: 600;
+}
+
+/* ---------- Ad Leads ---------- */
+.mkt-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.9rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem 1.1rem;
+  margin-bottom: 1.1rem;
+  box-shadow: var(--shadow-sm);
+}
+.mkt-filters label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.mkt-filters label > span {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+/* The UTM tag set, as a compact key/value stack rather than five columns. */
+.mkt-utm {
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--ink-2);
+  max-width: 22rem;
+  word-break: break-word;
+}
+.mkt-utm b {
+  display: inline-block;
+  min-width: 4.6rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.mkt-open {
+  font-size: 0.78rem;
+  padding: 0.3rem 0.6rem;
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .mkt-split {
+    grid-template-columns: 1fr;
+  }
+}

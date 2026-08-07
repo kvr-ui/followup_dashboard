@@ -1,6 +1,12 @@
 services:
   app:
-    build: .
+    build:
+      context: .
+      # Build-time-only credential for `npm ci` to resolve the private
+      # @santhosh785 scope (backend/.npmrc) from GitHub Packages. Never baked
+      # into the image — see the secret mount in the Dockerfile.
+      secrets:
+        - github_packages_token
     image: followup-dashboard:latest
     container_name: followup-dashboard
     restart: unless-stopped
@@ -15,3 +21,12 @@ services:
       - PORT=7007
       # Due-date buckets use local midnight — keep the container in IST.
       - TZ=Asia/Kolkata
+
+# Build secret backing store: sourced from the GITHUB_PACKAGES_TOKEN
+# environment variable, never a file committed to the repo. Set it before
+# building, e.g.:
+#   export GITHUB_PACKAGES_TOKEN=ghp_xxx   # PAT with `read:packages` scope
+#   docker compose build
+secrets:
+  github_packages_token:
+    environment: GITHUB_PACKAGES_TOKEN

@@ -2,7 +2,20 @@ import { formatDateTime, priorityClass, statusClass, getContact } from '../utils
 import { classifyDue } from '../taskStats';
 import CopyButton from './CopyButton';
 
-function TaskRow({ task, receivedAt, category, categorySource, onSelect }) {
+// Where the lead came from, read straight off the row. The list response carries
+// a denormalised `leadSource`, so this is a plain lookup in a map — never a fetch
+// or a computation per row. Cost is deliberately absent: it is admin-only, needs
+// the CPL lookup, and lives in the detail drawer.
+const SOURCE_LABELS = { meta: 'Meta', web: 'Web' };
+
+function SourceBadge({ leadSource }) {
+  const label = SOURCE_LABELS[leadSource];
+  // No ad origin — the table's standard muted dash, same as an absent category.
+  if (!label) return <span className="subtle">—</span>;
+  return <span className={`badge source-badge source-${leadSource}`}>{label}</span>;
+}
+
+function TaskRow({ task, receivedAt, category, categorySource, leadSource, onSelect }) {
   const who = task.Who_Id?.name || '—';
   const owner = task.Owner?.name || '—';
   const { phone } = getContact(task);
@@ -32,6 +45,9 @@ function TaskRow({ task, receivedAt, category, categorySource, onSelect }) {
         ) : (
           <span className="subtle">—</span>
         )}
+      </td>
+      <td className="source-cell">
+        <SourceBadge leadSource={leadSource} />
       </td>
       <td>
         <div className="contact-name">{who}</div>
@@ -74,6 +90,7 @@ export default function TaskTable({ tasks, onSelect }) {
         <tr>
           <th>Task</th>
           <th>Category</th>
+          <th>Source</th>
           <th>Contact</th>
           <th>Owner</th>
           <th>Status</th>
@@ -84,13 +101,14 @@ export default function TaskTable({ tasks, onSelect }) {
         </tr>
       </thead>
       <tbody>
-        {tasks.map(({ key, recordId, task, receivedAt, category, categorySource }) => (
+        {tasks.map(({ key, recordId, task, receivedAt, category, categorySource, leadSource }) => (
           <TaskRow
             key={key}
             task={task}
             receivedAt={receivedAt}
             category={category}
             categorySource={categorySource}
+            leadSource={leadSource}
             onSelect={() => onSelect?.(recordId)}
           />
         ))}

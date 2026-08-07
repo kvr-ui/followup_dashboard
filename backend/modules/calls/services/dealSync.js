@@ -1,6 +1,6 @@
 const zoho = require('../../../services/zoho');
 const Task = require('../../../models/Task');
-const { key10 } = require('./callStore');
+const { key10 } = require('../../../utils/phone');
 
 const WON_STAGE = process.env.BIGIN_WON_STAGE || 'Closed with Sale';
 

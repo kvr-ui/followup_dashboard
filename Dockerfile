@@ -31,9 +31,14 @@ RUN apk add --no-cache ffmpeg tzdata
 # Run in IST — matches the users and the Bigin due dates.
 ENV TZ=Asia/Kolkata
 
-# Production dependencies only
-COPY backend/package.json backend/package-lock.json ./
-RUN npm ci --omit=dev
+# Production dependencies only. backend/.npmrc resolves the private
+# @santhosh785 scope (e.g. @santhosh785/meta-ads) from GitHub Packages, which
+# needs a read:packages token. The token is supplied only for this RUN step
+# via a Docker build secret — never as an ENV or ARG — so it isn't baked into
+# any image layer or left in the build history.
+COPY backend/package.json backend/package-lock.json backend/.npmrc ./
+RUN --mount=type=secret,id=github_packages_token \
+    GITHUB_PACKAGES_TOKEN="$(cat /run/secrets/github_packages_token)" npm ci --omit=dev
 
 # Backend source
 COPY backend/ ./

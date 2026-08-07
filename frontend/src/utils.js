@@ -33,6 +33,9 @@ export function extractTasks(record) {
       // alongside the body rather than in it.
       category: record.taskCategory || null,
       categorySource: record.taskCategorySource || null,
+      // 'meta' | 'web' | null. Denormalised onto the record by the server, so the
+      // Source column is a plain field read — no lookup, no fetch, per row.
+      leadSource: record.leadSource || null,
     }));
 }
 

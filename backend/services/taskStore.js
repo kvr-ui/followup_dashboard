@@ -1,6 +1,7 @@
 const Task = require('../models/Task');
 const { enrichContact, enrichTaskFields, normalizeContact } = require('./enrich');
 const { resolveCategory } = require('./taskCategory');
+const { phoneKey } = require('../utils/phone');
 
 function taskSummary(t) {
   const { category } = resolveCategory(t);
@@ -65,6 +66,15 @@ function mergeInto(existing, payload, now) {
       existing.statusHistory.push({ status, changedAt: now, source: 'webhook' });
     }
   }
+
+  // Keep the match key in step with the phone we hold. Done OUTSIDE the
+  // newest-task branch on purpose: a contact stored before this field existed
+  // must gain its key on the next webhook of any age, not wait for a backfill.
+  // Only ever overwrite with a real key — a payload missing the phone must not
+  // erase one we already derived.
+  const key = phoneKey((payload.Who_Id && payload.Who_Id.phone) || existing.phone);
+  if (key) existing.phoneKey = key;
+
   return existing;
 }
 
@@ -120,6 +130,9 @@ async function upsertTask(payload, { enrich = false } = {}) {
     return await Task.create({
       dedupeKey,
       phone,
+      // null (not a truncated fragment) when the number is unusable — a 6-digit
+      // key would loosely match unrelated numbers ending the same way.
+      phoneKey: phoneKey(phone),
       zohoId: taskId,
       taskCategory: resolved.category,
       taskCategorySource: resolved.source,
