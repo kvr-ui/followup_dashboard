@@ -5,10 +5,11 @@
 //
 // Step 2 of the attribution backfill (see plans/crm-integration/MIGRATION.md):
 //
-//   1. backfillPhoneKeys.js      Task.phoneKey
-//   2. resolveLeadCampaigns.js   <- this script
-//   3. linkLeadsToTasks.js       MetaLead.phoneKey + lead <-> Task links
-//   4. attributionReport.js      read-only phase gate
+//   1.  backfillPhoneKeys.js      Task.phoneKey
+//   2.  resolveLeadCampaigns.js   <- this script
+//   2a. seedCampaignAliases.js    the operator's UTM aliases; re-run step 2 after
+//   3.  linkLeadsToTasks.js       MetaLead.phoneKey + lead <-> Task links
+//   4.  attributionReport.js      read-only phase gate
 //
 // New leads get resolved on write; the leads migrated out of the retired CRM's
 // Atlas database predate the fields entirely. The resolver itself lives in
@@ -77,8 +78,14 @@ async function run() {
   let unchanged = 0;
 
   // Resolution method -> count, for every lead (not just the ones we wrote).
-  const byMethod = { id: 0, exact: 0, normalized: 0, unresolved: 0, 'no-utm': 0 };
-  // The actionable list: distinct utm_campaign strings that matched no campaign.
+  // `alias` is an operator's mapping (models/CampaignAlias); `unmapped` is an
+  // operator having recorded that a UTM has no Meta campaign at all — a resolved
+  // question with the answer "none", which is why it is counted apart from both
+  // the resolved and the unresolved.
+  const byMethod = { id: 0, exact: 0, normalized: 0, alias: 0, unmapped: 0, unresolved: 0, 'no-utm': 0 };
+  // The actionable list: distinct utm_campaign strings that matched no campaign
+  // and that nobody has triaged. Deliberately-unmapped strings are NOT here —
+  // leaving them on the worklist forever is what the alias table exists to end.
   const unresolvedUtms = new Map();
 
   // Sorted by `_id` on purpose: the loop writes to the very collection it is
@@ -129,14 +136,16 @@ async function run() {
     if (scanned % 200 === 0) process.stdout.write(`  scanned: ${scanned}\r`);
   }
 
-  const resolved = byMethod.id + byMethod.exact + byMethod.normalized;
-  const tagged = resolved + byMethod.unresolved;
+  const resolved = byMethod.id + byMethod.exact + byMethod.normalized + byMethod.alias;
+  const tagged = resolved + byMethod.unmapped + byMethod.unresolved;
 
   console.log('\n=== RESOLUTION BY METHOD ===');
   console.log(`  ${String(byMethod.id).padStart(6)}  id          (the UTM was the campaign id)`);
   console.log(`  ${String(byMethod.exact).padStart(6)}  exact       (verbatim campaign-name match)`);
   console.log(`  ${String(byMethod.normalized).padStart(6)}  normalized  (case/punctuation differences only)`);
-  console.log(`  ${String(byMethod.unresolved).padStart(6)}  unresolved  (tagged, but matched no campaign)`);
+  console.log(`  ${String(byMethod.alias).padStart(6)}  alias       (an admin mapped this UTM by hand)`);
+  console.log(`  ${String(byMethod.unmapped).padStart(6)}  unmapped    (an admin recorded: no Meta campaign exists)`);
+  console.log(`  ${String(byMethod.unresolved).padStart(6)}  unresolved  (tagged, matched no campaign, not yet triaged)`);
   console.log(`  ${String(byMethod['no-utm']).padStart(6)}  no-utm      (no utm_campaign on the lead at all)`);
   console.log(
     `\n  resolved: ${resolved}/${scanned} of all leads` +
@@ -147,8 +156,10 @@ async function run() {
   if (!unresolvedUtms.size) {
     console.log('  (none — every tagged lead matched a campaign)');
   } else {
-    console.log('  These ad URLs are tagged with something that is not a campaign name.');
-    console.log('  Fix them at source in Meta, or rename the campaign to match.\n');
+    console.log('  These ad URLs are tagged with something that is not a campaign name and');
+    console.log('  that nobody has triaged. Fix them at source in Meta, rename the campaign');
+    console.log('  to match, or — for history the fix can never reach — add an alias:');
+    console.log('  scripts/seedCampaignAliases.js / POST /api/ads/campaign-aliases.\n');
     [...unresolvedUtms.entries()]
       .sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1))
       .forEach(([utm, n]) => console.log(`  ${String(n).padStart(6)}  ${JSON.stringify(utm)}`));

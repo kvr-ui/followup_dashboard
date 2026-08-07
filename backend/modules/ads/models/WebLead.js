@@ -47,10 +47,16 @@ const webLeadSchema = new mongoose.Schema({
   // HOW the campaign above was resolved, so a suspicious attribution can be
   // traced: 'exact' (utmCampaign matched a campaign name verbatim),
   // 'normalized' (matched after case/punctuation normalisation), 'id' (the UTM
-  // carried the campaign id outright), or null (unresolved).
+  // carried the campaign id outright), 'alias' (no Meta data matched; an admin
+  // asserted the mapping in the CampaignAlias table), or null (unresolved).
+  //
+  // 'unmapped' is the odd one: `resolvedCampaignId` is null, as it is for an
+  // unresolved lead, but an admin has TRIAGED this UTM and recorded that no Meta
+  // campaign exists for it (Google Ads traffic, test data). Stored so the
+  // attribution report can stop listing it as something to go and fix.
   resolvedBy: {
     type: String,
-    enum: ['exact', 'normalized', 'id', null],
+    enum: ['exact', 'normalized', 'id', 'alias', 'unmapped', null],
     default: null,
   },
 

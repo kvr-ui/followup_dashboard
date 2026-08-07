@@ -39,12 +39,18 @@ const cplCache = require('../services/cplCache');
 const { phoneFromFieldData } = require('../services/leadLinker');
 const { rateLimit } = require('../middleware/rateLimit');
 const { authenticate, requireAdmin } = require('../../../middleware/auth');
+const campaignAliasRoutes = require('./campaignAliases');
 
 const router = express.Router();
 
 // Every route below. Nothing in this file is reachable without a valid JWT AND
 // the admin role — see the file header.
 router.use(authenticate, requireAdmin);
+
+// The operator-maintained UTM -> campaign alias table. Mounted HERE, below the
+// gate, so it inherits it: that sub-router carries no auth of its own and must
+// never be mounted anywhere else. See routes/campaignAliases.js.
+router.use('/campaign-aliases', campaignAliasRoutes);
 
 // ---------------------------------------------------------------------------
 // Date ranges
@@ -566,9 +572,11 @@ router.get('/leads', async (req, res) => {
         campaignName: lead.resolvedCampaignId
           ? campaignName.get(String(lead.resolvedCampaignId)) || null
           : null,
-        // 'exact' | 'normalized' | 'id' — HOW the UTM was matched, so the tab can
-        // show whether an attribution is a fact or an inference. Null means the
-        // UTM resolved to nothing, which is what `unresolved=true` lists.
+        // 'id' | 'exact' | 'normalized' | 'alias' | 'unmapped' — HOW the UTM was
+        // matched, so the tab can show whether an attribution is a fact, an
+        // inference, or an operator's manual mapping. 'unmapped' carries no
+        // campaign on purpose (an admin recorded that this UTM has none). Null
+        // means the UTM resolved to nothing and nobody has triaged it.
         resolvedBy: lead.resolvedBy || null,
         linked: Boolean(lead.linkedTaskId),
         task: taskSummary(task),

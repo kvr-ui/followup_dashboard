@@ -5,10 +5,11 @@
 // Step 4, and the last, of the attribution backfill (see
 // plans/crm-integration/MIGRATION.md):
 //
-//   1. backfillPhoneKeys.js      Task.phoneKey
-//   2. resolveLeadCampaigns.js   WebLead.resolvedCampaignId   <- REQUIRED FIRST
-//   3. linkLeadsToTasks.js       lead <-> Task links          <- REQUIRED FIRST
-//   4. attributionReport.js      <- this script
+//   1.  backfillPhoneKeys.js      Task.phoneKey
+//   2.  resolveLeadCampaigns.js   WebLead.resolvedCampaignId   <- REQUIRED FIRST
+//   2a. seedCampaignAliases.js    the operator's UTM aliases; re-run step 2 after
+//   3.  linkLeadsToTasks.js       lead <-> Task links          <- REQUIRED FIRST
+//   4.  attributionReport.js      <- this script
 //
 // This is where a human decides whether the matching rules are good enough on real
 // data BEFORE any UI is built on top of them. Every number below answers one
@@ -29,6 +30,7 @@ require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') }
 const mongoose = require('mongoose');
 const connectDB = require('../config/db');
 const Task = require('../models/Task');
+const CampaignAlias = require('../modules/ads/models/CampaignAlias');
 const MetaCampaign = require('../modules/ads/models/MetaCampaign');
 const MetaLead = require('../modules/ads/models/MetaLead');
 const WebLead = require('../modules/ads/models/WebLead');
@@ -143,7 +145,8 @@ async function run() {
     { $group: { _id: '$resolvedBy', n: { $sum: 1 } } },
   ]);
   const byMethod = Object.fromEntries(methods.map((m) => [m._id || 'unresolved', m.n]));
-  const resolved = (byMethod.id || 0) + (byMethod.exact || 0) + (byMethod.normalized || 0);
+  const resolved =
+    (byMethod.id || 0) + (byMethod.exact || 0) + (byMethod.normalized || 0) + (byMethod.alias || 0);
 
   const taggedTotal = await WebLead.countDocuments({
     utmCampaign: { $nin: [null, ''] },
@@ -153,8 +156,14 @@ async function run() {
   // matched nothing (a broken ad URL, actionable) and one that carried no tag at
   // all (organic, nothing to fix). Lumping them would make the tagging look twice
   // as broken as it is, so the unresolved figure counts only the tagged ones.
+  //
+  // 'unmapped' is excluded for the same reason from the other side: an admin has
+  // looked at that UTM and recorded that no Meta campaign exists for it (Google
+  // Ads traffic, test data). It has no campaign and never will, and counting it as
+  // unresolved would leave it on the actionable list forever.
   const unresolvedTagged = await WebLead.countDocuments({
     resolvedCampaignId: null,
+    resolvedBy: { $ne: 'unmapped' },
     utmCampaign: { $nin: [null, ''] },
   });
 
@@ -162,9 +171,17 @@ async function run() {
   line('resolved by id', byMethod.id || 0, 'the UTM was the campaign id');
   line('resolved by exact name', byMethod.exact || 0, 'verbatim campaign-name match');
   line('resolved by normalized name', byMethod.normalized || 0, 'case/punctuation only');
-  line('unresolved (tagged, no match)', unresolvedTagged);
+  line('resolved by alias', byMethod.alias || 0, 'an admin mapped this UTM by hand');
+  line('deliberately unmapped', byMethod.unmapped || 0, 'admin: no Meta campaign exists');
+  line('unresolved (tagged, no match)', unresolvedTagged, 'not yet triaged');
   line('RESOLVED / all web leads', `${resolved}/${webTotal}`, pct(resolved, webTotal));
   line('RESOLVED / tagged web leads', `${resolved}/${taggedTotal}`, pct(resolved, taggedTotal));
+  // The honest denominator for "is the matching good enough": a lead tagged with a
+  // string that HAS no Meta campaign cannot be resolved by any rule, and counting
+  // it against the rate measures the marketing team's channel mix, not the
+  // resolver. Both figures are printed so neither can be quoted alone.
+  const resolvable = taggedTotal - (byMethod.unmapped || 0);
+  line('RESOLVED / resolvable tagged', `${resolved}/${resolvable}`, pct(resolved, resolvable));
   line('web leads with no utm_campaign', webTotal - taggedTotal);
 
   const metaWithCampaign = await MetaLead.countDocuments({ campaignId: { $ne: null } });
@@ -245,18 +262,57 @@ async function run() {
 
   // ---- 5. The actionable list --------------------------------------------
   const unresolvedUtms = await WebLead.aggregate([
-    { $match: { resolvedCampaignId: null, utmCampaign: { $nin: [null, ''] } } },
+    {
+      $match: {
+        resolvedCampaignId: null,
+        resolvedBy: { $ne: 'unmapped' },
+        utmCampaign: { $nin: [null, ''] },
+      },
+    },
     { $group: { _id: '$utmCampaign', n: { $sum: 1 } } },
     { $sort: { n: -1, _id: 1 } },
   ]);
 
-  heading('UNRESOLVED utm_campaign VALUES');
+  heading('UNRESOLVED utm_campaign VALUES (not yet triaged)');
   if (!unresolvedUtms.length) {
-    console.log('  (none — every tagged lead matched a campaign)');
+    console.log('  (none — every tagged lead either matched a campaign or was triaged)');
   } else {
     console.log('  Ad URLs tagged with something that is not a campaign name. Fix at');
-    console.log('  source in Meta, or rename the campaign to match.\n');
+    console.log('  source in Meta, rename the campaign to match, or — for the history a');
+    console.log('  fix cannot reach — map it: POST /api/ads/campaign-aliases.\n');
     unresolvedUtms.forEach((u) => console.log(`  ${String(u.n).padStart(6)}  ${JSON.stringify(u._id)}`));
+  }
+
+  // Triaged and closed. Listed so "why is this lead not attributed" always has an
+  // answer on the page, rather than the operator re-investigating a string a
+  // colleague already ruled on months ago.
+  const unmappedUtms = await WebLead.aggregate([
+    { $match: { resolvedBy: 'unmapped' } },
+    { $group: { _id: '$utmCampaign', n: { $sum: 1 } } },
+    { $sort: { n: -1, _id: 1 } },
+  ]);
+
+  if (unmappedUtms.length) {
+    heading('DELIBERATELY UNMAPPED utm_campaign VALUES');
+    console.log('  An admin checked these and recorded that no Meta campaign exists for');
+    console.log('  them (Google Ads traffic, test data). Not actionable — not a gap.\n');
+    unmappedUtms.forEach((u) => console.log(`  ${String(u.n).padStart(6)}  ${JSON.stringify(u._id)}`));
+  }
+
+  // The aliases themselves, so the report says on its face which attributions
+  // rest on an operator's assertion rather than on Meta's own data.
+  const aliases = await CampaignAlias.find({}).sort({ campaignId: 1, _id: 1 }).lean();
+  if (aliases.length) {
+    const names = new Map(
+      (await MetaCampaign.find({}, { name: 1 }).lean()).map((c) => [String(c._id), c.name])
+    );
+    heading('CAMPAIGN ALIASES IN FORCE');
+    aliases.forEach((a) => {
+      const target = a.campaignId
+        ? `${a.campaignId}  ${names.get(String(a.campaignId)) || '(NOT IN MIRROR)'}`
+        : '(deliberately unmapped)';
+      console.log(`  ${JSON.stringify(a.utmCampaign)}\n      -> ${target}`);
+    });
   }
 
   console.log('\n' + '='.repeat(72));

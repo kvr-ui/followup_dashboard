@@ -306,15 +306,49 @@ node scripts/resolveLeadCampaigns.js
 ```
 
 Runs task 5's campaign resolver over every web lead's `utm_campaign` and stores
-`resolvedCampaignId` + `resolvedBy` (`id` / `exact` / `normalized` / `null`).
+`resolvedCampaignId` + `resolvedBy` (`id` / `exact` / `normalized` / `alias` /
+`unmapped` / `null`).
 
 Prints a breakdown by method and — the actionable part — **the distinct
-`utm_campaign` strings that matched no campaign**. That list is a to-do list for
-whoever owns the ad URLs.
+`utm_campaign` strings that matched no campaign and that nobody has triaged**. That
+list is a to-do list for whoever owns the ad URLs.
 
 *Refuses to run* if `MetaCampaign` is empty: with no campaigns to match against,
 every lead would resolve to nothing and the report would blame the UTM tags for a
 missing step 4.
+
+### Step 2a — seed the UTM aliases, then re-run step 2
+
+```bash
+node scripts/seedCampaignAliases.js --dry-run    # look first
+node scripts/seedCampaignAliases.js
+node scripts/resolveLeadCampaigns.js             # re-run step 2 to apply them
+```
+
+Step 2's first real run resolved **0 of 80** tagged leads — not a resolver defect but
+a tagging one: every Meta campaign name carries a `DDMM` suffix (`... Campaign 2904`)
+that no hand-written UTM tag reproduces, so no normalisation can close the gap. The
+alias table (`modules/ads/models/CampaignAlias`) is the operator's answer for the
+history that a fix-at-source can never reach.
+
+This seeds the four mappings a human has already checked against the evidence — two
+to real Meta campaigns, and `Google x Competitor Audience Campaign` (Google Ads) plus
+`deploytest` (smoke tests) as **deliberately unmapped**, which is how a UTM that has
+no Meta campaign comes off the actionable list without pretending it resolved.
+
+The mapped seeds are looked up **by campaign name at run time**, and the script aborts
+if a name matches zero or more than one campaign — a stale hard-coded id would
+otherwise attach real spend to the wrong campaign, silently and forever.
+
+Idempotent, and it will not clobber a human: a row that already says something
+different is reported and left alone unless you pass `--force`. Aliases are keyed on
+the *normalized* UTM, so one entry survives later case and punctuation drift.
+
+Afterwards the operator maintains this table through the admin API rather than the
+script — `GET/POST/PUT/DELETE /api/ads/campaign-aliases` (admin JWT only). The list
+endpoint returns every still-unresolved `utm_campaign` with its lead count, ordered
+by count, so the next alias worth adding is the top row. **Adding an alias does not
+touch existing leads** — re-run step 2 to apply it to history.
 
 ### Step 3 — link leads to contacts
 
@@ -397,9 +431,10 @@ absent and `null` identically.)
 
 ### Re-running
 
-All three are idempotent: they compare against what is stored and write only on a
-real change, so a second run reports `0 updated` / `0 links newly written`. Tune
-`modules/ads/services/campaignResolver.js`, re-run steps 2 and 4, compare.
+All of them are idempotent: they compare against what is stored and write only on a
+real change, so a second run reports `0 updated` / `0 links newly written` /
+`0 created`. Tune `modules/ads/services/campaignResolver.js` or add an alias, re-run
+steps 2 and 4, compare.
 
 ---
 
@@ -491,7 +526,27 @@ name:
 Every Meta campaign name carries a `DDMM` suffix (`... Campaign 2904`) that no UTM
 tag reproduces, so **no amount of string normalisation will close this gap.** The
 fix is at source: tag ad URLs with `utm_campaign={{campaign.id}}`, which resolves by
-`id` and cannot drift. Until that happens, historical leads have no cost attached.
+`id` and cannot drift — but that fix can never reach the leads already in the
+database, which is what step 2a was added for.
+
+**After step 2a (same day): 52/80 tagged leads (65%), and 52/52 of the *resolvable*
+ones.** The remaining 28 are not a gap: 25 are Google Ads traffic and 3 are deploy
+smoke tests, both triaged as deliberately unmapped, so nothing tagged is left
+untriaged. The two mapped aliases were not inferred from the names looking alike —
+each lead's `landingUrl` carries Meta's own `campaign_id`, and those ids agree
+unanimously (34/34 and 17/18, the 18th having an unrendered `{{placement}}` macro and
+no ids at all). `utm_term` independently corroborates it: both values are ad-set ids
+belonging to those same two campaigns.
+
+| Leads | `utm_campaign`                              | Now resolves to                                              |
+| ----: | ------------------------------------------- | ------------------------------------------------------------ |
+|    34 | `Website Lead Campaign x Focas`              | `120245224305490598` Focas x Website Leads Campaign 2904     |
+|    18 | `Focas Retargeting Campaign - Website Leads` | `120250293479570598` Focas Retargeting x Website Leads 1707  |
+|    25 | `Google x Competitor Audience Campaign`      | deliberately unmapped — Google Ads                           |
+|     3 | `deploytest`                                 | deliberately unmapped — smoke tests                          |
+
+End to end this moved fully-attributed contacts from 0 to **25 of the 77 linked ones
+(32%)** — the first real cost figures on historical leads.
 
 **Meta instant-form leads: 0.** The CRM never had `META_LEAD_FORM_IDS` or
 `META_PAGE_ID` configured, so `metaleads` is empty and the Meta half of the linking
