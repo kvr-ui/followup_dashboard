@@ -9,6 +9,7 @@ const {
   getCall,
   streamRecording,
   syncCalls,
+  pipelineHealth,
 } = require('../controllers/callController');
 const { authenticate, requireAdmin } = require('../../../middleware/auth');
 
@@ -25,6 +26,8 @@ router.get('/stats', callStats);
 router.get('/outcomes', outcomeStats); // won/lost + why we lose
 router.get('/grades', gradeAnalytics); // scorecard from AI call grades (self-scoped for reps)
 router.get('/journeys', listJourneys);
+// Whole-system, not per-rep: how many calls are stuck or will never be scored.
+router.get('/pipeline-health', requireAdmin, pipelineHealth);
 router.get('/:id', getCall);
 router.get('/:id/recording', streamRecording);
 

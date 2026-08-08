@@ -213,14 +213,44 @@ function recordingUrl(filename) {
   return `${BASE}/play?appid=${APPID}&secret=${SECRET}&file=${encodeURIComponent(filename)}`;
 }
 
-/** Download a recording as a Buffer (server-side only). */
+/**
+ * Download a recording as a Buffer (server-side only).
+ *
+ * /v2/play does NOT use the status code to say "no audio here". When the recording is
+ * missing or not published yet it answers 200 with a JSON body:
+ *
+ *   {"code":502,"msg":"Internal Server Error"}      (42 bytes, content-type: application/json)
+ *
+ * Checking only res.ok therefore handed 42 bytes of JSON to the transcriber, which
+ * reasonably replied "File is corrupted" — and since that reads as a bad recording, the
+ * call burned its whole retry budget in minutes and was marked `failed` forever. Audio
+ * that TeleCMI simply had not finished publishing was thrown away permanently.
+ *
+ * So detect it here and flag it `isNotReady`: the same call usually downloads fine later.
+ */
 async function downloadRecording(filename) {
   if (!filename) throw new Error('No recording filename');
   await slot();
   const res = await fetch(recordingUrl(filename));
   if (!res.ok) throw new Error(`Recording download failed (${res.status})`);
+
+  const contentType = res.headers.get('content-type') || 'audio/mpeg';
   const buf = Buffer.from(await res.arrayBuffer());
-  return { buffer: buf, contentType: res.headers.get('content-type') || 'audio/mpeg' };
+
+  if (/json|text/i.test(contentType) || (buf.length < 1024 && buf[0] === 0x7b /* '{' */)) {
+    let detail = buf.toString('utf8').slice(0, 120);
+    try {
+      const j = JSON.parse(detail);
+      detail = `${j.code || '?'} ${j.msg || ''}`.trim();
+    } catch {
+      /* keep the raw snippet */
+    }
+    const err = new Error(`Recording not available from TeleCMI yet (${detail})`);
+    err.isNotReady = true;
+    throw err;
+  }
+
+  return { buffer: buf, contentType };
 }
 
 module.exports = {

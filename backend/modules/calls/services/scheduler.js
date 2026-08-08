@@ -14,7 +14,7 @@ const elevenlabs = require('./elevenlabs');
 const { agentMap, buildLeadIndex, warmLeadIndex, upsertCall, toCallDoc } = require('./callStore');
 const { upsertDeal, fetchDealsModifiedSince, shouldTranscribe } = require('./dealStore');
 const biginCalls = require('./biginCalls');
-const { runBatch, requeueStale } = require('./transcriptionWorker');
+const { runBatch, requeueStale, dueFilter } = require('./transcriptionWorker');
 const grader = require('./grader');
 const { sinceFor, commit, fmtWindow } = require('../../../services/lookback');
 
@@ -52,7 +52,20 @@ const QUOTA_COOLDOWN_MS = 60 * 60 * 1000; // 1 hour
 let gradeBlockedUntil = 0;
 const GRADE_COOLDOWN_MS = 30 * 60 * 1000; // 30 min
 
-let running = { calls: false, outgoing: false, deals: false, bigin: false, transcribe: false, grade: false };
+// How long a call may legitimately still be in flight before the audit calls it late.
+// Generous on purpose: the slowest honest path is outbound poll -> transcribe -> grade.
+const AUDIT_GRACE_MIN = Number(process.env.PIPELINE_AUDIT_GRACE_MINUTES || 45);
+const AUDIT_EVERY_MIN = Number(process.env.PIPELINE_AUDIT_MINUTES || 30);
+
+let running = {
+  calls: false,
+  outgoing: false,
+  deals: false,
+  bigin: false,
+  transcribe: false,
+  grade: false,
+  audit: false,
+};
 
 async function reconcileCalls() {
   if (running.calls || !telecmi.isConfigured()) return;
@@ -151,6 +164,7 @@ async function reconcileOutgoingCalls() {
     const leadIndex = await buildLeadIndex();
     let created = 0;
     let adopted = 0;
+    let revived = 0;
 
     for (const ext of telecmi.agentExtensions()) {
       for (const type of [1, 0]) {
@@ -161,7 +175,34 @@ async function reconcileOutgoingCalls() {
           type,
           onRecord: async (row) => {
             const existing = await Call.findOne({ cmiuid: String(row.cmiuid) });
-            if (existing) return; // already ours; the inbound poll never sees these
+            if (existing) {
+              // Not "nothing to do": `skipped` is a verdict reached at hangup, when the
+              // recording usually did not exist yet. reconcileCalls re-asks that question
+              // for inbound calls (see its onRecord) — this poll is the ONLY thing that
+              // ever re-sees an outbound call, so without the same branch here an outbound
+              // call written off as unrecorded stays written off permanently. Outbound is
+              // most of a rep's day, so that asymmetry hid the larger half of the misses.
+              //
+              // Re-ask against the FRESH row, never the stored one. "The recording arrived
+              // late" shows up precisely as filename/record appearing on a call we already
+              // hold, so judging the stored copy would consult the same stale
+              // hasRecording=false that caused the skip — and the answer would always be
+              // no. The inbound path avoids this for free because upsertCall re-assigns
+              // the whole doc; this path has to do it deliberately.
+              const fresh = toCallDoc(row, leadIndex, agents);
+              if (fresh.hasRecording && !existing.hasRecording) {
+                existing.filename = fresh.filename;
+                existing.hasRecording = true;
+              }
+              if (existing.transcriptionStatus === 'skipped' && shouldTranscribe(existing)) {
+                existing.transcriptionStatus = 'pending';
+                existing.transcriptionError = null;
+                existing.nextAttemptAt = null;
+                revived += 1;
+              }
+              if (existing.isModified()) await existing.save();
+              return;
+            }
 
             const doc = toCallDoc(row, leadIndex, agents);
 
@@ -195,11 +236,25 @@ async function reconcileOutgoingCalls() {
 
     await commit('outgoingCalls', startedAt);
 
-    if (created || adopted) {
+    if (created || adopted || revived) {
       require('./journeyCache').invalidate();
       console.log(
-        `[reconcile outgoing] ${created} new outbound call(s), ${adopted} Bigin row(s) upgraded`
+        `[reconcile outgoing] ${created} new outbound call(s), ${adopted} Bigin row(s) upgraded` +
+          (revived ? `, ${revived} re-queued (recording arrived late)` : '')
       );
+
+      // Outbound calls are the one path with no webhook behind it, so nothing wakes the
+      // pipeline for them: the row lands `pending` and waits for the transcribe tick, then
+      // waits again for the grade tick — up to ~35 min from hangup to a score, while an
+      // inbound call is graded within a minute by the webhook fast path. Since outbound is
+      // most of a rep's day, that delay IS the "today's calls aren't graded" complaint.
+      //
+      // Drain both stages here rather than duplicating the fast path: these are the same
+      // jobs the timers run, each self-guarded by `running`, each honouring its own
+      // quota/provider cooldown, each capped at one batch. So this only removes dead
+      // waiting — it never widens how much work we do at once.
+      await transcribePending();
+      await gradePending();
     }
   } catch (err) {
     console.warn('[reconcile outgoing] failed:', err.message);
@@ -292,17 +347,22 @@ async function transcribePending() {
     const revived = await requeueStale();
     if (revived) console.warn(`[transcribe] re-queued ${revived} call(s) stuck in processing`);
 
-    const pending = await Call.countDocuments({ transcriptionStatus: 'pending' });
+    // Count what is actually DUE, not everything pending — a call deliberately waiting
+    // out its retry backoff is healthy, and counting it here would report a backlog that
+    // the batch then appears to ignore.
+    const pending = await Call.countDocuments(dueFilter());
     if (!pending) return;
 
     let quotaHit = false;
     let scopeHit = false;
+    let notReady = 0;
     const res = await runBatch({
       limit: TRANSCRIBE_BATCH,
       concurrency: 2,
       onProgress: ({ result }) => {
         if (result.error && /quota|credits/i.test(result.error)) quotaHit = true;
         if (result.scopeError) scopeHit = true;
+        if (result.notReady) notReady += 1;
       },
     });
 
@@ -319,8 +379,11 @@ async function transcribePending() {
         '[transcribe] a call fell back to Zoho PhoneBridge and the token lacks that ' +
           'scope. Expected path is TeleCMI out_cdr — check reconcileOutgoingCalls.'
       );
-    } else if (res.ok) {
-      console.log(`[transcribe] ${res.ok} done, ${res.failed} failed (${pending} were pending)`);
+    } else if (res.ok || notReady) {
+      const late = notReady ? `, ${notReady} awaiting audio from TeleCMI` : '';
+      console.log(
+        `[transcribe] ${res.ok} done, ${res.failed} failed${late} (${pending} were due)`
+      );
     }
   } catch (err) {
     console.warn('[transcribe] failed:', err.message);
@@ -367,6 +430,135 @@ async function gradePending() {
   }
 }
 
+/**
+ * The safety net: check the END-TO-END invariant instead of trusting each stage.
+ *
+ * Every stage in this pipeline already retries, and every stage is still capable of
+ * dropping a call — because each one only knows about its own step. A call skipped at
+ * hangup, a cursor that moved past a late recording, a rep whose extension nobody added
+ * to TELECMI_AGENTS: none of those are transcription failures, so nothing in the
+ * transcribe/grade path ever notices them. What was actually missing was anything that
+ * asks the only question that matters:
+ *
+ *     is there a call, old enough that it should be done by now, with audio and no score?
+ *
+ * This runs that query. Anything fixable is put back in the queue; anything genuinely
+ * finished-and-unscorable is COUNTED, not retried, so it shows up as a number a human can
+ * look at rather than costing credits forever. `heal: false` makes it read-only — that is
+ * what the health endpoint serves.
+ */
+async function pipelineReport({ graceMin = AUDIT_GRACE_MIN, heal = true } = {}) {
+  const cutoff = new Date(Date.now() - graceMin * 60 * 1000);
+  const old = { startedAt: { $lte: cutoff } };
+
+  // A verdict of `skipped` on a call that HAS audio is the single most common silent
+  // miss: it was written at hangup, before the recording existed. Re-ask now.
+  // shouldTranscribe depends on outcome under a narrow TRANSCRIBE_SCOPE, so it cannot be
+  // expressed as a query — filter in JS. Bounded, because a healthy system has ~none.
+  const skippedWithAudio = await Call.find({ ...old, transcriptionStatus: 'skipped', hasRecording: true })
+    .limit(500);
+  const revivable = skippedWithAudio.filter((c) => shouldTranscribe(c));
+
+  const [inFlight, awaitingGrade, deadTranscribe, deadGradeTotal, noSpeech] = await Promise.all([
+    Call.countDocuments({ ...old, transcriptionStatus: { $in: ['pending', 'processing'] } }),
+    Call.countDocuments({
+      ...old,
+      transcriptionStatus: 'done',
+      'grade.score': null,
+      gradeAttempts: { $not: { $gte: grader.MAX_ATTEMPTS } },
+    }),
+    Call.countDocuments({ ...old, transcriptionStatus: 'failed' }),
+    Call.countDocuments({
+      ...old,
+      transcriptionStatus: 'done',
+      'grade.score': null,
+      gradeAttempts: { $gte: grader.MAX_ATTEMPTS },
+    }),
+    // Recorded silence — ringback, hold music, voicemail. Correctly unscored, and by far
+    // the biggest bucket, so it is reported separately: folded into the failure count it
+    // makes a healthy pipeline look broken and buries the handful that are real.
+    Call.countDocuments({
+      ...old,
+      transcriptionStatus: 'done',
+      'grade.score': null,
+      gradeError: 'No transcript',
+    }),
+  ]);
+
+  // A rep whose extension is not in TELECMI_AGENTS is invisible in a way none of the
+  // counts above can show: reconcileOutgoingCalls only logs in as extensions we hold
+  // credentials for, so that rep's outbound day is never fetched at all — there is no row
+  // to find missing. What we CAN detect is the giveaway: their extension turning up in
+  // inbound CDR while being absent from the map. That is a hard signal we are dropping
+  // their outbound calls, and it is how a whole person can silently miss the scorecard.
+  const agents = agentMap();
+  const seenExts = await Call.distinct('agentExt', {
+    agentExt: { $ne: null },
+    startedAt: { $gte: new Date(Date.now() - 30 * 86400000) },
+  });
+  const unmappedAgents = seenExts.filter((ext) => !agents[ext]);
+
+  let healed = 0;
+  if (heal) {
+    healed += await requeueStale();
+    for (const call of revivable) {
+      call.transcriptionStatus = 'pending';
+      call.transcriptionError = null;
+      call.nextAttemptAt = null;
+      await call.save();
+      healed += 1;
+    }
+  }
+
+  return {
+    graceMin,
+    checkedBefore: cutoff,
+    healed,
+    recoverable: revivable.length, // re-queued when heal is on
+    inFlight, // pending/processing — the pipeline is working on these
+    awaitingGrade, // transcribed, grade still owed
+    unmappedAgents, // extensions making calls that TELECMI_AGENTS does not cover
+    unscorable: {
+      noSpeech, // correct: nothing was said on the call
+      transcribeFailed: deadTranscribe, // audio genuinely unusable / never published
+      gradeFailed: Math.max(deadGradeTotal - noSpeech, 0), // real grading dead-ends
+    },
+  };
+}
+
+async function auditPipeline() {
+  if (running.audit) return;
+  running.audit = true;
+  try {
+    const r = await pipelineReport({ heal: true });
+    if (r.healed) {
+      require('./journeyCache').invalidate();
+      console.log(`[audit] recovered ${r.healed} call(s) that had stalled — re-queued`);
+    }
+    if (r.unmappedAgents.length) {
+      console.warn(
+        `[audit] extension(s) ${r.unmappedAgents.join(', ')} are making calls but are not in ` +
+          'TELECMI_AGENTS — their OUTBOUND calls are never fetched and that rep is missing ' +
+          'from the scorecard. Add <ext>=<email> to TELECMI_AGENTS and restart.'
+      );
+    }
+    // Only speak up about dead ends; in-flight work is not news.
+    const dead = r.unscorable.transcribeFailed + r.unscorable.gradeFailed;
+    if (dead) {
+      console.warn(
+        `[audit] ${dead} call(s) will never be scored ` +
+          `(${r.unscorable.transcribeFailed} unusable audio, ${r.unscorable.gradeFailed} grading) — ` +
+          `plus ${r.unscorable.noSpeech} with no speech, which is expected. ` +
+          'Run scripts/retryFailedTranscriptions.js to re-queue the recoverable ones.'
+      );
+    }
+  } catch (err) {
+    console.warn('[audit] failed:', err.message);
+  } finally {
+    running.audit = false;
+  }
+}
+
 function start() {
   if (process.env.CALL_JOBS_ENABLED === 'false') {
     console.log('Call jobs disabled (CALL_JOBS_ENABLED=false)');
@@ -375,7 +567,7 @@ function start() {
 
   console.log(
     `Call jobs: calls/${CALL_POLL_MIN}m, bigin/${BIGIN_POLL_MIN}m, deals/${DEAL_POLL_MIN}m, ` +
-      `transcribe/${TRANSCRIBE_EVERY_MIN}m, grade/${GRADE_EVERY_MIN}m`
+      `transcribe/${TRANSCRIBE_EVERY_MIN}m, grade/${GRADE_EVERY_MIN}m, audit/${AUDIT_EVERY_MIN}m`
   );
 
   // Warm the lead index immediately so the first webhook is fast.
@@ -389,8 +581,14 @@ function start() {
   setTimeout(reconcileBiginCalls, 45 * 1000);
   setTimeout(reconcileDeals, 60 * 1000);
   // Grade runs after transcribe in the stagger — a call must be transcribed before it
-  // can be graded, so there's no point racing them on boot.
+  // can be graded, so there's no point racing them on boot. Transcribe was missing from
+  // this list, so anything left `pending` across a restart sat idle for a full
+  // TRANSCRIBE_POLL_MINUTES before the first tick; the interval alone never covers boot.
+  setTimeout(transcribePending, 75 * 1000);
   setTimeout(gradePending, 90 * 1000);
+  // Last in the stagger: the audit judges what the jobs above left behind, so it must
+  // not run before they have had their turn.
+  setTimeout(auditPipeline, 150 * 1000);
 
   setInterval(reconcileCalls, CALL_POLL_MIN * 60 * 1000);
   setInterval(reconcileOutgoingCalls, CALL_POLL_MIN * 60 * 1000);
@@ -398,6 +596,7 @@ function start() {
   setInterval(reconcileDeals, DEAL_POLL_MIN * 60 * 1000);
   setInterval(transcribePending, TRANSCRIBE_EVERY_MIN * 60 * 1000);
   setInterval(gradePending, GRADE_EVERY_MIN * 60 * 1000);
+  setInterval(auditPipeline, AUDIT_EVERY_MIN * 60 * 1000);
 }
 
 module.exports = {
@@ -408,4 +607,6 @@ module.exports = {
   reconcileDeals,
   transcribePending,
   gradePending,
+  auditPipeline,
+  pipelineReport,
 };

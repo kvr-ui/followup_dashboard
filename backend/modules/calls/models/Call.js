@@ -105,6 +105,13 @@ const callSchema = new mongoose.Schema(
     // When the call was claimed for transcription (status set to 'processing'). Used to
     // reap calls stranded in 'processing' by a crash/deploy — a stale lease is re-queued.
     processingStartedAt: { type: Date, default: null },
+    // Earliest time this call may be retried. TeleCMI publishes audio some minutes AFTER
+    // hangup, so an immediate retry loop just re-downloads the same "not ready yet" error
+    // and spends the whole budget inside half an hour — which is exactly how good
+    // recordings ended up permanently `failed`. Each failure pushes this further out
+    // (see RETRY_BACKOFF_MS), so the attempts span a day instead of a coffee break.
+    // Null = due now.
+    nextAttemptAt: { type: Date, default: null },
     transcript: { type: transcriptSchema, default: null },
 
     grade: { type: gradeSchema, default: null },
@@ -124,6 +131,9 @@ const callSchema = new mongoose.Schema(
 
 // The auto-grade worker's queue: won calls that are transcribed but not yet scored.
 callSchema.index({ outcome: 1, transcriptionStatus: 1, 'grade.score': 1 });
+
+// The transcribe worker's queue: pending calls whose backoff has elapsed.
+callSchema.index({ transcriptionStatus: 1, nextAttemptAt: 1 });
 
 // The journeys view joins every closed deal to its calls on this field. Without
 // the index that join scans the whole calls collection once per deal — it took

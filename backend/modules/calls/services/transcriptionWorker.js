@@ -3,7 +3,36 @@ const telecmi = require('./telecmi');
 const phonebridge = require('./phonebridge');
 const elevenlabs = require('./elevenlabs');
 
-const MAX_ATTEMPTS = 3;
+// 5, not 3, because the attempts are now SPACED (see RETRY_BACKOFF_MS). Three back-to-back
+// tries inside half an hour is not a real retry policy for audio that TeleCMI publishes
+// late — it is a guarantee that late audio is discarded.
+const MAX_ATTEMPTS = 5;
+
+// How long to wait before attempt N+1. The last entry repeats if attempts ever exceed it.
+// Total span ~9h, so a recording that shows up hours after the call still gets transcribed,
+// while a genuinely dead one is given up on within a day rather than retried forever.
+const RETRY_BACKOFF_MS = [
+  2 * 60 * 1000, //  2 min — a blip; try again almost immediately
+  10 * 60 * 1000, // 10 min
+  30 * 60 * 1000, // 30 min
+  2 * 60 * 60 * 1000, //  2 h
+  6 * 60 * 60 * 1000, //  6 h — last chance before we call it failed
+];
+
+const backoffFor = (attempts) =>
+  RETRY_BACKOFF_MS[Math.min(attempts, RETRY_BACKOFF_MS.length - 1)];
+
+/**
+ * The transcribe queue: pending calls whose backoff has elapsed.
+ * Shared with the scheduler so its "N were pending" count matches what the batch
+ * will actually pick up, instead of counting calls that are deliberately waiting.
+ */
+function dueFilter(now = new Date()) {
+  return {
+    transcriptionStatus: 'pending',
+    $or: [{ nextAttemptAt: null }, { nextAttemptAt: { $lte: now } }],
+  };
+}
 
 // A call held in `processing` longer than this was almost certainly stranded by a
 // crash/deploy mid-transcribe (nothing legitimately takes 20 min). The reaper below
@@ -74,6 +103,7 @@ async function transcribeCall(call, { force = false } = {}) {
       // retryable until we've genuinely given up.
       call.transcriptionStatus =
         !quota && call.transcriptionAttempts >= MAX_ATTEMPTS ? 'failed' : 'pending';
+      call.nextAttemptAt = new Date(Date.now() + backoffFor(call.transcriptionAttempts));
       await call.save();
       return { ok: false, error: call.transcriptionError };
     }
@@ -89,6 +119,7 @@ async function transcribeCall(call, { force = false } = {}) {
     };
     call.transcriptionStatus = 'done';
     call.transcriptionError = null;
+    call.nextAttemptAt = null;
     await call.save();
 
     return { ok: true, chars: (result.text || '').length, language: result.language };
@@ -100,8 +131,18 @@ async function transcribeCall(call, { force = false } = {}) {
     call.transcriptionError = err.message;
     call.transcriptionStatus =
       !spare && call.transcriptionAttempts >= MAX_ATTEMPTS ? 'failed' : 'pending';
+    // "Not published yet" DOES spend the budget — deliberately. It is per-call, not
+    // provider-wide, so sparing it entirely would re-poll a recording that will never
+    // exist forever. The backoff is what makes it safe: five spaced attempts give
+    // TeleCMI ~9h to publish, which is far longer than it has ever actually taken.
+    call.nextAttemptAt = new Date(Date.now() + backoffFor(call.transcriptionAttempts));
     await call.save();
-    return { ok: false, error: err.message, scopeError: isScopeError(err) };
+    return {
+      ok: false,
+      error: err.message,
+      scopeError: isScopeError(err),
+      notReady: Boolean(err.isNotReady),
+    };
   }
 }
 
@@ -120,7 +161,9 @@ async function requeueStale() {
       // stuck before this field existed.
       $or: [{ processingStartedAt: { $lt: cutoff } }, { processingStartedAt: null }],
     },
-    { $set: { transcriptionStatus: 'pending' } }
+    // Clear the backoff too: this call was never actually tried, it was abandoned
+    // mid-flight, so making it wait out a penalty it never earned just delays it further.
+    { $set: { transcriptionStatus: 'pending', nextAttemptAt: null } }
   );
   return res.modifiedCount || 0;
 }
@@ -131,7 +174,7 @@ async function requeueStale() {
  * `concurrency` stays low; ElevenLabs 429s are retried with backoff anyway.
  */
 async function runBatch({ limit = 10, concurrency = 3, onProgress } = {}) {
-  const pending = await Call.find({ transcriptionStatus: 'pending' })
+  const pending = await Call.find(dueFilter())
     .sort({ startedAt: -1 })
     .limit(limit);
 
@@ -167,4 +210,4 @@ async function runBatch({ limit = 10, concurrency = 3, onProgress } = {}) {
   return { processed: pending.length, ok, failed, skipped };
 }
 
-module.exports = { transcribeCall, runBatch, requeueStale, MAX_ATTEMPTS };
+module.exports = { transcribeCall, runBatch, requeueStale, dueFilter, MAX_ATTEMPTS };

@@ -344,6 +344,15 @@ async function streamRecording(req, res) {
     res.sendFile(filePath);
   } catch (err) {
     console.error('Recording stream failed:', err.message);
+    // TeleCMI answers 200-with-JSON when the audio is not published yet, which used to be
+    // streamed to the browser as a silently broken 42-byte "mp3". Say so instead — this is
+    // a wait, not a breakage, and the call transcribes itself once the audio appears.
+    if (err.isNotReady) {
+      return res.status(404).json({
+        success: false,
+        message: 'Recording is not available from TeleCMI yet — try again shortly',
+      });
+    }
     res.status(502).json({ success: false, message: 'Could not fetch recording' });
   }
 }
@@ -679,7 +688,38 @@ async function gradeAnalytics(req, res) {
   }
 }
 
+/**
+ * GET /api/calls/pipeline-health — is anything falling through the cracks?
+ *
+ * Read-only view of the same audit the scheduler runs. It exists because every failure
+ * in this module so far was found by a person noticing a name missing from the scorecard,
+ * which is not a monitoring strategy. Admin-only: it is a whole-system count, not
+ * something to scope to one rep.
+ */
+async function pipelineHealth(req, res) {
+  try {
+    // Required lazily: the scheduler pulls in the whole call pipeline, and this controller
+    // is loaded by the route table at boot.
+    const { pipelineReport } = require('../services/scheduler');
+    const grace = req.query.graceMinutes ? Number(req.query.graceMinutes) : undefined;
+    const report = await pipelineReport({ heal: false, ...(grace ? { graceMin: grace } : {}) });
+
+    const dead = report.unscorable.transcribeFailed + report.unscorable.gradeFailed;
+    res.json({
+      success: true,
+      // `recoverable` is the number that means something is wrong: calls with audio that
+      // nothing is currently working on. The audit re-queues these within the hour.
+      healthy: report.recoverable === 0 && dead === 0,
+      ...report,
+    });
+  } catch (err) {
+    console.error('pipeline health failed:', err.message);
+    res.status(500).json({ success: false, message: 'Could not read pipeline health' });
+  }
+}
+
 module.exports = {
+  pipelineHealth,
   listCalls,
   listJourneys,
   callStats,
