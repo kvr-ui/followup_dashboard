@@ -493,9 +493,12 @@ async function gradeAnalytics(req, res) {
         .lean(),
       // EVERY call in the period (any duration, graded or not) — so the scorecard can
       // show a rep's TOTAL activity next to the graded subset the score is built from.
-      // Transcription/grading still only touch >=30s calls; this is display only.
+      // `duration` comes along so we can separate calls that CONNECTED from ones that
+      // only rang: ~30% of rows are duration-0 missed/ringing events written by the
+      // webhook, and counting those as "calls" is what made a fully-graded day look
+      // two-thirds ungraded. They have no audio, so they can never be graded.
       Call.find({ ...outcomeFilter, ...ownerFilter, ...dateFilter })
-        .select('agentExt ownerEmail')
+        .select('agentExt ownerEmail duration')
         .lean(),
     ]);
 
@@ -547,20 +550,27 @@ async function gradeAnalytics(req, res) {
     // shows up with their total activity (calls, not a mysteriously missing row).
     allCalls.forEach((c) => {
       const key = repKey(c);
-      if (!repMap.has(key)) repMap.set(key, { key, name: nameOf(c), scores: [], total: 0 });
-      repMap.get(key).total += 1;
+      if (!repMap.has(key)) {
+        repMap.set(key, { key, name: nameOf(c), scores: [], total: 0, connected: 0 });
+      }
+      const r = repMap.get(key);
+      r.total += 1;
+      if (c.duration > 0) r.connected += 1; // rang-only calls are not conversations
     });
     // Layer the graded subset on top — this is what the score is built from.
     gradeable.forEach((c) => {
       const key = repKey(c);
-      if (!repMap.has(key)) repMap.set(key, { key, name: nameOf(c), scores: [], total: 0 });
+      if (!repMap.has(key)) {
+        repMap.set(key, { key, name: nameOf(c), scores: [], total: 0, connected: 0 });
+      }
       repMap.get(key).scores.push(c.grade.score);
     });
     const perRep = [...repMap.values()]
       .map((r) => ({
         name: r.name,
         ownerEmail: r.key,
-        totalCalls: r.total, // ALL calls made in the period (any duration, graded or not)
+        totalCalls: r.total, // every call attempt in the period, including rang-only
+        connectedCalls: r.connected, // attempts that actually became a conversation
         calls: r.scores.length, // the graded, gradeable subset the score reflects
         avg: mean(r.scores),
         median: median(r.scores),
@@ -638,9 +648,15 @@ async function gradeAnalytics(req, res) {
     res.json({
       success: true,
       period: req.query.period || 'all',
+      // `eligible` is calls that CAN be graded (audio exists and is long enough), so the
+      // percentage measures the pipeline, not the dial list. noAudio is reported beside
+      // it rather than folded in: those rang and were never answered, so counting them
+      // as ungraded would permanently cap coverage below 100% for no reason.
       coverage: {
         graded: calls.length,
         eligible,
+        noAudio: allCalls.length - allCalls.filter((c) => c.duration > 0).length,
+        dialled: allCalls.length,
         pct: eligible ? Math.round((calls.length / eligible) * 100) : 0,
       },
       overall: {

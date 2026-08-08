@@ -213,6 +213,10 @@ async function apiGet(path) {
 
 module.exports = {
   isConfigured,
+  // Exposed so the PhoneBridge client can authenticate recording downloads with the
+  // same cached, single-flight token — a second refresh path would race this one and
+  // trip Zoho's "Access Denied" rate block.
+  getAccessToken,
   updateTaskStatus,
   addNote,
   getContact,

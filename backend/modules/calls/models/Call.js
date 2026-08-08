@@ -47,8 +47,22 @@ const dealSchema = new mongoose.Schema(
 
 const callSchema = new mongoose.Schema(
   {
-    // TeleCMI's unique call id — the dedupe key. Never process the same call twice.
+    // The unique call id — the dedupe key. Never process the same call twice.
+    // TeleCMI rows use its `cmiuid`; Bigin-only rows (outbound calls, which TeleCMI's
+    // REST API does not expose) use `bigin:<record id>` so both sources share one index.
     cmiuid: { type: String, required: true, unique: true, index: true },
+
+    // Which system this row came from. TeleCMI's /v2/answered feed carries ONLY inbound
+    // DID traffic; outbound click-to-call legs exist solely in Bigin's Calls module, so
+    // neither source is complete on its own and we ingest both.
+    source: { type: String, enum: ['telecmi', 'bigin'], default: 'telecmi', index: true },
+
+    // Bigin Calls record id. Set on rows that came from Bigin AND on TeleCMI rows we
+    // matched to a Bigin record during dedupe, so the two views stay linked.
+    biginCallId: { type: String, default: null, index: true },
+
+    // Bigin/PhoneBridge recordings are fetched by URL, not by TeleCMI filename.
+    recordingUrl: { type: String, default: null },
 
     // Set when this call belongs to a lead whose deal was Closed with Sale.
     isClosedWon: { type: Boolean, default: false, index: true },

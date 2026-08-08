@@ -116,7 +116,9 @@ export default function Scorecard({ user } = {}) {
         </div>
         <div className="card">
           <div className="num">{cov.pct ?? 0}%</div>
-          <div className="label">{cov.graded}/{cov.eligible} won calls graded</div>
+          {/* "gradeable", not "won": the default view is every call, and the denominator
+              is calls that HAVE audio — rang-but-never-answered rows are shown apart. */}
+          <div className="label">{cov.graded}/{cov.eligible} gradeable calls graded</div>
         </div>
       </div>
 
@@ -160,8 +162,20 @@ export default function Scorecard({ user } = {}) {
 
       {cov.pct < 100 && (
         <div className="hint">
-          {cov.graded} of {cov.eligible} won calls are graded ({cov.pct}%). The {cov.eligible - cov.graded}{' '}
-          ungraded calls aren't in these numbers yet — averages may shift once they're graded.
+          {cov.graded} of {cov.eligible} gradeable calls are graded ({cov.pct}%). The{' '}
+          {cov.eligible - cov.graded} ungraded calls aren't in these numbers yet — averages
+          may shift once they're graded.
+        </div>
+      )}
+
+      {/* Without this the day reads as a failure: a fully-graded day still shows a big
+          gap between calls dialled and calls scored, purely because most attempts rang
+          out. Naming them stops that gap looking like a broken pipeline. */}
+      {cov.noAudio > 0 && (
+        <div className="hint">
+          {cov.noAudio} of {cov.dialled} call attempts were never answered (no recording),
+          so they can't be transcribed or scored. Coverage above counts only calls that
+          actually connected.
         </div>
       )}
 
@@ -180,6 +194,9 @@ export default function Scorecard({ user } = {}) {
             <tr>
               <th>Salesperson</th>
               <th style={{ textAlign: 'right' }}>{callsColLabel}</th>
+              {/* Dialled vs connected sit side by side so the drop between "calls made"
+                  and "calls graded" is visibly explained by unanswered rings. */}
+              <th style={{ textAlign: 'right' }}>Connected</th>
               <th style={{ textAlign: 'right' }}>Graded</th>
               <th style={{ textAlign: 'right' }}>Avg score</th>
               <th style={{ textAlign: 'right', color: 'var(--green, #4d7a63)' }}>Best (90+)</th>
@@ -199,6 +216,9 @@ export default function Scorecard({ user } = {}) {
                 <tr key={r.ownerEmail}>
                   <td className="contact-name">{r.name}</td>
                   <td style={{ textAlign: 'right', fontWeight: 600 }}>{r.totalCalls ?? r.calls}</td>
+                  <td style={{ textAlign: 'right', color: r.connectedCalls ? 'inherit' : 'var(--muted)' }}>
+                    {r.connectedCalls ?? '—'}
+                  </td>
                   <td style={{ textAlign: 'right', color: r.calls ? 'inherit' : 'var(--muted)' }}>{r.calls}</td>
                   <td style={{ textAlign: 'right', fontWeight: 700, color: color(r.avg) }}>{r.calls ? r.avg : '—'}</td>
                   <td style={{ textAlign: 'right', fontWeight: 700, color: best ? 'var(--green, #4d7a63)' : 'var(--muted)' }}>{best}</td>
@@ -213,7 +233,7 @@ export default function Scorecard({ user } = {}) {
             })}
             {reps.length === 0 && (
               <tr>
-                <td colSpan={9} className="subtle">No graded calls yet.</td>
+                <td colSpan={10} className="subtle">No graded calls yet.</td>
               </tr>
             )}
           </tbody>

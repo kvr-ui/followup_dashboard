@@ -1,5 +1,6 @@
 const Call = require('../models/Call');
 const telecmi = require('./telecmi');
+const phonebridge = require('./phonebridge');
 const elevenlabs = require('./elevenlabs');
 
 const MAX_ATTEMPTS = 3;
@@ -15,6 +16,12 @@ const PROCESSING_TIMEOUT_MS = 20 * 60 * 1000;
 // return. Real errors (bad audio, unknown model) still count and eventually fail.
 const isQuotaError = (msg) => /quota|credits|insufficient|payment|402/i.test(msg || '');
 
+// Same principle, different provider: a missing Zoho PhoneBridge scope fails EVERY Bigin
+// call identically and is fixed by re-authorising the app once. Burning the retry budget
+// on it would blacklist every outbound call in three polls — exactly how the grader lost
+// its whole backlog to a deprecated model. Never spend an attempt on it.
+const isScopeError = (err) => Boolean(err && err.isScopeError);
+
 /**
  * Transcribe a single call. Idempotent: a call already `done` is never redone,
  * so re-running the worker costs nothing extra.
@@ -24,7 +31,10 @@ async function transcribeCall(call, { force = false } = {}) {
   if (call.transcriptionStatus === 'done' && !force) {
     return { ok: true, skipped: true, reason: 'already transcribed' };
   }
-  if (!call.filename || !call.hasRecording) {
+  // Two kinds of audio: TeleCMI serves inbound calls by filename, Zoho PhoneBridge serves
+  // Bigin's outbound calls by URL. A call needs whichever one its source provides.
+  const audioRef = call.source === 'bigin' ? call.recordingUrl : call.filename;
+  if (!audioRef || !call.hasRecording) {
     call.transcriptionStatus = 'skipped';
     call.transcriptionError = 'No recording';
     await call.save();
@@ -50,8 +60,11 @@ async function transcribeCall(call, { force = false } = {}) {
   }
 
   try {
-    const { buffer } = await telecmi.downloadRecording(call.filename);
-    const result = await elevenlabs.transcribe(buffer, call.filename);
+    const { buffer } =
+      call.source === 'bigin'
+        ? await phonebridge.downloadRecording(call.recordingUrl)
+        : await telecmi.downloadRecording(call.filename);
+    const result = await elevenlabs.transcribe(buffer, call.filename || `${call.cmiuid}.mp3`);
 
     if (!result.ok) {
       const quota = isQuotaError(result.error);
@@ -80,13 +93,15 @@ async function transcribeCall(call, { force = false } = {}) {
 
     return { ok: true, chars: (result.text || '').length, language: result.language };
   } catch (err) {
-    const quota = isQuotaError(err.message);
-    if (!quota) call.transcriptionAttempts = (call.transcriptionAttempts || 0) + 1;
+    // Provider-wide faults (out of credits, missing OAuth scope) leave the budget alone —
+    // they are one config change away from working for every call at once.
+    const spare = isQuotaError(err.message) || isScopeError(err);
+    if (!spare) call.transcriptionAttempts = (call.transcriptionAttempts || 0) + 1;
     call.transcriptionError = err.message;
     call.transcriptionStatus =
-      !quota && call.transcriptionAttempts >= MAX_ATTEMPTS ? 'failed' : 'pending';
+      !spare && call.transcriptionAttempts >= MAX_ATTEMPTS ? 'failed' : 'pending';
     await call.save();
-    return { ok: false, error: err.message };
+    return { ok: false, error: err.message, scopeError: isScopeError(err) };
   }
 }
 
@@ -122,6 +137,7 @@ async function runBatch({ limit = 10, concurrency = 3, onProgress } = {}) {
 
   let ok = 0;
   let failed = 0;
+  let skipped = 0;
   let done = 0;
   let cursor = 0;
 
@@ -134,6 +150,10 @@ async function runBatch({ limit = 10, concurrency = 3, onProgress } = {}) {
       const call = pending[idx];
       const r = await transcribeCall(call);
       if (r.ok) ok += 1;
+      // Losing the claim race is not a failure — another worker has this call. Counting
+      // it as failed made a healthy concurrent run look like a 50% failure rate, hiding
+      // the handful of genuinely corrupt recordings in the noise.
+      else if (r.skipped) skipped += 1;
       else failed += 1;
       done += 1;
       if (onProgress) onProgress({ i: done, total: pending.length, call, result: r });
@@ -144,7 +164,7 @@ async function runBatch({ limit = 10, concurrency = 3, onProgress } = {}) {
     Array.from({ length: Math.min(concurrency, pending.length) }, () => worker())
   );
 
-  return { processed: pending.length, ok, failed };
+  return { processed: pending.length, ok, failed, skipped };
 }
 
 module.exports = { transcribeCall, runBatch, requeueStale, MAX_ATTEMPTS };

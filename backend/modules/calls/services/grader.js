@@ -15,9 +15,12 @@ const Call = require('../models/Call');
 
 const API_URL = 'https://api.sarvam.ai/v1/chat/completions';
 const API_KEY = process.env.SARVAM_API_KEY;
-// sarvam-30b, not 105b: both are reasoning models and the starter tier caps output at
-// 4096 tokens; 105b burns that budget "thinking" and truncates the JSON. See gradeOne.
-const MODEL = process.env.SARVAM_MODEL || 'sarvam-30b';
+// sarvam-105b is the only model the account can reach — sarvam-30b was deprecated and
+// now 400s on every request. Both are reasoning models and the starter tier hard-caps
+// output at 4096 tokens (8192 is rejected outright), so reasoning_effort:'low' in
+// gradeOne is what keeps 105b from spending that whole budget "thinking" and truncating
+// the JSON. Measured: a 24-min call lands at ~3.3k completion tokens, inside the cap.
+const MODEL = process.env.SARVAM_MODEL || 'sarvam-105b';
 
 // A won call that fails this many times stops being retried (usually a transcript too
 // long to fit the token budget). It stays ungraded rather than costing credits forever.
@@ -25,6 +28,37 @@ const MAX_ATTEMPTS = Number(process.env.GRADE_MAX_ATTEMPTS || 3);
 
 // A grade lease held longer than this is stale (crashed mid-grade) and can be reclaimed.
 const GRADE_LEASE_MS = 10 * 60 * 1000;
+
+// ─── Whose fault was the failure? ──────────────────────────────────────────────
+// The retry budget above is meant for calls that are individually hopeless (transcript
+// too long, model keeps emitting garbage for this one audio). It must NEVER be spent on
+// a failure that hits every call identically — an outage, a rate limit, an expired key,
+// or a model we are no longer allowed to call. Those are fixed once, centrally, and the
+// whole backlog then grades fine.
+//
+// This is not hypothetical: 'sarvam-30b' was deprecated server-side, every grade started
+// failing with the same 400, and within ~30 minutes (3 polls) the ENTIRE backlog sat at
+// gradeAttempts=3 and was permanently invisible to gradePending's selector. The
+// transcription worker already guards against exactly this (see isQuotaError in
+// transcriptionWorker.js); the grader did not.
+const PROVIDER_FAULT =
+  /deprecat|quota|credits|insufficient|payment|billing|rate.?limit|too many requests|overload|unavailable|timeout|temporarily|subscription tier|max_tokens|api[_ ]?key|authentication|unauthorized/i;
+
+// A transcript that genuinely does not fit is the CALL's problem, not the provider's —
+// retrying it forever would burn credits on something that can never succeed.
+const CALL_FAULT = /context length|context_length|too long|maximum context/i;
+
+/**
+ * True when the failure is on Sarvam's side or in our shared request config, meaning
+ * every other call would fail identically. Such failures leave the retry budget alone.
+ */
+function isProviderFault(status, detail) {
+  const text = detail || '';
+  if (CALL_FAULT.test(text)) return false;
+  if (status === 429 || status >= 500) return true;
+  if (status === 401 || status === 403 || status === 404) return true;
+  return PROVIDER_FAULT.test(text);
+}
 
 function isConfigured() {
   return Boolean(API_KEY);
@@ -337,7 +371,10 @@ async function gradeOne(call) {
     });
 
     const json = await res.json();
-    if (json.error) return { error: JSON.stringify(json.error).slice(0, 150) };
+    if (json.error || !res.ok) {
+      const detail = json.error ? JSON.stringify(json.error) : `HTTP ${res.status}`;
+      return { error: detail.slice(0, 150), providerFault: isProviderFault(res.status, detail) };
+    }
 
     const raw = ((json.choices && json.choices[0] && json.choices[0].message.content) || '')
       .trim()
@@ -351,7 +388,8 @@ async function gradeOne(call) {
     if (!isValidGrade(parsed)) parsed = await reaskJson(raw);
     return { parsed: isValidGrade(parsed) ? parsed : null, raw, usage: json.usage };
   } catch (err) {
-    return { error: `request failed: ${err.message}`.slice(0, 150) };
+    // Network/DNS/socket failure — never the call's fault.
+    return { error: `request failed: ${err.message}`.slice(0, 150), providerFault: true };
   }
 }
 
@@ -423,12 +461,14 @@ async function gradeCall(call) {
 
   if (!r.parsed) {
     const error = r.error || 'unparseable JSON';
-    // Release the lease so the next poll can retry (until attempts hit the cap).
-    await Call.updateOne(
-      { _id: call._id },
-      { $set: { gradeError: error.slice(0, 200), gradeStartedAt: null }, $inc: { gradeAttempts: 1 } }
-    );
-    return { ok: false, error };
+    // Release the lease so the next poll can retry. Spend an attempt ONLY if this call
+    // is what failed — a provider-side fault (outage, deprecated model, bad key) would
+    // have failed for every call, so burning the budget here would blacklist the whole
+    // backlog over an outage that costs one config change to fix. See isProviderFault.
+    const update = { $set: { gradeError: error.slice(0, 200), gradeStartedAt: null } };
+    if (!r.providerFault) update.$inc = { gradeAttempts: 1 };
+    await Call.updateOne({ _id: call._id }, update);
+    return { ok: false, error, providerFault: Boolean(r.providerFault) };
   }
 
   await Call.updateOne(
@@ -463,25 +503,41 @@ async function gradePending({ limit = 10, concurrency = 3 } = {}) {
 
   let ok = 0;
   let failed = 0;
+  let skipped = 0;
+  let providerFaults = 0;
   let cursor = 0;
 
   async function worker() {
     for (;;) {
+      // Sarvam is down / misconfigured — every remaining call in this batch would fail
+      // the same way, so stop rather than firing the rest at a wall. The scheduler backs
+      // off after this and the untouched calls keep their full retry budget.
+      if (providerFaults >= 3) return;
+
       const idx = cursor;
       cursor += 1;
       if (idx >= pending.length) return;
       const r = await gradeCall(pending[idx]);
       if (r.ok) ok += 1;
-      else failed += 1;
+      // Losing the claim race is not a failure — another worker (the scheduler batch, the
+      // webhook fast-path, a CLI run) is grading that call right now. Counting it as
+      // `failed` made a healthy concurrent run look like a 30% failure rate, which is
+      // exactly the noise that hides a real one.
+      else if (r.skipped) skipped += 1;
+      else {
+        failed += 1;
+        if (r.providerFault) providerFaults += 1;
+      }
     }
   }
 
   await Promise.all(Array.from({ length: Math.min(concurrency, pending.length) }, () => worker()));
-  return { ok, failed, processed: pending.length };
+  return { ok, failed, skipped, providerFaults, processed: pending.length };
 }
 
 module.exports = {
   isConfigured,
+  isProviderFault,
   gradeOne,
   gradeCall,
   gradePending,
