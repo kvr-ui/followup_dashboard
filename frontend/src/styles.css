@@ -1372,3 +1372,74 @@ tr.row-today td {
     gap: 0.9rem;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Sources tab
+   ---------------------------------------------------------------------------
+   Reuses the Marketing tab's panel, table and range-bar classes wholesale — the
+   two are siblings and must not drift apart visually. Only what is genuinely new
+   lives here: the revenue bar, the merged-spelling caption, and the block that
+   explains a table it cannot draw. */
+
+.src-bar {
+  display: block;
+  background: var(--surface-inset);
+  border-radius: 4px;
+  height: 14px;
+  overflow: hidden;
+}
+
+.src-bar-fill {
+  display: block;
+  height: 100%;
+}
+
+/* The raw values a canonical source name stands in for. Small and quiet: it is
+   provenance, not data — but it must be on the page, or the merge is a claim
+   nobody can check. */
+.src-raw {
+  font-size: 0.68rem;
+  margin-top: 2px;
+  opacity: 0.7;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.src-paid {
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+.src-divider {
+  padding-top: 14px !important;
+  font-size: 0.72rem;
+  border-top: 1px solid var(--border);
+}
+
+.src-barren td {
+  opacity: 0.65;
+}
+
+/* Why the campaign table is absent. Deliberately styled as a NOTICE and not as
+   an empty state: "we cannot see this yet" and "there is nothing here" must not
+   look the same. */
+.src-blocked {
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--amber, #e0a30c);
+  border-radius: 6px;
+  padding: 14px 16px;
+  background: var(--surface-inset);
+}
+
+.src-blocked strong {
+  display: block;
+  margin-bottom: 6px;
+}
+
+.src-blocked p {
+  margin: 6px 0 0;
+  font-size: 0.82rem;
+  line-height: 1.5;
+}

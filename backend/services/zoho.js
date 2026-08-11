@@ -178,6 +178,13 @@ async function getContact(id) {
       name: rec.Full_Name || null,
       phone: rec.Phone || rec.Mobile || null,
       email: rec.Email || rec.Secondary_Email || null,
+      // Where this person came from. Both are CUSTOM fields on the Bigin contact,
+      // and both are free text — `Lead_Source1` is the channel a rep typed, and
+      // LeadChain's `Social_Lead_ID` is Meta's own lead id when the lead arrived
+      // through an instant form. Returned raw; the callers normalise (see
+      // modules/ads/services/leadSourceName.js) so this client stays a transport.
+      leadSource: rec.Lead_Source1 || null,
+      socialLeadId: rec.leadchain2__Social_Lead_ID || null,
     };
   } catch (err) {
     return { ok: false, error: err.message };

@@ -47,6 +47,30 @@ const dealSchema = new mongoose.Schema(
 
     contactId: { type: String, index: true },
     contactName: String,
+
+    // WHERE THE SALE CAME FROM — copied off the contact, denormalised onto the deal.
+    //
+    // The channel lives on the CONTACT in Bigin (`Contacts.Lead_Source1`), not on
+    // the deal, so answering "which source closed" would otherwise mean joining
+    // 6.9k contacts to 6.5k deals across an API boundary on every page load. It is
+    // copied here at upsert time instead, which turns the question into one indexed
+    // aggregation.
+    //
+    // Both forms are stored, deliberately:
+    //   leadSource     exactly what a rep typed ("ig", "Whatsapp Dms") — the audit
+    //                  trail, and the only way to spot a new spelling appearing
+    //   leadSourceKey  canonicalSource() of it — what the dashboard groups on
+    // Recomputing the key from the raw value at query time would mean an
+    // aggregation that can't use an index, and a mapping that silently changes
+    // history every time the rules are edited.
+    leadSource: { type: String, default: null },
+    leadSourceKey: { type: String, default: null, index: true },
+
+    // Meta's own lead id, stamped on the contact by Bigin's LeadChain extension.
+    // The exact join key from a SALE back to the ad that paid for it — no phone
+    // matching, no name fuzzing. Null unless the field held a real numeric id
+    // (the team types notes into it too — see metaLeadId()).
+    socialLeadId: { type: String, default: null, index: true },
     contactPhone: { type: String, index: true },
     // Strict last-10-digit key of contactPhone — the indexed join key that matches
     // this deal to its calls (Call.phoneKeys) by equality, not a regex suffix scan.
@@ -89,5 +113,10 @@ dealSchema.index({ contactPhoneKey: 1, outcome: 1, modifiedTime: -1 });
 // The installments view asks "which of MY won deals still owe money, oldest first".
 // Equality on ownerEmail + outcome, range on installment, sort on closingDate.
 dealSchema.index({ ownerEmail: 1, outcome: 1, installment: 1, closingDate: 1 });
+
+// The Sources panel groups closed deals by channel within a closing-date window.
+// Equality on outcome, then the group key, then the range — the order the
+// aggregation's $match/$group actually consume them.
+dealSchema.index({ outcome: 1, leadSourceKey: 1, closingDate: 1 });
 
 module.exports = mongoose.model('Deal', dealSchema);

@@ -9,6 +9,7 @@ import Installments from './Installments';
 import Upsells from './Upsells';
 import Scorecard from './Scorecard';
 import Marketing from './Marketing';
+import Sources from './Sources';
 import AdLeads from './AdLeads';
 import ApiUsage from './ApiUsage';
 import SummaryCards from './SummaryCards';
@@ -67,6 +68,10 @@ export default function Dashboard({ user, onLogout }) {
             // from the sales list below, and a rep with either one stored is
             // redirected to follow-ups by the effect underneath.
             'marketing',
+            // Which lead source closed the deal, and the campaign behind it.
+            // Same reasoning as the two either side: /api/ads/sources is behind
+            // the admin gate, so a rep here would get a 403 and a blank panel.
+            'sources',
             'adleads',
             // AI provider spend and account balance — billing data, admin only.
             'usage',
@@ -162,6 +167,14 @@ export default function Dashboard({ user, onLogout }) {
             )}
             {isAdmin && (
               <button
+                className={view === 'sources' ? 'tab active' : 'tab'}
+                onClick={() => setView('sources')}
+              >
+                Sources
+              </button>
+            )}
+            {isAdmin && (
+              <button
                 className={view === 'adleads' ? 'tab active' : 'tab'}
                 onClick={() => setView('adleads')}
               >
@@ -241,6 +254,8 @@ export default function Dashboard({ user, onLogout }) {
           <Products />
         ) : view === 'marketing' ? (
           <Marketing />
+        ) : view === 'sources' ? (
+          <Sources />
         ) : view === 'adleads' ? (
           // Opening a lead's follow-up reuses the drawer this file already
           // owns rather than mounting a second copy of it inside the tab.

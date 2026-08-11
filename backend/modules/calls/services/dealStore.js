@@ -3,6 +3,7 @@ const Task = require('../../../models/Task');
 const Deal = require('../models/Deal');
 const Call = require('../models/Call');
 const { phoneKey } = require('../../../utils/phone');
+const { canonicalSource, metaLeadId } = require('../../ads/services/leadSourceName');
 
 const WON_STAGE = process.env.BIGIN_WON_STAGE || 'Closed with Sale';
 const LOST_STAGE = process.env.BIGIN_LOST_STAGE || 'Closed without Sale';
@@ -46,6 +47,47 @@ async function contactPhone(contactId, fallbackName) {
   const c = await zoho.getContact(contactId); // throttled + cached
   if (c.ok && c.phone) return { phone: c.phone, name: c.name || fallbackName || null };
   return null;
+}
+
+// contact id -> { leadSource, socialLeadId }. A channel is a property of the
+// PERSON, and a person's deals are re-upserted on every stage change, so without
+// this every drag across the pipeline would buy the same contact record again.
+// Bounded: the poll can walk thousands of deals in one run, and an unbounded Map
+// on a long-lived process is a leak, not a cache.
+const SOURCE_CACHE_MAX = 5000;
+const sourceCache = new Map();
+
+/**
+ * The contact's channel, for denormalising onto the deal.
+ *
+ * Returns `null` — not an object of nulls — when the channel cannot be
+ * established (no contact, Zoho unconfigured, read failed). That distinction is
+ * load-bearing: the caller writes NOTHING on null, so a transient API failure
+ * leaves the previously-stored source intact instead of blanking a deal that was
+ * correctly attributed yesterday.
+ */
+async function contactSource(contactId) {
+  if (!contactId) return null;
+  const key = String(contactId);
+  if (sourceCache.has(key)) return sourceCache.get(key);
+
+  const c = await zoho.getContact(key);
+  if (!c.ok) return null;
+
+  const raw = c.leadSource || null;
+  const resolved = {
+    leadSource: raw,
+    leadSourceKey: canonicalSource(raw),
+    socialLeadId: metaLeadId(c.socialLeadId),
+  };
+
+  // Oldest-first eviction. Deals arrive roughly in contact order during a poll,
+  // so the entries about to fall out are the ones least likely to recur.
+  if (sourceCache.size >= SOURCE_CACHE_MAX) {
+    sourceCache.delete(sourceCache.keys().next().value);
+  }
+  sourceCache.set(key, resolved);
+  return resolved;
 }
 
 /** Read the full Bigin deal record. Carries what the webhook payload omits. */
@@ -190,6 +232,7 @@ async function upsertDeal(raw, source = 'poll') {
 
   const outcome = outcomeOf(raw.Stage);
   const extra = await hydrate(raw, outcome);
+  const channel = await contactSource(contactId);
 
   const doc = {
     zohoId: String(raw.id),
@@ -211,6 +254,11 @@ async function upsertDeal(raw, source = 'poll') {
     modifiedTime: raw.Modified_Time ? new Date(raw.Modified_Time) : new Date(),
     source,
   };
+
+  // Spread only when the channel was actually established. Assigning nulls here
+  // would let one failed contact read erase an attribution — and this runs on
+  // every stage change, so it would erase it repeatedly and invisibly.
+  if (channel) Object.assign(doc, channel);
 
   const deal = await Deal.findOneAndUpdate({ zohoId: doc.zohoId }, doc, {
     upsert: true,

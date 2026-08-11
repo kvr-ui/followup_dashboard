@@ -37,6 +37,7 @@ const meta = require('../services/metaClient');
 const { syncAll, isSyncing } = require('../services/syncAll');
 const cplCache = require('../services/cplCache');
 const { phoneFromFieldData } = require('../services/leadLinker');
+const { getSourceRollup } = require('../services/sourceRollup');
 const { rateLimit } = require('../middleware/rateLimit');
 const { authenticate, requireAdmin } = require('../../../middleware/auth');
 const campaignAliasRoutes = require('./campaignAliases');
@@ -229,6 +230,46 @@ function serverError(res, what, err) {
   console.error(`[ads api] ${what} failed:`, err.message);
   return fail(res, 500, `Failed to ${what}`);
 }
+
+// ---------------------------------------------------------------------------
+// GET /api/ads/sources — which lead source closed the deal
+// ---------------------------------------------------------------------------
+
+/**
+ * Closed deals grouped by the channel on their Bigin contact, plus the Meta
+ * campaigns behind the ones that came from an ad.
+ *
+ * The range is OPTIONAL here, unlike every other route in this file, and it
+ * means something different. Elsewhere it windows Meta INSIGHT rows, where the
+ * mirror only holds a recent slice and a default of "all time" would be a lie
+ * about coverage. Here it windows CLOSING DATES in a CRM mirror that goes back
+ * to the beginning, so the useful default is the whole history — you cannot
+ * judge a channel on 30 days of a business with 184 lifetime sales.
+ *
+ * A partial range is rejected rather than half-defaulted, for the same reason
+ * POST /sync rejects one: silently filling in "…to today" answers a question
+ * nobody asked.
+ */
+router.get('/sources', async (req, res) => {
+  const hasFrom = req.query.from != null && req.query.from !== '';
+  const hasTo = req.query.to != null && req.query.to !== '';
+  if (hasFrom !== hasTo) {
+    return fail(res, 400, "Provide both 'from' and 'to', or neither.");
+  }
+
+  let range = {};
+  if (hasFrom) {
+    const parsed = parseRange(req.query);
+    if (parsed.error) return fail(res, 400, parsed.error);
+    range = parsed;
+  }
+
+  try {
+    return res.json({ success: true, data: await getSourceRollup(range) });
+  } catch (err) {
+    return serverError(res, 'load the source breakdown', err);
+  }
+});
 
 // ---------------------------------------------------------------------------
 // GET /api/ads/summary — headline totals
