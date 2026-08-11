@@ -32,6 +32,7 @@ const MetaLead = require('../models/MetaLead');
 const WebLead = require('../models/WebLead');
 const AdSyncRun = require('../models/AdSyncRun');
 const Task = require('../../../models/Task');
+const Deal = require('../../calls/models/Deal');
 
 const meta = require('../services/metaClient');
 const { syncAll, isSyncing } = require('../services/syncAll');
@@ -54,175 +55,25 @@ router.use(authenticate, requireAdmin);
 router.use('/campaign-aliases', campaignAliasRoutes);
 
 // ---------------------------------------------------------------------------
-// Date ranges
+// Date ranges and insight roll-ups
 // ---------------------------------------------------------------------------
 //
-// Insight rows are keyed on `dateStart`/`dateStop`, which are Meta's CALENDAR
-// dates in the ad account's timezone (IST) — plain 'YYYY-MM-DD' strings, not
-// instants. So every date here is computed in LOCAL time and compared as a
-// string. `toISOString()` is banned in this file for exactly the reason the CPL
-// cache and the sync both spell out: the container runs in IST, and a date
-// derived in UTC shifts the day boundary, making "this month" start a day early
-// and quietly moving a day's spend into the wrong bucket.
+// All of it lives in services/adMetrics.js, so that the ask-the-data agent can
+// answer "what did we spend last month" by running THIS code rather than its own
+// version of it. See that file for the local-time rule the dates obey and the
+// reason CTR/CPC/CPL are recomputed from summed totals instead of averaged.
 
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-const DEFAULT_RANGE_DAYS = 30;
+const {
+  parseRange,
+  rangeFilter,
+  readMetrics,
+  nextDay,
+  money,
+  rollUp,
+  SPEND_UNITS,
+  BUDGET_UNITS,
+} = require('../services/adMetrics');
 
-/** Format a Date as local 'YYYY-MM-DD'. */
-function localIso(d) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
-    d.getDate()
-  ).padStart(2, '0')}`;
-}
-
-function daysAgo(n) {
-  const d = new Date();
-  d.setDate(d.getDate() - n);
-  return localIso(d);
-}
-
-/** The day after `date`, as 'YYYY-MM-DD'. Used for exclusive upper bounds. */
-function nextDay(date) {
-  const d = new Date(`${date}T00:00:00`); // local, not UTC
-  d.setDate(d.getDate() + 1);
-  return localIso(d);
-}
-
-/**
- * A well-formed calendar date, rejecting the ones that only LOOK well-formed:
- * '2026-02-31' parses happily and rolls over to March, so it is round-tripped
- * through a local Date and compared back.
- */
-function isValidDate(value) {
-  if (!DATE_RE.test(value)) return false;
-  const d = new Date(`${value}T00:00:00`);
-  return Number.isFinite(d.getTime()) && localIso(d) === value;
-}
-
-/**
- * The from/to range for a request.
- *
- * Omitted => the last 30 calendar days INCLUDING today (so `from` is 29 days
- * back), which is the window the retired CRM's date picker called "Last 30 days"
- * and the one the Marketing tab opens on.
- *
- * @returns {{from: string, to: string}|{error: string}}
- */
-function parseRange(query) {
-  const rawFrom = query.from;
-  const rawTo = query.to;
-
-  const from = rawFrom == null || rawFrom === '' ? daysAgo(DEFAULT_RANGE_DAYS - 1) : String(rawFrom);
-  const to = rawTo == null || rawTo === '' ? localIso(new Date()) : String(rawTo);
-
-  if (!isValidDate(from)) return { error: `Invalid 'from' date: expected YYYY-MM-DD, got '${from}'` };
-  if (!isValidDate(to)) return { error: `Invalid 'to' date: expected YYYY-MM-DD, got '${to}'` };
-  if (from > to) return { error: `Invalid range: 'from' (${from}) is after 'to' (${to})` };
-
-  return { from, to };
-}
-
-/**
- * The Mongo filter for "insight rows inside this range".
- *
- * Both ends are bounded because a row is a period, not a point: `dateStart >=
- * from` alone would let a hypothetical multi-day row leak spend from beyond `to`
- * into the total. The sync writes one row per day, so in practice
- * dateStart === dateStop, but the totals must not depend on that.
- */
-function rangeFilter({ from, to }) {
-  return { dateStart: { $gte: from }, dateStop: { $lte: to } };
-}
-
-// ---------------------------------------------------------------------------
-// Aggregation
-// ---------------------------------------------------------------------------
-
-// Everything the roll-ups read off an insight row. `actions` is the expensive
-// one (an array per row), and it is the only way to count leads.
-const METRIC_FIELDS = {
-  entityId: 1,
-  campaignId: 1,
-  dateStart: 1,
-  dateStop: 1,
-  spend: 1,
-  impressions: 1,
-  reach: 1,
-  clicks: 1,
-  actions: 1,
-};
-
-/**
- * Insight rows for a filter, in a FIXED order.
- *
- * The sort is not cosmetic. Floating-point addition is not associative, so an
- * unordered scan can total the same rows to a slightly different last decimal
- * between two identical requests — unexplainable drift on a money figure. Sorted
- * on the model's own natural key, the same one the CPL cache sorts on.
- */
-function readMetrics(filter) {
-  return MetaInsight.find(filter, METRIC_FIELDS)
-    .sort({ entityId: 1, dateStart: 1, dateStop: 1 })
-    .lean();
-}
-
-const round = (value, places) => {
-  const factor = 10 ** places;
-  return Number.isFinite(value) ? Math.round(value * factor) / factor : 0;
-};
-const money = (value) => round(value, 2);
-
-/**
- * Roll a set of insight rows into one set of totals.
- *
- * Note what is NOT summed: Meta's per-row `ctr`, `cpc` and `cpm`. Those are
- * ratios, and the mean of a set of ratios is not the ratio of the set — a day
- * with 2 clicks on 10 impressions weighs the same as a day with 2,000 on 10,000.
- * They are recomputed from the summed numerator and denominator instead.
- *
- * Leads come from `cplCache.leadsFromActions`, which counts Meta's `lead` action
- * type and nothing else. That is deliberate and shared: Meta's generic `lead`
- * result is already deduplicated across form and pixel sources, so summing every
- * action type would count one lead several times and halve the reported CPL. Any
- * change to that definition belongs in the CPL cache, where it is made once.
- */
-function rollUp(rows) {
-  let spend = 0;
-  let impressions = 0;
-  let reach = 0;
-  let clicks = 0;
-  let leads = 0;
-
-  for (const row of rows) {
-    const rowSpend = Number(row.spend);
-    if (Number.isFinite(rowSpend)) spend += rowSpend;
-    impressions += Number(row.impressions) || 0;
-    reach += Number(row.reach) || 0;
-    clicks += Number(row.clicks) || 0;
-    leads += cplCache.leadsFromActions(row.actions);
-  }
-
-  return {
-    spend: money(spend),
-    impressions,
-    reach,
-    clicks,
-    leads,
-    // Percent, as Meta reports it.
-    ctr: impressions > 0 ? round((clicks / impressions) * 100, 4) : 0,
-    // Cost per click / per lead. Zero denominators return null, not Infinity:
-    // a campaign with spend and no leads has an UNDEFINED cost per lead, and
-    // "no data" is the only honest rendering — `₹Infinity` on an admin's screen
-    // is a bug report waiting to happen. Same rule the CPL cache applies.
-    cpc: clicks > 0 ? money(spend / clicks) : null,
-    cpl: leads > 0 ? money(spend / leads) : null,
-  };
-}
-
-// Which unit each money field is in. Sent with every response that carries
-// money so the frontend never has to remember the rupees/paise split.
-const SPEND_UNITS = { spend: 'rupees', cpc: 'rupees', cpl: 'rupees' };
-const BUDGET_UNITS = { dailyBudget: 'paise', lifetimeBudget: 'paise' };
 
 const fail = (res, status, message) => res.status(status).json({ success: false, message });
 
@@ -446,8 +297,29 @@ function clamp(raw, fallback, min, max) {
 // broken. Both are worklists, not curiosities: `unresolved` therefore EXCLUDES
 // leads an admin already triaged as having no Meta campaign. Those are reachable
 // on their own with `unmapped=true`.
+//
+// AND WHETHER IT CLOSED
+// ---------------------
+// "Somebody is following this up" is not the question the money asks. Each row
+// therefore also carries a `status`, resolved from the Deal mirror first and the
+// Task second — see leadStatus() below for the precedence and what each state
+// means.
 
-const TASK_FIELDS = { _id: 1, phone: 1, 'body.Who_Id': 1 };
+const TASK_FIELDS = { _id: 1, phone: 1, 'body.Who_Id': 1, 'body.Status': 1 };
+
+// Enough of a Deal to say what happened, and nothing more — this list runs up to
+// 1,000 rows wide and a Deal carries a products subform.
+const DEAL_FIELDS = {
+  socialLeadId: 1,
+  contactPhoneKey: 1,
+  stage: 1,
+  outcome: 1,
+  amount: 1,
+  closingDate: 1,
+  modifiedTime: 1,
+};
+
+const LEAD_STATES = ['won', 'lost', 'pipeline', 'followup', 'none'];
 
 /** Query-string boolean: `?unlinked=1`, `?unlinked=true` and `?unlinked` are all true. */
 function boolParam(raw) {
@@ -509,6 +381,75 @@ function taskSummary(task) {
   return { id: String(task._id), name: who.name || null, phone: task.phone || who.phone || null };
 }
 
+// A contact can carry several deals. Won beats lost beats open — a lead that lost
+// one deal and won another HAS bought — and within a rank the newest wins.
+const OUTCOME_RANK = { won: 0, lost: 1, open: 2 };
+
+function bestDeal(a, b) {
+  if (!a) return b;
+  if (!b) return a;
+  const rank = (d) => (OUTCOME_RANK[d.outcome] === undefined ? 3 : OUTCOME_RANK[d.outcome]);
+  if (rank(a) !== rank(b)) return rank(a) < rank(b) ? a : b;
+  const at = a.modifiedTime ? new Date(a.modifiedTime).getTime() : 0;
+  const bt = b.modifiedTime ? new Date(b.modifiedTime).getTime() : 0;
+  return bt > at ? b : a;
+}
+
+function indexDeals(deals, keyOf) {
+  const map = new Map();
+  for (const deal of deals) {
+    const key = keyOf(deal);
+    if (!key) continue;
+    map.set(String(key), bestDeal(map.get(String(key)), deal));
+  }
+  return map;
+}
+
+/**
+ * What actually happened to this lead.
+ *
+ * The Deal answers first because it is the commercial fact: a contact with a
+ * "Closed with Sale" deal has bought, whatever their follow-up task still says.
+ * The Task answers only when no deal exists at all — "somebody is working it".
+ *
+ *   won      the deal closed with a sale
+ *   lost     the deal closed without one
+ *   pipeline a deal exists and is still open
+ *   followup a follow-up task exists but no deal does
+ *   none     nobody has picked this lead up
+ *
+ * `outcome` is READ, never re-derived from the stage string: dealStore normalised
+ * it at write time (outcomeOf), and recomputing here would mean this tab and the
+ * Sources tab could disagree about the same deal.
+ *
+ * `matchedBy` is carried out to the UI because the two joins are not equally
+ * strong. 'lead-id' is Meta's own lead id on both sides — a fact. 'phone' is a
+ * 10-digit key, which a family or a reused handset can share — an inference. The
+ * tab shows the difference rather than flattening a guess into a sale, the same
+ * way `resolvedBy` does for campaign attribution.
+ */
+function leadStatus(task, deal, matchedBy) {
+  const taskStatus = (task && task.body && task.body.Status) || null;
+  const state = deal
+    ? deal.outcome === 'won'
+      ? 'won'
+      : deal.outcome === 'lost'
+        ? 'lost'
+        : 'pipeline'
+    : task
+      ? 'followup'
+      : 'none';
+
+  return {
+    state,
+    stage: deal ? deal.stage || null : null,
+    taskStatus,
+    amount: deal && deal.outcome === 'won' ? deal.amount || 0 : null,
+    closingDate: deal ? deal.closingDate || null : null,
+    matchedBy: deal ? matchedBy : null,
+  };
+}
+
 router.get('/leads', async (req, res) => {
   const range = parseRange(req.query);
   if (range.error) return fail(res, 400, range.error);
@@ -528,6 +469,15 @@ router.get('/leads', async (req, res) => {
   const unmapped = boolParam(req.query.unmapped);
   const campaignId = req.query.campaignId ? String(req.query.campaignId) : null;
   const limit = clamp(req.query.limit, 200, 1, 1000);
+
+  // A status lives in the Deal mirror, which this query does not touch, so like
+  // the `linked` filter for Meta rows it can only be applied after the rows are
+  // built — i.e. AFTER the per-source cap. Say so in `filters` rather than let a
+  // caller read a capped page as a complete answer.
+  const status = req.query.status ? String(req.query.status).toLowerCase() : null;
+  if (status && !LEAD_STATES.includes(status)) {
+    return fail(res, 400, `Invalid status '${status}'. Expected one of ${LEAD_STATES.join(', ')}.`);
+  }
 
   try {
     // Web leads carry a real Date; Meta leads carry Meta's ISO string. Both are
@@ -591,7 +541,23 @@ router.get('/leads', async (req, res) => {
     const webTaskIds = webLeads.map((l) => l.linkedTaskId).filter(Boolean);
     const metaIds = linkableIds(metaLeads.map((l) => l._id));
 
-    const [campaigns, webTasks, metaTasks] = await Promise.all([
+    // Two ways to reach the sale, batched with the rest.
+    //
+    // `socialLeadId` is Meta's own lead id, copied onto the deal from the contact
+    // by Bigin's LeadChain extension, and a MetaLead's `_id` IS that id — so this
+    // half is an id-to-id join with nothing inferred. It is the same hop the
+    // Sources tab walks (see sourceRollup.buildMetaRollup).
+    //
+    // A web lead has no such id, so it falls back to the 10-digit phone key, the
+    // join key the whole app already agrees on (Deal.contactPhoneKey is indexed
+    // for exactly this). Meta rows use it too, but only where the id found
+    // nothing.
+    const socialIds = [...new Set(metaLeads.map((l) => String(l._id)))];
+    const phoneKeys = [
+      ...new Set([...webLeads, ...metaLeads].map((l) => l.phoneKey).filter(Boolean)),
+    ];
+
+    const [campaigns, webTasks, metaTasks, dealsById, dealsByPhone] = await Promise.all([
       campaignIds.size
         ? MetaCampaign.find({ _id: { $in: [...campaignIds] } }, { name: 1 }).lean()
         : [],
@@ -600,16 +566,25 @@ router.get('/leads', async (req, res) => {
         ? Task.find({ leadSource: 'meta', linkedLeadId: { $in: metaIds } },
             { ...TASK_FIELDS, linkedLeadId: 1 }).lean()
         : [],
+      socialIds.length ? Deal.find({ socialLeadId: { $in: socialIds } }, DEAL_FIELDS).lean() : [],
+      phoneKeys.length
+        ? Deal.find({ contactPhoneKey: { $in: phoneKeys } }, DEAL_FIELDS).lean()
+        : [],
     ]);
 
     const campaignName = new Map(campaigns.map((c) => [String(c._id), c.name || null]));
     const taskById = new Map(webTasks.map((t) => [String(t._id), t]));
     const taskByLeadId = new Map(metaTasks.map((t) => [String(t.linkedLeadId), t]));
+    const dealByLeadId = indexDeals(dealsById, (d) => d.socialLeadId);
+    const dealByPhoneKey = indexDeals(dealsByPhone, (d) => d.contactPhoneKey);
 
     const rows = [];
 
     for (const lead of webLeads) {
       const task = lead.linkedTaskId ? taskById.get(String(lead.linkedTaskId)) : null;
+      // No id join exists for a web lead — the phone key is the only route to the
+      // deal, so a match here is always an inference.
+      const deal = lead.phoneKey ? dealByPhoneKey.get(String(lead.phoneKey)) || null : null;
       rows.push({
         id: String(lead._id),
         source: 'web',
@@ -638,11 +613,17 @@ router.get('/leads', async (req, res) => {
         resolvedBy: lead.resolvedBy || null,
         linked: Boolean(lead.linkedTaskId),
         task: taskSummary(task),
+        status: leadStatus(task, deal, 'phone'),
       });
     }
 
     for (const lead of metaLeads) {
       const task = taskByLeadId.get(String(lead._id)) || null;
+      // The id join first — it is the only one that proves this exact lead is the
+      // one that bought. Phone is the fallback for deals whose contact never got
+      // a Social Lead ID stamped on it.
+      const byId = dealByLeadId.get(String(lead._id)) || null;
+      const deal = byId || (lead.phoneKey ? dealByPhoneKey.get(String(lead.phoneKey)) || null : null);
       rows.push({
         id: String(lead._id),
         source: 'meta',
@@ -660,16 +641,19 @@ router.get('/leads', async (req, res) => {
         resolvedBy: lead.campaignId ? 'meta' : null,
         linked: Boolean(task),
         task: taskSummary(task),
+        status: leadStatus(task, deal, byId ? 'lead-id' : 'phone'),
       });
     }
 
     // A Meta lead's link lives on the Task, not on the lead, so it cannot be
     // filtered in the query above — apply it here instead. Web rows already
-    // satisfy the filter and pass through untouched.
-    const filtered =
-      wantLinked === undefined
-        ? rows
-        : rows.filter((row) => row.source !== 'meta' || row.linked === wantLinked);
+    // satisfy the filter and pass through untouched. `status` is the same story
+    // for both sources: it comes from the Deal mirror, which the query never saw.
+    const filtered = rows.filter(
+      (row) =>
+        (wantLinked === undefined || row.source !== 'meta' || row.linked === wantLinked) &&
+        (status === null || row.status.state === status)
+    );
 
     filtered.sort((a, b) => {
       const at = a.capturedAt ? new Date(a.capturedAt).getTime() : 0;
@@ -679,20 +663,22 @@ router.get('/leads', async (req, res) => {
 
     const data = filtered.slice(0, limit);
 
-    // The Meta total needs the same correction as the rows: a `linked` filter
-    // cannot be expressed in the query, so the DB count would over-report. When
-    // the fetch was not capped, every Meta lead in the range was examined and
-    // the surviving count IS the total. Only a capped fetch under a `linked`
-    // filter leaves the figure an upper bound.
+    // The totals need the same correction as the rows: neither the `linked`
+    // filter (for Meta) nor `status` (for either source) can be expressed in the
+    // query, so the DB counts would over-report. When a side's fetch was not
+    // capped, every lead in the range was examined and the surviving count IS the
+    // total. Only a capped fetch under a post-build filter leaves it an upper
+    // bound — which is what `truncated` is for.
+    const survivors = (src) => filtered.reduce((n, row) => n + (row.source === src ? 1 : 0), 0);
+    const metaPostFiltered = wantLinked !== undefined || status !== null;
     const metaMatched =
-      wantLinked !== undefined && metaLeads.length === metaTotal
-        ? filtered.reduce((n, row) => n + (row.source === 'meta' ? 1 : 0), 0)
-        : metaTotal;
+      metaPostFiltered && metaLeads.length === metaTotal ? survivors('meta') : metaTotal;
+    const webMatched = status !== null && webLeads.length === webTotal ? survivors('web') : webTotal;
 
     return res.json({
       success: true,
       count: data.length,
-      totals: { web: webTotal, meta: metaMatched, all: webTotal + metaMatched },
+      totals: { web: webMatched, meta: metaMatched, all: webMatched + metaMatched },
       truncated: filtered.length > data.length || webTotal + metaTotal > rows.length,
       range,
       filters: {
@@ -701,6 +687,7 @@ router.get('/leads', async (req, res) => {
         unresolved,
         unmapped,
         campaignId,
+        status,
         limit,
       },
       data,

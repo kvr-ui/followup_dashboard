@@ -2,19 +2,24 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../api';
 import DateRangeBar from './DateRangeBar';
 import {
+  LEAD_STATES,
+  LEAD_STATUS,
   RESOLVED_BY,
   defaultRange,
   formatCount,
   isTriagedNoCampaign,
+  matchHint,
   needsTriage,
+  statusState,
 } from '../adStats';
+import { statusClass } from '../utils';
 
 // The Ad Leads tab — every captured web and Meta lead in one list, carrying the
-// two facts the tab exists to answer: which campaign it came from, and whether
-// anybody is following it up.
+// three facts the tab exists to answer: which campaign it came from, whether
+// anybody is following it up, and whether it ended in a sale.
 //
-// Both filters are worklists, not curiosities. "Unlinked" is the leads nobody is
-// working. "Needs triage" is the ad URLs that are tagged wrong.
+// Both worklist filters are worklists, not curiosities. "Unlinked" is the leads
+// nobody is working. "Needs triage" is the ad URLs that are tagged wrong.
 //
 // WHY THE FILTERING IS CLIENT-SIDE
 // --------------------------------
@@ -40,6 +45,14 @@ const RESOLUTION_FILTERS = {
   triaged: isTriagedNoCampaign,
 };
 
+// The endpoint takes `?status=` too, but this tab filters the fetched range in
+// the browser for the reason given above — so the funnel counts in the header
+// stay exact and switching between them costs nothing.
+const STATUS_FILTERS = {
+  all: () => true,
+  ...Object.fromEntries(LEAD_STATES.map((s) => [s, (l) => statusState(l) === s])),
+};
+
 const dash = (value) => (value == null || value === '' ? '—' : value);
 
 export default function AdLeads({ onOpenTask }) {
@@ -52,6 +65,7 @@ export default function AdLeads({ onOpenTask }) {
   const [source, setSource] = useState('all');
   const [link, setLink] = useState('all');
   const [resolution, setResolution] = useState('all');
+  const [status, setStatus] = useState('all');
 
   const load = useCallback(async (r) => {
     setLoading(true);
@@ -73,6 +87,7 @@ export default function AdLeads({ onOpenTask }) {
 
   const counts = useMemo(() => {
     const all = leads || [];
+    const byState = (s) => all.filter((l) => statusState(l) === s).length;
     return {
       all: all.length,
       web: all.filter((l) => l.source === 'web').length,
@@ -80,6 +95,11 @@ export default function AdLeads({ onOpenTask }) {
       unlinked: all.filter((l) => !l.linked).length,
       untriaged: all.filter(needsTriage).length,
       triaged: all.filter(isTriagedNoCampaign).length,
+      won: byState('won'),
+      lost: byState('lost'),
+      pipeline: byState('pipeline'),
+      followup: byState('followup'),
+      none: byState('none'),
     };
   }, [leads]);
 
@@ -88,13 +108,18 @@ export default function AdLeads({ onOpenTask }) {
     if (source !== 'all') out = out.filter((l) => l.source === source);
     out = out.filter(LINK_FILTERS[link]);
     out = out.filter(RESOLUTION_FILTERS[resolution]);
+    out = out.filter(STATUS_FILTERS[status]);
     return out;
-  }, [leads, source, link, resolution]);
+  }, [leads, source, link, resolution, status]);
 
-  function focus(nextLink, nextResolution) {
+  // Every card is a shortcut into one combination of the three filters, so it
+  // sets all of them — clicking "Closed with sale" while "Not linked" is still
+  // selected would otherwise hand back an empty table.
+  function focus(nextLink, nextResolution, nextStatus = 'all') {
     setSource('all');
     setLink(nextLink);
     setResolution(nextResolution);
+    setStatus(nextStatus);
   }
 
   return (
@@ -121,6 +146,14 @@ export default function AdLeads({ onOpenTask }) {
             <div className="card clickable" onClick={() => focus('unlinked', 'all')}>
               <div className="num">{formatCount(counts.unlinked)}</div>
               <div className="label">Not linked to a follow-up</div>
+            </div>
+            <div className="card clickable" onClick={() => focus('all', 'all', 'won')}>
+              <div className="num">{formatCount(counts.won)}</div>
+              <div className="label">Closed with sale</div>
+            </div>
+            <div className="card clickable" onClick={() => focus('all', 'all', 'lost')}>
+              <div className="num">{formatCount(counts.lost)}</div>
+              <div className="label">Closed without sale</div>
             </div>
             <div className="card clickable" onClick={() => focus('all', 'untriaged')}>
               <div className="num">{formatCount(counts.untriaged)}</div>
@@ -158,6 +191,17 @@ export default function AdLeads({ onOpenTask }) {
                 <option value="triaged">Triaged: no Meta campaign</option>
               </select>
             </label>
+            <label>
+              <span>Status</span>
+              <select value={status} onChange={(e) => setStatus(e.target.value)}>
+                <option value="all">All</option>
+                {LEAD_STATES.map((s) => (
+                  <option key={s} value={s}>
+                    {LEAD_STATUS[s].label} ({counts[s]})
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
 
           <div className="toolbar">
@@ -187,6 +231,7 @@ export default function AdLeads({ onOpenTask }) {
                     <th>Source</th>
                     <th>UTM</th>
                     <th>Campaign</th>
+                    <th>Status</th>
                     <th>Follow-up</th>
                   </tr>
                 </thead>
@@ -275,6 +320,9 @@ function LeadRow({ lead, onOpenTask }) {
         )}
       </td>
       <td>
+        <LeadStatus lead={lead} />
+      </td>
+      <td>
         {lead.linked && lead.task ? (
           <button className="mkt-open" onClick={() => onOpenTask && onOpenTask(lead.task.id)}>
             Open follow-up
@@ -284,5 +332,27 @@ function LeadRow({ lead, onOpenTask }) {
         )}
       </td>
     </tr>
+  );
+}
+
+// The badge says what happened; the line under it says on what evidence. A won or
+// lost badge is backed by the Bigin deal STAGE verbatim rather than our label for
+// it, so a stage renamed in Bigin shows up here as itself instead of being
+// silently folded into "closed". With no deal, the follow-up task's own Status
+// stands in — that is all we know.
+function LeadStatus({ lead }) {
+  const state = statusState(lead);
+  const status = lead.status || {};
+  const detail = status.stage || status.taskStatus || null;
+  const hint = matchHint(lead);
+
+  return (
+    <>
+      <span className={statusClass(state)} title={hint || LEAD_STATUS[state].hint}>
+        {LEAD_STATUS[state].label}
+      </span>
+      {detail && <div className="subtle">{detail}</div>}
+      {hint && status.matchedBy === 'phone' && <div className="subtle">by phone</div>}
+    </>
   );
 }

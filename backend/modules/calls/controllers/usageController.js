@@ -11,9 +11,10 @@ async function apiUsage(req, res) {
   try {
     const days = Math.min(90, Math.max(7, Number(req.query.days) || 30));
 
-    const [sarvam, elevenlabs, historical] = await Promise.all([
+    const [sarvam, elevenlabs, openai, historical] = await Promise.all([
       usage.summary('sarvam', { days }),
       usage.summary('elevenlabs', { days }),
+      usage.summary('openai', { days }),
       usage.historicalTotals(),
     ]);
 
@@ -46,6 +47,24 @@ async function apiUsage(req, res) {
           lifetime: {
             transcribedCalls: historical.transcribedCalls,
             transcribedSeconds: historical.transcribedSeconds,
+          },
+        },
+        // The ask-the-data agent. Unlike the two above it is driven by people
+        // asking questions rather than by a worker draining a queue, so its
+        // spend moves in bursts — which is exactly why it belongs on this tab
+        // instead of being invisible.
+        openai: {
+          label: 'OpenAI',
+          purpose: 'Ask-the-data agent',
+          configured: Boolean(process.env.OPENAI_API_KEY),
+          model: process.env.OPENAI_MODEL || 'gpt-5',
+          unit: 'tokens',
+          ...openai,
+          balance: {
+            available: false,
+            reason:
+              'OpenAI bills in arrears and publishes no balance endpoint on the API key. ' +
+              'See platform.openai.com/usage for the account total.',
           },
         },
       },

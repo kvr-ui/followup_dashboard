@@ -207,6 +207,30 @@ async function addNote(zohoId, title, content) {
   }
 }
 
+// Run a COQL SELECT and return the rows.
+//
+// COQL is the only way to ask Bigin a real question ("won deals over 50k closed
+// this month") in one round trip instead of paginating a module and filtering
+// here. It is a POST because the query travels in the body, but it is strictly a
+// read — Zoho exposes no write verb on this endpoint.
+//
+// Callers are responsible for the query text; the ask-the-data agent's tool layer
+// (modules/agent/services/tools.js) is what refuses anything that is not a SELECT.
+// A 204 means the query was valid and matched nothing, which is a result, not an
+// error — hence the empty-array normalisation.
+async function coql(query) {
+  if (!isConfigured()) return { ok: false, skipped: true };
+  try {
+    const json = await zohoFetch('/coql', {
+      method: 'POST',
+      body: JSON.stringify({ select_query: query }),
+    });
+    return { ok: true, rows: json?.data || [], info: json?.info || null };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
+
 // Generic authenticated GET against the Bigin/CRM API (throttled + retried).
 async function apiGet(path) {
   if (!isConfigured()) return { ok: false, skipped: true };
@@ -229,4 +253,5 @@ module.exports = {
   getContact,
   getTaskRecord,
   apiGet,
+  coql,
 };

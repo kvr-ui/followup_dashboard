@@ -269,6 +269,44 @@ export function needsTriage(lead) {
 }
 
 // ---------------------------------------------------------------------------
+// Lead status
+// ---------------------------------------------------------------------------
+
+// What actually happened to a lead, as `status.state` from GET /api/ads/leads.
+// The order is the funnel's: closed first, then still-moving, then untouched —
+// so the filter dropdown and the badges read in the same sequence everywhere.
+export const LEAD_STATUS = {
+  won: { label: 'Closed with sale', hint: 'a deal for this contact closed with a sale' },
+  lost: { label: 'Closed without sale', hint: 'a deal for this contact closed without a sale' },
+  pipeline: { label: 'In pipeline', hint: 'a deal exists for this contact and is still open' },
+  followup: { label: 'Following up', hint: 'a follow-up task exists, but no deal yet' },
+  none: { label: 'No follow-up', hint: 'nobody has picked this lead up' },
+};
+
+export const LEAD_STATES = Object.keys(LEAD_STATUS);
+
+/** The state of a lead row, tolerant of a row served before the API carried one. */
+export function statusState(lead) {
+  const state = lead && lead.status && lead.status.state;
+  return LEAD_STATUS[state] ? state : 'none';
+}
+
+/**
+ * How the deal behind this status was found, or null when there is no deal.
+ *
+ * 'lead-id' is Meta's own lead id on both sides — the sale IS this lead's.
+ * 'phone' is a 10-digit key match, which a shared handset makes a guess. The
+ * badge says so rather than presenting an inference as a closed sale, the same
+ * distinction RESOLVED_BY draws for campaign attribution.
+ */
+export function matchHint(lead) {
+  const by = lead && lead.status && lead.status.matchedBy;
+  if (by === 'lead-id') return 'matched to the deal by Meta lead id';
+  if (by === 'phone') return 'matched to the deal by phone number — may be a shared number';
+  return null;
+}
+
+// ---------------------------------------------------------------------------
 // UTM breakdown
 // ---------------------------------------------------------------------------
 

@@ -345,6 +345,28 @@ main {
   background: var(--surface-inset);
   color: var(--ink-2);
 }
+/* Ad Leads: what became of the lead. Green only for a sale — an open pipeline is
+   amber because it is unfinished, not good news. */
+.status-won {
+  background: var(--green-soft);
+  color: var(--green);
+}
+.status-lost {
+  background: var(--red-soft);
+  color: var(--red);
+}
+.status-pipeline {
+  background: var(--amber-soft);
+  color: var(--amber);
+}
+.status-followup {
+  background: var(--slate-soft);
+  color: var(--slate);
+}
+.status-none {
+  background: var(--surface-inset);
+  color: var(--ink-2);
+}
 
 /* ---------- Quick tabs ---------- */
 .quick-tabs {
@@ -1442,4 +1464,747 @@ tr.row-today td {
   margin: 6px 0 0;
   font-size: 0.82rem;
   line-height: 1.5;
+}
+
+/* ============================================================
+   API Docs tab
+   ============================================================ */
+
+.docs {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  max-width: 1000px;
+}
+
+.docs-head h2 {
+  font-family: var(--serif);
+  font-size: 1.35rem;
+  margin-bottom: 4px;
+}
+
+.docs-head p {
+  margin: 0;
+  max-width: 70ch;
+}
+
+/* ---- "Start here": base URL, header, live token ---- */
+
+.docs-start {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.docs-start-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.docs-start-label {
+  min-width: 96px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.docs-code-inline {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.78rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 2px 7px;
+  color: var(--ink);
+}
+
+.docs-token {
+  max-width: 46ch;
+  overflow-wrap: anywhere;
+}
+
+/* The token is a live credential, so the warning is a warning and not a hint. */
+.docs-warn {
+  margin: 4px 0 0;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--red);
+  border-left: 3px solid var(--red);
+  background: var(--red-soft);
+  border-radius: 0 6px 6px 0;
+  padding: 8px 10px;
+}
+
+.docs-mini {
+  font-size: 0.72rem;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.docs-mini:hover {
+  background: var(--surface-inset);
+}
+
+/* ---- Search + group nav ---- */
+
+.docs-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.docs-search {
+  flex: 1;
+  max-width: 420px;
+  padding: 8px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  font: inherit;
+  background: var(--surface);
+}
+
+.docs-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.docs-nav-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.docs-nav-item:hover {
+  background: var(--surface-inset);
+}
+
+.docs-nav-item.active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+
+.docs-nav-count {
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+
+/* ---- A group of endpoints ---- */
+
+.docs-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.docs-group h3 {
+  font-size: 1rem;
+}
+
+.docs-blurb {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.6;
+  color: var(--ink-2);
+  max-width: 84ch;
+}
+
+/* ---- One endpoint ---- */
+
+.docs-ep {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.docs-ep.open {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-sm);
+}
+
+.docs-ep-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: none;
+  border: 0;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+
+.docs-ep-head:hover {
+  background: var(--surface-2);
+}
+
+.docs-method {
+  flex: 0 0 auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 3px 7px;
+  border-radius: 5px;
+  min-width: 52px;
+  text-align: center;
+}
+
+.m-get {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+.m-post {
+  background: var(--green-soft);
+  color: var(--green);
+}
+.m-patch {
+  background: var(--amber-soft);
+  color: var(--amber);
+}
+.m-delete {
+  background: var(--red-soft);
+  color: var(--red);
+}
+
+.docs-path {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8rem;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.docs-ep-summary {
+  flex: 1;
+  font-size: 0.8rem;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.docs-chev {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+/* Who may call it. Three distinct colours because "no auth" and "admin only"
+   are opposite facts and must not be skimmable as the same chip. */
+.auth-admin {
+  background: var(--red-soft);
+  color: var(--red);
+}
+.auth-user {
+  background: var(--slate-soft);
+  color: var(--slate);
+}
+.auth-public {
+  background: var(--amber-soft);
+  color: var(--amber);
+}
+
+.docs-ep-body {
+  border-top: 1px solid var(--border);
+  padding: 14px 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background: var(--surface-2);
+}
+
+.docs-note {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.6;
+  color: var(--ink-2);
+  border-left: 3px solid var(--accent);
+  background: var(--accent-soft);
+  border-radius: 0 6px 6px 0;
+  padding: 9px 11px;
+}
+
+.docs-block {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.docs-block-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.78rem;
+  color: var(--ink-2);
+}
+
+.docs-block-head strong {
+  font-size: 0.78rem;
+}
+
+.docs-tabs {
+  display: flex;
+  gap: 4px;
+  margin-right: auto;
+}
+
+.docs-tab {
+  padding: 3px 9px;
+  font-size: 0.72rem;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 6px;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.docs-tab.active {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: #fff;
+}
+
+.docs-code {
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.75rem;
+  line-height: 1.6;
+  background: var(--ink);
+  color: #e8eaf0;
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  overflow-x: auto;
+  white-space: pre;
+}
+
+/* A live response can be thousands of lines; it scrolls inside its own box
+   rather than pushing the next endpoint off the page. */
+.docs-live {
+  max-height: 420px;
+  overflow: auto;
+}
+
+.docs-hint {
+  margin: 0;
+  font-size: 0.76rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.docs-hint code {
+  font-size: 0.74rem;
+  background: var(--surface-inset);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+/* ---- Parameter / error tables ---- */
+
+.docs-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.79rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.docs-table td {
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+  color: var(--ink-2);
+}
+
+.docs-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.docs-arg,
+.docs-type,
+.docs-status {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  white-space: nowrap;
+}
+
+.docs-arg {
+  color: var(--ink);
+  font-weight: 600;
+  width: 1%;
+}
+
+.docs-type {
+  color: var(--muted);
+  font-size: 0.73rem;
+  width: 1%;
+}
+
+.docs-status {
+  color: var(--red);
+  font-weight: 600;
+  width: 1%;
+}
+
+/* ---- Try it ---- */
+
+.docs-try {
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 11px 12px;
+  background: var(--surface);
+}
+
+.docs-try-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.docs-try-input {
+  flex: 1;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.76rem;
+  padding: 7px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+.docs-source {
+  margin: 0;
+  font-size: 0.73rem;
+  color: var(--muted);
+}
+
+.docs-source code {
+  font-size: 0.72rem;
+  background: var(--surface-inset);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+/* ---------------------------------------------------------------------------
+   Ask — the data assistant
+   ---------------------------------------------------------------------------
+   A chat column that fills the viewport below the header, so the composer stays
+   put and only the transcript scrolls. Everything is built from the same tokens
+   as the rest of the app; there is no chat library here and no new colours.
+*/
+
+.agent-wrap {
+  display: flex;
+  flex-direction: column;
+  /* Header + main padding. Keeps the composer on screen instead of pushing it
+     below the fold once a conversation gets long. */
+  height: calc(100vh - 190px);
+  min-height: 420px;
+}
+
+.agent-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.9rem;
+}
+.agent-head h2 {
+  font-family: var(--serif);
+  font-size: 1.15rem;
+  font-weight: 600;
+  margin-bottom: 0.15rem;
+}
+.agent-head p {
+  font-size: 0.82rem;
+  max-width: 60ch;
+}
+
+.agent-unconfigured {
+  padding: 1rem 1.2rem;
+}
+.agent-unconfigured p {
+  margin-bottom: 0.35rem;
+}
+
+.agent-thread {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.2rem 0.1rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+/* --- Empty state ---------------------------------------------------------- */
+
+.agent-empty {
+  margin: auto 0;
+  padding: 1rem 0;
+}
+.agent-starters {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.45rem;
+  margin-top: 0.7rem;
+}
+.agent-starter {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--ink-2);
+  text-align: left;
+  font-size: 0.85rem;
+  padding: 0.5rem 0.8rem;
+  border-radius: var(--radius-sm);
+}
+.agent-starter:hover {
+  background: var(--accent-soft);
+  border-color: var(--border-strong);
+  color: var(--accent-ink);
+}
+
+/* --- Messages ------------------------------------------------------------- */
+
+.agent-msg {
+  display: flex;
+}
+.agent-msg.user {
+  justify-content: flex-end;
+}
+.agent-msg.assistant {
+  justify-content: flex-start;
+}
+
+.agent-bubble {
+  max-width: 78ch;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius);
+  font-size: 0.88rem;
+  line-height: 1.55;
+}
+.agent-msg.user .agent-bubble {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  border: 1px solid var(--border);
+  white-space: pre-wrap;
+}
+.agent-msg.assistant .agent-bubble {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+}
+
+.agent-bubble p {
+  margin-bottom: 0.6rem;
+}
+.agent-bubble p:last-child {
+  margin-bottom: 0;
+}
+.agent-bubble ul,
+.agent-bubble ol {
+  margin: 0 0 0.6rem 1.1rem;
+}
+.agent-bubble li {
+  margin-bottom: 0.2rem;
+}
+.agent-bubble code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8rem;
+  background: var(--surface-inset);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+.agent-heading {
+  font-weight: 600;
+  margin-bottom: 0.4rem;
+}
+
+/* Tables can be wide; they scroll inside the bubble rather than stretching it. */
+.agent-table-wrap {
+  overflow-x: auto;
+  margin-bottom: 0.6rem;
+}
+.agent-table {
+  border-collapse: collapse;
+  font-size: 0.82rem;
+  min-width: 100%;
+}
+.agent-table th,
+.agent-table td {
+  border-bottom: 1px solid var(--border);
+  padding: 0.35rem 0.7rem 0.35rem 0;
+  text-align: left;
+  white-space: nowrap;
+}
+.agent-table th {
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* --- Thinking indicator --------------------------------------------------- */
+
+.agent-thinking {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.agent-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--muted);
+  animation: agent-pulse 1.2s infinite ease-in-out;
+}
+.agent-dot:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.agent-dot:nth-child(3) {
+  animation-delay: 0.3s;
+  margin-right: 4px;
+}
+@keyframes agent-pulse {
+  0%,
+  80%,
+  100% {
+    opacity: 0.25;
+  }
+  40% {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .agent-dot {
+    animation: none;
+    opacity: 0.5;
+  }
+}
+
+/* --- The trace: what the answer was built from ---------------------------- */
+
+.agent-trace {
+  margin-top: 0.7rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.5rem;
+}
+.agent-trace-toggle {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+.agent-trace-toggle:hover {
+  background: none;
+  color: var(--accent-ink);
+}
+.agent-trace-list {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.agent-trace-row {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.45rem 0.6rem;
+  font-size: 0.76rem;
+}
+.agent-trace-row.failed {
+  background: var(--red-soft);
+  border-color: var(--red-soft);
+}
+.agent-trace-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+.agent-trace-head code {
+  background: none;
+  padding: 0;
+  font-size: 0.78rem;
+  color: var(--ink);
+}
+.agent-trace-args {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.15rem 0.7rem;
+  margin-top: 0.25rem;
+  color: var(--muted);
+}
+.agent-arg b {
+  color: var(--ink-2);
+  font-weight: 500;
+}
+.agent-pipeline {
+  margin-top: 0.35rem;
+  padding: 0.4rem 0.55rem;
+  background: var(--surface-inset);
+  border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.7rem;
+  line-height: 1.35;
+  overflow-x: auto;
+  white-space: pre;
+  color: var(--ink-2);
+}
+.agent-trace-error {
+  margin-top: 0.3rem;
+  color: var(--red);
+}
+
+/* --- Composer ------------------------------------------------------------- */
+
+.agent-composer {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.6rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--border);
+}
+.agent-composer textarea {
+  flex: 1;
+  resize: none;
+  font-family: var(--font);
+  font-size: 0.88rem;
+  line-height: 1.5;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+}
+.agent-composer textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.agent-composer button {
+  height: 42px;
+  padding: 0 1.2rem;
 }

@@ -12,6 +12,8 @@ import Marketing from './Marketing';
 import Sources from './Sources';
 import AdLeads from './AdLeads';
 import ApiUsage from './ApiUsage';
+import ApiDocs from './ApiDocs';
+import Agent from './Agent';
 import SummaryCards from './SummaryCards';
 import Filters from './Filters';
 import { api } from '../api';
@@ -56,6 +58,10 @@ export default function Dashboard({ user, onLogout }) {
       isAdmin
         ? [
             'tasks',
+            // The ask-the-data assistant. Open to reps as well (see the sales
+            // list below): every tool it can call is owner-scoped server-side,
+            // and the ones that cannot be scoped are admin-gated by name.
+            'agent',
             'analytics',
             'calls',
             'scorecard',
@@ -76,11 +82,16 @@ export default function Dashboard({ user, onLogout }) {
             // AI provider spend and account balance — billing data, admin only.
             'usage',
             'users',
+            'apidocs',
           ]
         : // A sales rep gets their own follow-ups, their own graded calls, their personal
           // scorecard, and their payments. Every one is hard-scoped to them on the server,
           // not just hidden here.
-          ['tasks', 'calls', 'scorecard', 'installments', 'upsells'],
+          //
+          // The API reference is open to reps too: it documents the endpoints, it does not
+          // serve their data, and every admin-only entry is labelled as such (and would
+          // answer 403 anyway). Hiding the docs would not have hidden anything.
+          ['tasks', 'agent', 'calls', 'scorecard', 'installments', 'upsells', 'apidocs'],
     [isAdmin]
   );
 
@@ -116,6 +127,12 @@ export default function Dashboard({ user, onLogout }) {
               onClick={() => setView('tasks')}
             >
               Follow-ups
+            </button>
+            <button
+              className={view === 'agent' ? 'tab active' : 'tab'}
+              onClick={() => setView('agent')}
+            >
+              Ask
             </button>
             {isAdmin && (
               <button
@@ -197,6 +214,12 @@ export default function Dashboard({ user, onLogout }) {
                 Users
               </button>
             )}
+            <button
+              className={view === 'apidocs' ? 'tab active' : 'tab'}
+              onClick={() => setView('apidocs')}
+            >
+              API Docs
+            </button>
           </nav>
         </div>
         <div className="user-box">
@@ -240,6 +263,8 @@ export default function Dashboard({ user, onLogout }) {
               <p className="subtle">No follow-ups match the current filters.</p>
             )}
           </>
+        ) : view === 'agent' ? (
+          <Agent user={user} />
         ) : view === 'installments' ? (
           <Installments isAdmin={isAdmin} />
         ) : view === 'upsells' ? (
@@ -262,6 +287,8 @@ export default function Dashboard({ user, onLogout }) {
           <AdLeads onOpenTask={setSelectedId} />
         ) : view === 'usage' ? (
           <ApiUsage />
+        ) : view === 'apidocs' ? (
+          <ApiDocs user={user} />
         ) : (
           <AdminUsers />
         )}

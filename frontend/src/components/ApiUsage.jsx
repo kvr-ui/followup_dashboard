@@ -1,13 +1,16 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 
-// What the two AI providers have cost us, and what is left on each account.
+// What the AI providers have cost us, and what is left on each account.
 //
-// The two providers are billed in different units and only one of them will tell us
-// its balance, so the cards deliberately do NOT pretend to be symmetric:
+// They are billed in different units and only one of them will tell us its balance,
+// so the cards deliberately do NOT pretend to be symmetric:
 //   ElevenLabs — billed per second of audio; the remaining character quota is read live.
 //   Sarvam     — billed per token; it publishes no balance endpoint, so "remaining" only
 //                appears when someone has set SARVAM_TOKEN_ALLOWANCE on the server.
+//   OpenAI     — billed per token, in arrears, with no balance endpoint at all. Its
+//                spend is driven by people asking the Ask tab questions rather than by
+//                a worker draining a queue, so it moves in bursts.
 
 function fmtNum(n) {
   return (n || 0).toLocaleString('en-IN');
@@ -143,10 +146,15 @@ function ProviderPanel({ provider }) {
       </div>
 
       <p className="subtle" style={{ marginTop: '-0.4rem', marginBottom: '1rem' }}>
-        {isTokens
-          ? `${fmtNum(provider.lifetime.gradedCalls)} calls carry a grade in total. `
-          : `${fmtNum(provider.lifetime.transcribedCalls)} calls transcribed in total, ` +
-            `${fmtDuration(provider.lifetime.transcribedSeconds)} of audio. `}
+        {/* Only the two pipeline providers have a "work done to date" figure to
+            quote. The agent has none — nobody asked it a question before it
+            existed — so it simply skips the sentence. */}
+        {provider.lifetime
+          ? isTokens
+            ? `${fmtNum(provider.lifetime.gradedCalls)} calls carry a grade in total. `
+            : `${fmtNum(provider.lifetime.transcribedCalls)} calls transcribed in total, ` +
+              `${fmtDuration(provider.lifetime.transcribedSeconds)} of audio. `
+          : ''}
         The counters above only cover requests made since the usage meter was deployed
         {provider.since ? ` (${provider.since})` : ''}; retries and failed attempts are
         billed too, which is why they are counted here.
@@ -244,6 +252,9 @@ export default function ApiUsage() {
 
       <ProviderPanel provider={data.providers.sarvam} />
       <ProviderPanel provider={data.providers.elevenlabs} />
+      {/* Added later than the other two, so an older server that doesn't send it
+          simply renders nothing here rather than crashing the tab. */}
+      {data.providers.openai && <ProviderPanel provider={data.providers.openai} />}
     </>
   );
 }

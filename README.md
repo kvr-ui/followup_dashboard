@@ -23,6 +23,21 @@ frontend/   React (Vite) SPA, built to frontend/dist and served by the backend
 `ads/`); everything else is the original flat MVC layout (`routes/` → `controllers/`
 → `services/` → `models/`).
 
+## API
+
+Every endpoint is documented in [`docs/API.md`](docs/API.md) — auth level, query
+params, request/response examples and error codes.
+
+The same reference is in the dashboard itself, under the **API Docs** tab, where
+every GET endpoint has a **Run** button that fires the real request with your
+session token. That tab is the source of truth: both it and the markdown file are
+generated from `frontend/src/apiDocs.js`, so they cannot drift apart. After editing
+that table, regenerate the file:
+
+```bash
+npm --prefix frontend run docs
+```
+
 ## Local development
 
 ```bash
@@ -89,6 +104,7 @@ Full reference with inline comments: `backend/.env.example`. Summary by area:
 | Zoho/Bigin write-back (optional) | `ZOHO_CLIENT_ID`, `ZOHO_CLIENT_SECRET`, `ZOHO_REFRESH_TOKEN`, `ZOHO_ACCOUNTS_URL`, `ZOHO_API_URL`, `ZOHO_MODULE` |
 | **Meta Ads sync** (new — see below) | `META_ACCESS_TOKEN`, `META_AD_ACCOUNT_ID`, `META_API_VERSION`, `SYNC_INTERVAL_MINUTES`, `META_LEAD_FORM_IDS`, `META_PAGE_ID`, `AD_INSIGHT_LOOKBACK_DAYS`, `AD_SYNC_FIRST_RUN_DELAY_MS` |
 | **Public lead ingest** (new — see below) | `CORS_ORIGINS`, `WEB_LEAD_RATE_MAX`, `LEAD_INGEST_TOKEN` |
+| **Ask assistant** (new — see below) | `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_REASONING_EFFORT`, `OPENAI_MAX_OUTPUT_TOKENS`, `AGENT_MAX_ROUNDS`, `AGENT_RATE_MAX`, `BIGIN_COQL_ENABLED` |
 | Build-time only | `GITHUB_PACKAGES_TOKEN` (see above — not a runtime var, not in `backend/.env`) |
 
 ### This service now owns public lead capture
@@ -127,6 +143,58 @@ triggered manually via the admin API) to keep campaigns/ad sets/ads/creatives/da
 insights/instant-form leads in sync. This used to run inside `focas-crm`; Meta
 credentials (`META_ACCESS_TOKEN`, `META_AD_ACCOUNT_ID`) now live in **this**
 service's environment, not that one's — that service no longer exists.
+
+### The Ask tab — a data assistant over everything above
+
+`backend/modules/agent/` backs the **Ask** tab: a chat box that answers questions
+about the business by querying this dashboard's own data, and — for admins — Bigin
+live when the local mirror doesn't carry the answer. It exists because the useful
+questions cross tabs. "Which campaign produced the cheapest closed deal last month,
+and how did those reps' calls score?" spans Marketing, Sources, Analytics and
+Scorecard, so in practice nobody asks it.
+
+Set `OPENAI_API_KEY` to switch it on. Without a key the tab loads and says it is
+unconfigured; nothing else in the dashboard depends on it.
+
+**It is read-only.** No tool it can call writes to Mongo, to Bigin, or anywhere
+else. The only outbound writes in the module are the HTTP POSTs that carry the
+question to OpenAI and (when enabled) a COQL SELECT to Bigin.
+
+**Reps get it too, scoped.** Access control is applied per *tool*, not at the
+router:
+
+- Tools over owned data (`query_calls`, `query_deals`, `list_installments`, …)
+  inject the rep's `ownerEmail` server-side. The model cannot pass it, override
+  it, or ask for someone else's.
+- `run_aggregation` — the escape hatch that runs a model-written aggregation —
+  prepends that filter to the pipeline, refuses every stage that writes or
+  executes JavaScript, and cannot reach the `users` collection at all.
+- Ad spend, lead PII, provider billing and the live-Bigin lookups are admin-only.
+  The last of those is not because Bigin holds management data, but because a
+  live CRM search takes criteria the *model* wrote, and there is no owner filter
+  we can reliably impose on it.
+
+Every answer carries a trace of the tools that produced it — and for a
+hand-written aggregation, the exact pipeline that ran, owner filter included. A
+figure on a sales dashboard that nobody can check is a figure nobody will act on.
+
+Two things worth knowing before trusting a number from it: the model is instructed
+never to answer from memory (every figure must come from a tool result in that
+conversation), and tool results say when they were truncated. Its token spend
+appears on the **AI Usage** tab next to Sarvam and ElevenLabs.
+
+Guard tests, which need no API key:
+
+```bash
+cd backend
+node modules/agent/scripts/testMongoQuery.js   # the aggregation guard — no DB needed
+node modules/agent/scripts/testChatLoop.js     # the tool-calling loop, model stubbed
+```
+
+`BIGIN_COQL_ENABLED` is off because the deployed Zoho refresh token lacks the
+`ZohoBigin.coql.READ` scope. Re-authorise with it and set the flag to give the
+agent one-query CRM access; until then it uses per-module search/get/fields calls,
+which the current scopes allow.
 
 ## More documentation
 

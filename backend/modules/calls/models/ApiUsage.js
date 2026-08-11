@@ -14,7 +14,9 @@ const mongoose = require('mongoose');
 // the ads sync and the call stats already use.
 const apiUsageSchema = new mongoose.Schema(
   {
-    provider: { type: String, enum: ['sarvam', 'elevenlabs'], required: true },
+    // 'openai' is the ask-the-data agent (modules/agent). It bills per token like
+    // Sarvam does, so it shares the token columns below rather than needing its own.
+    provider: { type: String, enum: ['sarvam', 'elevenlabs', 'openai'], required: true },
     day: { type: String, required: true }, // 'YYYY-MM-DD', local
 
     requests: { type: Number, default: 0 },
