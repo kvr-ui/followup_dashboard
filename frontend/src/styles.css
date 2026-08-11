@@ -1335,3 +1335,40 @@ tr.row-today td {
     grid-template-columns: 1fr;
   }
 }
+
+/* ---------- API usage (AI provider spend + balance) ---------- */
+/* The balance headline sits beside its meter, so the number a manager scans for
+   ("how much is left") and the bar that gives it context read as one unit. */
+.usage-balance {
+  display: grid;
+  grid-template-columns: minmax(140px, auto) 1fr;
+  gap: 1.4rem;
+  align-items: center;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.1rem;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.usage-balance .num {
+  font-family: var(--serif);
+  font-size: 2rem;
+  font-weight: 500;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.usage-balance .label {
+  font-size: 0.76rem;
+  font-weight: 500;
+  color: var(--muted);
+  margin-top: 0.45rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+@media (max-width: 700px) {
+  .usage-balance {
+    grid-template-columns: 1fr;
+    gap: 0.9rem;
+  }
+}

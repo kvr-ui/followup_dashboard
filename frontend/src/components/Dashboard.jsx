@@ -10,6 +10,7 @@ import Upsells from './Upsells';
 import Scorecard from './Scorecard';
 import Marketing from './Marketing';
 import AdLeads from './AdLeads';
+import ApiUsage from './ApiUsage';
 import SummaryCards from './SummaryCards';
 import Filters from './Filters';
 import { api } from '../api';
@@ -67,6 +68,8 @@ export default function Dashboard({ user, onLogout }) {
             // redirected to follow-ups by the effect underneath.
             'marketing',
             'adleads',
+            // AI provider spend and account balance — billing data, admin only.
+            'usage',
             'users',
           ]
         : // A sales rep gets their own follow-ups, their own graded calls, their personal
@@ -167,6 +170,14 @@ export default function Dashboard({ user, onLogout }) {
             )}
             {isAdmin && (
               <button
+                className={view === 'usage' ? 'tab active' : 'tab'}
+                onClick={() => setView('usage')}
+              >
+                AI Usage
+              </button>
+            )}
+            {isAdmin && (
+              <button
                 className={view === 'users' ? 'tab active' : 'tab'}
                 onClick={() => setView('users')}
               >
@@ -234,6 +245,8 @@ export default function Dashboard({ user, onLogout }) {
           // Opening a lead's follow-up reuses the drawer this file already
           // owns rather than mounting a second copy of it inside the tab.
           <AdLeads onOpenTask={setSelectedId} />
+        ) : view === 'usage' ? (
+          <ApiUsage />
         ) : (
           <AdminUsers />
         )}

@@ -4,6 +4,8 @@
 // so we let the model auto-detect the language and rely on diarization to tell
 // the agent and the customer apart.
 
+const usage = require('./apiUsage');
+
 const API_URL = 'https://api.elevenlabs.io/v1/speech-to-text';
 
 const API_KEY = process.env.ELEVENLABS_API_KEY;
@@ -69,6 +71,9 @@ async function transcribe(buffer, filename = 'call.mp3', attempt = 0, model = MO
     try {
       json = JSON.parse(text);
     } catch {
+      // Metered per HTTP response, not per call: a retried recording is billed again,
+      // and the 422 model-fallback below is a second request too.
+      usage.record('elevenlabs', { ok: false });
       if (attempt < 2) {
         await sleep(2000 * (attempt + 1));
         return transcribe(buffer, filename, attempt + 1, model);
@@ -77,6 +82,7 @@ async function transcribe(buffer, filename = 'call.mp3', attempt = 0, model = MO
     }
 
     if (!res.ok) {
+      usage.record('elevenlabs', { ok: false });
       const msg = json.detail?.message || json.detail || json.message || `HTTP ${res.status}`;
 
       // Unknown model -> retry once on the older Scribe model.
@@ -90,6 +96,11 @@ async function transcribe(buffer, filename = 'call.mp3', attempt = 0, model = MO
       }
       return { ok: false, error: typeof msg === 'string' ? msg : JSON.stringify(msg) };
     }
+
+    usage.record('elevenlabs', {
+      ok: true,
+      audioSeconds: json.audio_duration_secs ?? json.duration ?? 0,
+    });
 
     return {
       ok: true,

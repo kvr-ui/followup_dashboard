@@ -12,6 +12,7 @@
 // ============================================================================
 
 const Call = require('../models/Call');
+const usage = require('./apiUsage');
 
 const API_URL = 'https://api.sarvam.ai/v1/chat/completions';
 const API_KEY = process.env.SARVAM_API_KEY;
@@ -304,6 +305,21 @@ function salvageJson(raw) {
 }
 
 /**
+ * Book one Sarvam completion against the spend meter. Sarvam reports `usage` even on a
+ * refusal, and a request that errored before any tokens were spent still counts as a
+ * request — that is how a rate-limit storm becomes visible in the UI.
+ */
+function meter(json, ok) {
+  const u = (json && json.usage) || {};
+  usage.record('sarvam', {
+    ok,
+    promptTokens: u.prompt_tokens,
+    completionTokens: u.completion_tokens,
+    totalTokens: u.total_tokens,
+  });
+}
+
+/**
  * Last resort for the FLAKY failure mode (a short call where the model just emitted
  * bad JSON once): hand the broken text back and ask it to return valid JSON only.
  */
@@ -328,6 +344,9 @@ async function reaskJson(raw) {
       }),
     });
     const json = await res.json();
+    // A repair attempt is a second billable completion, so it gets its own meter entry —
+    // otherwise the calls that cost the most (the ones that had to be fixed) look free.
+    meter(json, res.ok && !json.error);
     if (json.error) return null;
     const txt = ((json.choices && json.choices[0] && json.choices[0].message.content) || '')
       .trim()
@@ -371,6 +390,8 @@ async function gradeOne(call) {
     });
 
     const json = await res.json();
+    meter(json, res.ok && !json.error);
+
     if (json.error || !res.ok) {
       const detail = json.error ? JSON.stringify(json.error) : `HTTP ${res.status}`;
       return { error: detail.slice(0, 150), providerFault: isProviderFault(res.status, detail) };

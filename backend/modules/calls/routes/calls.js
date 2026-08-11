@@ -11,6 +11,7 @@ const {
   syncCalls,
   pipelineHealth,
 } = require('../controllers/callController');
+const { apiUsage } = require('../controllers/usageController');
 const { authenticate, requireAdmin } = require('../../../middleware/auth');
 
 const router = express.Router();
@@ -28,6 +29,10 @@ router.get('/grades', gradeAnalytics); // scorecard from AI call grades (self-sc
 router.get('/journeys', listJourneys);
 // Whole-system, not per-rep: how many calls are stuck or will never be scored.
 router.get('/pipeline-health', requireAdmin, pipelineHealth);
+// AI spend (Sarvam tokens + ElevenLabs minutes) and the providers' remaining balance.
+// Account-wide billing data, so admin-only — and declared BEFORE '/:id' or the id
+// route would swallow it.
+router.get('/usage', requireAdmin, apiUsage);
 router.get('/:id', getCall);
 router.get('/:id/recording', streamRecording);
 

@@ -7,6 +7,7 @@ const Task = require('./models/Task');
 const SyncState = require('./models/SyncState');
 const Call = require('./modules/calls/models/Call');
 const Deal = require('./modules/calls/models/Deal');
+const ApiUsage = require('./modules/calls/models/ApiUsage');
 const callJobs = require('./modules/calls/services/scheduler');
 const taskJobs = require('./services/taskSync');
 const adJobs = require('./modules/ads/services/scheduler');
@@ -35,6 +36,7 @@ connectDB()
   .then(() => SyncState.syncIndexes()) // unique per-job cursor
   .then(() => Call.syncIndexes()) // incl. deal.id — the journeys join depends on it
   .then(() => Deal.syncIndexes()) // incl. contactPhoneKey — the call<->deal match
+  .then(() => ApiUsage.syncIndexes()) // unique provider+day — the spend meter's upsert key
   .then(() => Promise.all(adModels.map((m) => m.syncIndexes()))) // the Meta ads mirror
   .then(() => {
     app.listen(PORT, () => {
