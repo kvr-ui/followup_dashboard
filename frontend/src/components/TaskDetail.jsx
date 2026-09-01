@@ -619,7 +619,10 @@ function VslWatch({ vsl }) {
         </Field>
       </div>
 
-      {watch.seconds > 0 && (
+      {/* Drawn only when the VSL actually reported a video duration — it does so
+          on well under 1% of events, and an empty track beside a real watch time
+          reads as "watched none of it". */}
+      {watch.seconds > 0 && watch.percentage > 0 && (
         <div className="vsl-bar" title={`${Math.round(watch.percentage)}% of the video`}>
           <div
             className={watch.completed ? 'vsl-bar-fill vsl-bar-done' : 'vsl-bar-fill'}

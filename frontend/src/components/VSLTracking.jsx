@@ -357,7 +357,11 @@ function Row({ lead, onOpenTask }) {
       </td>
       <td>
         <div className="vsl-minutes">{formatWatch(watch.seconds, watch.percentage)}</div>
-        {watch.seconds > 0 && (
+        {/* Only when we know how long the video is. The VSL reports videoDuration
+            on well under 1% of events, so for almost every lead there is no
+            percentage to draw — and an empty track next to "44.1 min" reads as
+            "watched none of it", which is the opposite of the truth. */}
+        {watch.seconds > 0 && watch.percentage > 0 && (
           <div className="vsl-bar" title={`${Math.round(watch.percentage)}% of the video`}>
             <div
               className={watch.completed ? 'vsl-bar-fill vsl-bar-done' : 'vsl-bar-fill'}
