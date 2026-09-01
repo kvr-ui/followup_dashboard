@@ -160,8 +160,11 @@ label {
 /* ---------- Header ---------- */
 header {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  /* Two stacked rows: title + account, then the tabs across the full width.
+     Side by side, the three fought over one line and the tabs always lost. */
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.65rem;
   padding: 0.85rem 2.25rem;
   background: rgba(255, 255, 255, 0.85);
   backdrop-filter: saturate(1.1) blur(8px);
@@ -171,10 +174,11 @@ header {
   z-index: 50;
 }
 
-.brand {
+.header-row {
   display: flex;
   align-items: center;
-  gap: 1.75rem;
+  justify-content: space-between;
+  gap: 1rem;
 }
 
 header h1 {
@@ -192,14 +196,45 @@ header h1 {
   border-radius: 10px;
   border: 1px solid var(--border);
 }
+/* Scoped to the header: Calls.jsx reuses .tabs for its own sub-tab bar at
+   width:fit-content, which must keep hugging its buttons. */
+header .tabs {
+  /* Only ever ONE row. Below about 1100px the last tabs scroll into reach
+     rather than wrapping into a ragged second row of pills. */
+  overflow-x: auto;
+  scrollbar-width: none; /* Firefox */
+
+  /* Edge shading that appears ONLY when there is something scrolled out of
+     view, so a clipped tab announces itself instead of just vanishing. The
+     four layers pair up: the first two scroll WITH the content (attachment:
+     local) and so slide away to uncover the fixed shadows underneath exactly
+     when you are not at that end. No JS, no scroll listener. */
+  background-image: linear-gradient(to right, var(--surface-inset) 60%, transparent),
+    linear-gradient(to left, var(--surface-inset) 60%, transparent),
+    linear-gradient(to right, rgba(15, 23, 42, 0.13), transparent),
+    linear-gradient(to left, rgba(15, 23, 42, 0.13), transparent);
+  background-position: left center, right center, left center, right center;
+  background-repeat: no-repeat;
+  background-size: 2.5rem 100%, 2.5rem 100%, 0.9rem 100%, 0.9rem 100%;
+  background-attachment: local, local, scroll, scroll;
+}
+header .tabs::-webkit-scrollbar {
+  display: none;
+}
 
 .tab {
   background: transparent;
   border: none;
   color: var(--ink-2);
-  padding: 0.35rem 0.85rem;
+  /* Tight enough that the admin's full set of tabs fits a 1280px laptop
+     without scrolling — the narrowest screen anyone here actually uses. */
+  padding: 0.35rem 0.7rem;
   border-radius: 7px;
   font-size: 0.85rem;
+  /* A label must never break across two lines — one tall tab made the whole
+     bar look broken ("VSL Tracking" was doing exactly that). */
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 .tab:hover {
   background: transparent;
@@ -215,6 +250,7 @@ header h1 {
   display: flex;
   align-items: center;
   gap: 1rem;
+  flex-shrink: 0; /* the name and Logout are never what gets squeezed */
 }
 .who-mini {
   font-size: 0.85rem;

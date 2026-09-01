@@ -125,9 +125,20 @@ export default function Dashboard({ user, onLogout }) {
   return (
     <>
       <header>
-        <div className="brand">
+        {/* Title and account on one line, the tabs on their own full-width line
+            below. They used to share a row, so every tab added squeezed the
+            others until labels broke across two lines and the account name was
+            pushed off the edge — at thirteen tabs an admin had reached that. */}
+        <div className="header-row">
           <h1>Followup Dashboard</h1>
-          <nav className="tabs">
+          <div className="user-box">
+            <span className="who-mini">
+              {user.name} <span className="subtle">({user.role})</span>
+            </span>
+            <button onClick={onLogout}>Logout</button>
+          </div>
+        </div>
+        <nav className="tabs">
             <button
               className={view === 'tasks' ? 'tab active' : 'tab'}
               onClick={() => setView('tasks')}
@@ -232,14 +243,7 @@ export default function Dashboard({ user, onLogout }) {
             >
               API Docs
             </button>
-          </nav>
-        </div>
-        <div className="user-box">
-          <span className="who-mini">
-            {user.name} <span className="subtle">({user.role})</span>
-          </span>
-          <button onClick={onLogout}>Logout</button>
-        </div>
+        </nav>
       </header>
 
       <main>
