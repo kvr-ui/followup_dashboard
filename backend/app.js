@@ -15,6 +15,7 @@ const callWebhookRoutes = require('./modules/calls/routes/webhooks'); // v2: Tel
 const webLeadRoutes = require('./modules/ads/routes/webLeads'); // v2: public landing-page lead ingest
 const adsRoutes = require('./modules/ads/routes/ads'); // v2: admin ads reporting (Marketing + Ad Leads)
 const agentRoutes = require('./modules/agent/routes/agent'); // v2: ask-the-data assistant
+const vslRoutes = require('./modules/vsl/routes/vsl'); // v2: VSL watch time (second, read-only Mongo cluster)
 
 const app = express();
 
@@ -59,6 +60,7 @@ app.use('/api/wati', watiRoutes);
 app.use('/api/calls', callRoutes); // admin-only
 app.use('/api/installments', installmentRoutes); // auth + role-based filtering (reps see their own)
 app.use('/api/upsells', upsellRoutes); // auth + role-based filtering (reps see their own)
+app.use('/api/vsl', vslRoutes); // auth + role-based filtering (reps see their own)
 app.use('/webhook', callWebhookRoutes); // /webhook/call (TeleCMI), /webhook/deal (Bigin)
 // Auth only, no admin gate: reps may ask about their own book. Access control is
 // per TOOL inside the module, not per route — see modules/agent/services/tools.js.

@@ -36,6 +36,12 @@ export function extractTasks(record) {
       // 'meta' | 'web' | null. Denormalised onto the record by the server, so the
       // Source column is a plain field read — no lookup, no fetch, per row.
       leadSource: record.leadSource || null,
+      // Peak VSL watch time, decorated onto the record by the server from a
+      // cached map. Like leadSource above, a plain field read — no lookup, no
+      // fetch, per row. Undefined (not 0) when the VSL cluster is unconfigured
+      // or its map is still cold, so the column shows a dash rather than a zero.
+      vslMinutes: record.vslMinutes ?? null,
+      vslPercentage: record.vslPercentage ?? null,
     }));
 }
 

@@ -2208,3 +2208,56 @@ tr.row-today td {
   height: 42px;
   padding: 0 1.2rem;
 }
+
+/* ============================================================
+   VSL watch time (tracking tab + lead drawer + follow-ups column)
+   Appended block — nothing above is modified.
+   ============================================================ */
+
+/* Tabular figures so a column of minutes lines up on the decimal point
+   instead of drifting with the digit widths. */
+.vsl-minutes {
+  font-variant-numeric: tabular-nums;
+}
+
+/* How far into the video they got. A thin track under the figure rather than a
+   second number: the percentage is context for the minutes, not a rival to it. */
+.vsl-bar {
+  height: 4px;
+  margin-top: 0.35rem;
+  border-radius: 2px;
+  background: var(--surface-inset);
+  overflow: hidden;
+}
+.vsl-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: var(--accent);
+}
+/* Finished the video — worth distinguishing from "95% and stopped". */
+.vsl-bar-done {
+  background: var(--green);
+}
+
+/* The engagement badges, warmest at the bottom of the funnel. They read as one
+   scale, so the eye can rank a column of them without reading every label. */
+.vsl-eng-watched {
+  background: var(--green-soft);
+  color: var(--green);
+}
+.vsl-eng-played {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+.vsl-eng-opened {
+  background: var(--amber-soft);
+  color: var(--amber);
+}
+.vsl-eng-sent {
+  background: var(--surface-inset);
+  color: var(--muted);
+}
+.vsl-eng-none {
+  background: var(--surface-inset);
+  color: var(--muted);
+}

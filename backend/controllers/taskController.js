@@ -2,12 +2,12 @@ const Task = require('../models/Task');
 const zoho = require('../services/zoho');
 const wati = require('../services/wati');
 const { buildAcquisition } = require('../modules/ads/services/acquisitionView');
-
-function ownerEmailOf(task) {
-  return task && task.Owner && task.Owner.email
-    ? String(task.Owner.email).toLowerCase()
-    : null;
-}
+const { buildVslBlock } = require('../modules/vsl/services/vslView');
+const { peekPhoneWatchMap } = require('../modules/vsl/services/watchIndex');
+// Shared with the VSL tracking tab, which drops any row the logged-in rep does
+// not own. Two owner-matchers that drift mean a rep sees a colleague's lead in
+// one view and a 403 in the other — see utils/owner.js.
+const { ownerEmailOf } = require('../utils/owner');
 
 // Sales users may only touch tasks they own; admins may touch any.
 function canAccess(user, taskDoc) {
@@ -18,7 +18,7 @@ function canAccess(user, taskDoc) {
   return bodies.some((b) => ownerEmailOf(b) === mine);
 }
 
-function serialize(doc, acquisition) {
+function serialize(doc, extra) {
   return {
     id: doc.dedupeKey || doc.zohoId || String(doc._id),
     zohoId: doc.zohoId || null,
@@ -33,7 +33,13 @@ function serialize(doc, acquisition) {
     whatsappLog: doc.whatsappLog || [],
     // Where this lead came from, what it answered, and (admins only) what it
     // cost. Null — not an object of nulls — when no ad lead is linked.
-    acquisition: acquisition === undefined ? null : acquisition,
+    acquisition: (extra && extra.acquisition) || null,
+    // Peak watch time on the VSL, joined across a second Atlas cluster on the
+    // last 10 digits of the phone. Null — not an object of nulls — when the VSL
+    // is unconfigured, the number is too short to join, or this person was never
+    // sent the video. Same discipline as `acquisition`: a failed join costs the
+    // panel, not the response.
+    vsl: (extra && extra.vsl) || null,
   };
 }
 
@@ -50,16 +56,24 @@ function serialize(doc, acquisition) {
  * acquisition block present on GET but missing on PATCH would make the panel
  * vanish mid-call.
  *
- * Never throws: attribution is worth less than the lead it hangs off, so a
- * failure here costs the panel, not the response.
+ * Never throws: attribution and watch time are both worth less than the lead
+ * they hang off, so a failure here costs the panel, not the response.
  */
 async function detailFor(doc, user) {
-  try {
-    return await buildAcquisition(doc, { includeCost: user && user.role === 'admin' });
-  } catch (err) {
-    console.warn('Failed to build acquisition block:', err.message);
-    return null;
-  }
+  // Both blocks are optional enrichment on a second data source, so each carries
+  // its own catch: a VSL cluster timeout must not cost the acquisition panel, and
+  // neither may cost the lead.
+  const [acquisition, vsl] = await Promise.all([
+    buildAcquisition(doc, { includeCost: user && user.role === 'admin' }).catch((err) => {
+      console.warn('Failed to build acquisition block:', err.message);
+      return null;
+    }),
+    buildVslBlock(doc).catch((err) => {
+      console.warn('Failed to build VSL watch block:', err.message);
+      return null;
+    }),
+  ]);
+  return { acquisition, vsl };
 }
 
 async function serializeDetail(doc, user) {
@@ -106,6 +120,10 @@ function serializeList(doc) {
     // costs one string per row and not a lookup per row. Origin never changes;
     // cost does, which is why only this is carried here.
     leadSource: doc.leadSource || null,
+    // The join key for VSL watch time, decorated onto the row in getTasks below.
+    // Leaks nothing the row didn't already carry: the phone is in body.Who_Id
+    // and the frontend already derives it via getContact().
+    phoneKey: doc.phoneKey || null,
     body: doc.body,
   };
 }
@@ -137,6 +155,7 @@ async function loadTaskList() {
       taskCategory: 1,
       taskCategorySource: 1,
       leadSource: 1,
+      phoneKey: 1,
     }
   )
     .sort({ receivedAt: -1 })
@@ -195,6 +214,24 @@ async function getTasks(req, res) {
           return ownerEmailOf(r.body) === mine ? r : null;
         })
         .filter(Boolean);
+    }
+
+    // VSL watch time: a MAP LOOKUP per row, never a query per row — and never an
+    // await. This endpoint is polled every 15s by every open browser and must not
+    // acquire a dependency on the second Atlas cluster, so `peek` hands back
+    // whatever is already built and kicks a refresh behind the response. A cold
+    // or unreachable VSL cluster makes the Watched column render a dash and
+    // changes nothing else.
+    //
+    // Decorated HERE rather than inside loadTaskList's cache on purpose: that
+    // cache is invalidated by TASK writes only, so watch time baked into it would
+    // sit stale for a full TTL with nothing able to bump it.
+    const watch = peekPhoneWatchMap();
+    if (watch) {
+      records = records.map((r) => {
+        const w = r.phoneKey ? watch.get(r.phoneKey) : null;
+        return w ? { ...r, vslMinutes: w.minutes, vslPercentage: w.percentage } : r;
+      });
     }
 
     res.json({ success: true, count: records.length, data: records });

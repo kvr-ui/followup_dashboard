@@ -1,6 +1,7 @@
 import { formatDateTime, priorityClass, statusClass, getContact } from '../utils';
 import { classifyDue } from '../taskStats';
 import CopyButton from './CopyButton';
+import { formatWatch } from '../vslStats';
 
 // Where the lead came from, read straight off the row. The list response carries
 // a denormalised `leadSource`, so this is a plain lookup in a map — never a fetch
@@ -15,7 +16,7 @@ function SourceBadge({ leadSource }) {
   return <span className={`badge source-badge source-${leadSource}`}>{label}</span>;
 }
 
-function TaskRow({ task, receivedAt, category, categorySource, leadSource, onSelect }) {
+function TaskRow({ task, receivedAt, category, categorySource, leadSource, vslMinutes, vslPercentage, onSelect }) {
   const who = task.Who_Id?.name || '—';
   const owner = task.Owner?.name || '—';
   const { phone } = getContact(task);
@@ -48,6 +49,15 @@ function TaskRow({ task, receivedAt, category, categorySource, leadSource, onSel
       </td>
       <td className="source-cell">
         <SourceBadge leadSource={leadSource} />
+      </td>
+      <td className="source-cell vsl-minutes">
+        {vslMinutes ? (
+          formatWatch(vslMinutes * 60, vslPercentage)
+        ) : (
+          // A dash covers both "never watched" and "the VSL map isn't warm yet".
+          // A zero would claim we measured something.
+          <span className="subtle">—</span>
+        )}
       </td>
       <td>
         <div className="contact-name">{who}</div>
@@ -91,6 +101,7 @@ export default function TaskTable({ tasks, onSelect }) {
           <th>Task</th>
           <th>Category</th>
           <th>Source</th>
+          <th>Watched</th>
           <th>Contact</th>
           <th>Owner</th>
           <th>Status</th>
@@ -101,17 +112,31 @@ export default function TaskTable({ tasks, onSelect }) {
         </tr>
       </thead>
       <tbody>
-        {tasks.map(({ key, recordId, task, receivedAt, category, categorySource, leadSource }) => (
-          <TaskRow
-            key={key}
-            task={task}
-            receivedAt={receivedAt}
-            category={category}
-            categorySource={categorySource}
-            leadSource={leadSource}
-            onSelect={() => onSelect?.(recordId)}
-          />
-        ))}
+        {tasks.map(
+          ({
+            key,
+            recordId,
+            task,
+            receivedAt,
+            category,
+            categorySource,
+            leadSource,
+            vslMinutes,
+            vslPercentage,
+          }) => (
+            <TaskRow
+              key={key}
+              task={task}
+              receivedAt={receivedAt}
+              category={category}
+              categorySource={categorySource}
+              leadSource={leadSource}
+              vslMinutes={vslMinutes}
+              vslPercentage={vslPercentage}
+              onSelect={() => onSelect?.(recordId)}
+            />
+          )
+        )}
       </tbody>
     </table>
   );

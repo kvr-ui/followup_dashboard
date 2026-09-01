@@ -11,6 +11,7 @@ import Scorecard from './Scorecard';
 import Marketing from './Marketing';
 import Sources from './Sources';
 import AdLeads from './AdLeads';
+import VSLTracking from './VSLTracking';
 import ApiUsage from './ApiUsage';
 import ApiDocs from './ApiDocs';
 import Agent from './Agent';
@@ -68,6 +69,11 @@ export default function Dashboard({ user, onLogout }) {
             'products',
             'installments',
             'upsells',
+            // Visible to EVERY role, unlike the ads tabs below it. /api/vsl sits
+            // behind `authenticate` with no admin gate, and the controller pins a
+            // rep to VSL leads matching follow-ups they own — the same shape as
+            // installments and upsells.
+            'vsl',
             // Ad spend, cost per lead and raw lead PII are management data.
             // /api/ads is admin-only at the router, so a rep who reaches these
             // views gets a 403 and an empty screen — hence they are also absent
@@ -91,7 +97,7 @@ export default function Dashboard({ user, onLogout }) {
           // The API reference is open to reps too: it documents the endpoints, it does not
           // serve their data, and every admin-only entry is labelled as such (and would
           // answer 403 anyway). Hiding the docs would not have hidden anything.
-          ['tasks', 'agent', 'calls', 'scorecard', 'installments', 'upsells', 'apidocs'],
+          ['tasks', 'agent', 'calls', 'scorecard', 'installments', 'upsells', 'vsl', 'apidocs'],
     [isAdmin]
   );
 
@@ -173,6 +179,12 @@ export default function Dashboard({ user, onLogout }) {
               onClick={() => setView('upsells')}
             >
               Upsells
+            </button>
+            <button
+              className={view === 'vsl' ? 'tab active' : 'tab'}
+              onClick={() => setView('vsl')}
+            >
+              VSL Tracking
             </button>
             {isAdmin && (
               <button
@@ -269,6 +281,10 @@ export default function Dashboard({ user, onLogout }) {
           <Installments isAdmin={isAdmin} />
         ) : view === 'upsells' ? (
           <Upsells isAdmin={isAdmin} />
+        ) : view === 'vsl' ? (
+          // Opening a lead's follow-up reuses the drawer this file already owns,
+          // exactly as the Ad Leads tab does.
+          <VSLTracking isAdmin={isAdmin} onOpenTask={setSelectedId} />
         ) : view === 'analytics' ? (
           <Analytics />
         ) : view === 'calls' ? (

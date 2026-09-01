@@ -63,6 +63,20 @@ connectDB()
       } catch (e) {
         console.warn('cpl cache unavailable:', e.message);
       }
+
+      // The VSL peak-watch map, warmed for the same reason and behind the same
+      // guard. It reads a SECOND, read-only Atlas cluster that may be unset or
+      // unreachable, so it is deliberately outside the promise chain above: a
+      // cold or missing VSL map is a dash in the Watched column, never a failed
+      // boot. Its models must NEVER join the syncIndexes() list — see
+      // modules/vsl/models/VslLead.js.
+      try {
+        require('./modules/vsl/services/watchIndex')
+          .warm()
+          .catch((e) => console.warn('vsl watch map warm failed:', e.message));
+      } catch (e) {
+        console.warn('vsl watch map unavailable:', e.message);
+      }
     });
   })
   .catch((err) => {

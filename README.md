@@ -104,8 +104,30 @@ Full reference with inline comments: `backend/.env.example`. Summary by area:
 | Zoho/Bigin write-back (optional) | `ZOHO_CLIENT_ID`, `ZOHO_CLIENT_SECRET`, `ZOHO_REFRESH_TOKEN`, `ZOHO_ACCOUNTS_URL`, `ZOHO_API_URL`, `ZOHO_MODULE` |
 | **Meta Ads sync** (new — see below) | `META_ACCESS_TOKEN`, `META_AD_ACCOUNT_ID`, `META_API_VERSION`, `SYNC_INTERVAL_MINUTES`, `META_LEAD_FORM_IDS`, `META_PAGE_ID`, `AD_INSIGHT_LOOKBACK_DAYS`, `AD_SYNC_FIRST_RUN_DELAY_MS` |
 | **Public lead ingest** (new — see below) | `CORS_ORIGINS`, `WEB_LEAD_RATE_MAX`, `LEAD_INGEST_TOKEN` |
+| **VSL watch time** (new — see below) | `VSL_MONGO_URI`, `VSL_MONGO_DB`, `VSL_WATCH_TTL_MS`, `VSL_TASK_INDEX_TTL_MS`, `VSL_PHONE_CC` |
 | **Ask assistant** (new — see below) | `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_REASONING_EFFORT`, `OPENAI_MAX_OUTPUT_TOKENS`, `AGENT_MAX_ROUNDS`, `AGENT_RATE_MAX`, `BIGIN_COQL_ENABLED` |
 | Build-time only | `GITHUB_PACKAGES_TOKEN` (see above — not a runtime var, not in `backend/.env`) |
+
+### VSL watch time reads a second, read-only cluster
+
+The VSL landing page is a separate project with its own MongoDB Atlas cluster. It
+records how long each lead watches the video into `vsl_leads` / `vsl_events`
+there. The **VSL Tracking** tab and the watch-time panel in the lead drawer read
+those collections directly, over a second Mongoose connection that never writes.
+
+Set `VSL_MONGO_URI` (and `VSL_MONGO_DB`, default `focas`) to switch it on. Leave
+it unset and the feature is absent rather than broken: the tab says so, the drawer
+section does not render, and the follow-ups table's Watched column shows a dash.
+
+Two things worth knowing before changing anything in `backend/modules/vsl/`:
+
+- **Its models must never be added to `server.js`'s `syncIndexes()` chain.**
+  `syncIndexes()` drops indexes it does not know about; against that cluster it
+  would delete `phone_unique`, which the VSL project relies on to avoid sending
+  the same lead its link twice.
+- **Minutes watched is the peak from the event log, not `vsl_leads.watchedSeconds`.**
+  The VSL overwrites that field on every beacon, so it *falls* when a lead reopens
+  the video. Reporting it would show the most engaged leads as the coldest.
 
 ### This service now owns public lead capture
 

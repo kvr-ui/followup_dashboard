@@ -58,6 +58,9 @@ Three access levels appear below, copied from the router that enforces each one:
 - [Installments & Upsells](#installments-upsells)
   - `GET /api/installments` — Won deals with a balance outstanding, longest-overdue first.
   - `GET /api/upsells` — Won deals with Up_Scale set, newest first, priced against the product baseline.
+- [VSL watch time](#vsl-watch-time)
+  - `GET /api/vsl/leads` — VSL leads in a date range with peak watch time, lead source and follow-up link.
+  - `GET /api/vsl/status` — Whether the VSL cluster is wired up, and whether the watch map is warm.
 - [Analytics](#analytics)
   - `GET /api/analytics` — Status / priority / due-date rollups and per-rep activity across all follow-ups.
 - [Marketing / Ads](#marketing-ads)
@@ -1354,6 +1357,153 @@ const json = await res.json();
 ```
 
 Served by `backend/modules/calls/controllers/upsellController.js`.
+
+---
+
+## VSL watch time
+
+How much of the sales video each lead actually watched. Reads a SECOND, read-only Mongo cluster owned by the VSL landing-page project and joins it to follow-ups on the last 10 digits of the phone. Not admin-only: a rep is scoped to VSL leads matching follow-ups they own, so they never see another rep's book — or a watcher who is not in the dashboard at all. With VSL_MONGO_URI unset every endpoint answers `configured: false` rather than failing.
+
+### `GET /api/vsl/leads`
+
+**Any logged-in user.** VSL leads in a date range with peak watch time, lead source and follow-up link.
+
+> `watch.seconds` is the PEAK ever recorded in the event log, not the VSL lead record's own figure — that one is overwritten on every beacon and so falls when somebody reopens the video. `watch.basis` says which you got: `events` (measured), `lead` (the overwritable value, for rows with no events) or `none`. `totals` is computed before the optional filters, so the summary cards keep showing the whole range.
+
+**Query parameters**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `from` | YYYY-MM-DD | Defaults to 30 days ago. |
+| `to` | YYYY-MM-DD | Defaults to today. |
+| `owner` | email | Admins only — ignored for reps, who are pinned to their own leads. |
+| `engagement` | string | all \| watched \| played \| opened \| sent \| none |
+| `linked` | string | all \| linked \| unlinked. `unlinked` is always empty for a rep. |
+| `search` | string | Matches VSL name, phone, or the linked contact name. |
+| `limit` | number | Default 500, capped at 1000. Not paginated — see `truncated`. |
+
+**Request**
+
+```bash
+curl 'http://localhost:3000/api/vsl/leads' \
+  -H 'Authorization: Bearer <YOUR_TOKEN>'
+```
+
+```js
+const res = await fetch('/api/vsl/leads', {
+  headers: {
+    Authorization: `Bearer ${token}`,
+  },
+});
+const json = await res.json();
+```
+
+**Response** `200`
+
+```json
+{
+  "success": true,
+  "configured": true,
+  "count": 214,
+  "truncated": false,
+  "totals": {
+    "all": 214,
+    "watched": 88,
+    "played": 121,
+    "opened": 160,
+    "sent": 214,
+    "notInDashboard": 12,
+    "unjoinable": 3,
+    "minutesTotal": 1042.5
+  },
+  "data": [
+    {
+      "leadId": "823c0a57…",
+      "phone": "919876543210",
+      "phoneKey": "9876543210",
+      "name": "Rahul S",
+      "linkSentAt": "2026-08-14T05:12:03.000Z",
+      "firstOpenedAt": "2026-08-14T06:40:11.000Z",
+      "firstPlayAt": "2026-08-14T06:40:29.000Z",
+      "lastActivityAt": "2026-08-16T11:09:02.000Z",
+      "openCount": 3,
+      "watch": {
+        "seconds": 752,
+        "minutes": 12.5,
+        "percentage": 45,
+        "videoDuration": 1670,
+        "events": 41,
+        "completed": false,
+        "basis": "events"
+      },
+      "engagement": "watched",
+      "leadSource": {
+        "key": "Meta Ads",
+        "raw": "ig",
+        "basis": "deal"
+      },
+      "dashboard": {
+        "linked": true,
+        "taskId": "9876543210",
+        "contactName": "Rahul S",
+        "ownerName": "Veera",
+        "ownerEmail": "veera@focasedu.com",
+        "status": "In Progress"
+      }
+    }
+  ]
+}
+```
+
+**Errors**
+
+| Status | Message |
+| --- | --- |
+| `400` | Invalid 'from' date: expected YYYY-MM-DD |
+
+Served by `backend/modules/vsl/controllers/vslController.js`.
+
+### `GET /api/vsl/status`
+
+**Any logged-in user.** Whether the VSL cluster is wired up, and whether the watch map is warm.
+
+> `peaks` is admin-only and is omitted — not nulled — for a rep.
+
+**Request**
+
+```bash
+curl 'http://localhost:3000/api/vsl/status' \
+  -H 'Authorization: Bearer <YOUR_TOKEN>'
+```
+
+```js
+const res = await fetch('/api/vsl/status', {
+  headers: {
+    Authorization: `Bearer ${token}`,
+  },
+});
+const json = await res.json();
+```
+
+**Response** `200`
+
+```json
+{
+  "success": true,
+  "configured": true,
+  "db": "focas",
+  "peaks": {
+    "leads": 1420,
+    "phoneKeys": 1388,
+    "builtAt": "2026-08-16T11:00:00.000Z",
+    "buildMs": 3120,
+    "stale": false,
+    "error": null
+  }
+}
+```
+
+Served by `backend/modules/vsl/controllers/vslController.js`.
 
 ---
 
