@@ -33,3 +33,22 @@ export async function api(path, { method = 'GET', body, headers = {} } = {}) {
   }
   return json;
 }
+
+// Fetches an authenticated file (CSV etc.) and hands it to the browser as a
+// download — a plain <a href> can't carry the Bearer token.
+export async function download(path, fallbackName = 'export.csv') {
+  const token = getToken();
+  const res = await fetch(path, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  if (res.status === 401) {
+    setToken(null);
+    throw new Error('Session expired. Please log in again.');
+  }
+  if (!res.ok) throw new Error(`Download failed (${res.status})`);
+  const name = /filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') || '')?.[1] || fallbackName;
+  const url = URL.createObjectURL(await res.blob());
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(url);
+}

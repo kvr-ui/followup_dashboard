@@ -3,6 +3,7 @@ const express = require('express');
 const {
   listCalls,
   listJourneys,
+  exportLost,
   callStats,
   outcomeStats,
   gradeAnalytics,
@@ -27,6 +28,7 @@ router.get('/stats', callStats);
 router.get('/outcomes', outcomeStats); // won/lost + why we lose
 router.get('/grades', gradeAnalytics); // scorecard from AI call grades (self-scoped for reps)
 router.get('/journeys', listJourneys);
+router.get('/export', exportLost); // lost leads as CSV (full or WATI)
 // Whole-system, not per-rep: how many calls are stuck or will never be scored.
 router.get('/pipeline-health', requireAdmin, pipelineHealth);
 // AI spend (Sarvam tokens + ElevenLabs minutes) and the providers' remaining balance.

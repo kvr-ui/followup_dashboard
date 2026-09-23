@@ -718,7 +718,98 @@ async function pipelineHealth(req, res) {
   }
 }
 
+
+// One CSV cell: quoted, inner quotes doubled, newlines flattened so a note typed
+// into Bigin can't split a row.
+function csvCell(v) {
+  if (v === null || v === undefined) return '""';
+  return `"${String(v).replace(/"/g, '""').replace(/\r?\n/g, ' ')}"`;
+}
+
+// Indian numbers arrive as "98xxxxxxxx", "+91 98…", "098…". WATI wants country
+// code + number, digits only.
+function watiPhone(raw) {
+  let p = String(raw || '').replace(/\D/g, '');
+  if (p.length === 10) p = `91${p}`;
+  else if (p.length === 11 && p[0] === '0') p = `91${p.slice(1)}`;
+  return /^\d{11,15}$/.test(p) ? p : null;
+}
+
+/**
+ * GET /api/calls/export?kind=full|wati&reason=&owner= — lost leads as a CSV.
+ *
+ *   full  every field we hold on the deal, plus its call totals
+ *   wati  Name,CountryCode,Phone,AllowCampaign,AllowSMS — WATI's contact import;
+ *         duplicate and unusable numbers are dropped
+ *
+ * `reason` narrows to one loss reason; omit it for every lost deal. Scoped like
+ * every other read here, so a rep only ever exports their own deals.
+ */
+async function exportLost(req, res) {
+  try {
+    const kind = req.query.kind === 'wati' ? 'wati' : 'full';
+    const q = { ...ownerScope(req), outcome: 'lost' };
+    if (req.query.reason) q.lostReason = String(req.query.reason);
+
+    const deals = await Deal.find(q).sort({ closingDate: -1 }).lean();
+    const slug = (req.query.reason || 'all-lost').replace(/[^a-z0-9]+/gi, '-').toLowerCase();
+
+    let lines;
+    if (kind === 'wati') {
+      // Matches WATI's contact-import template exactly: unquoted, CRLF, the
+      // number split into country code and the local part.
+      const seen = new Set();
+      lines = ['Name,CountryCode,Phone,AllowCampaign,AllowSMS'];
+      for (const d of deals) {
+        const phone = watiPhone(d.contactPhone);
+        if (!phone || seen.has(phone)) continue;
+        seen.add(phone);
+        // No commas or quotes in a name, so the row never needs quoting.
+        const name = (d.contactName || d.name || '').replace(/[",\r\n]+/g, ' ').trim();
+        lines.push([name, phone.slice(0, -10), phone.slice(-10), 'True', 'True'].join(','));
+      }
+    } else {
+      // Call totals come from the journeys snapshot, keyed by deal id.
+      const journeys = new Map((await getJourneys()).map((j) => [j._id, j]));
+      const cols = [
+        'Deal ID', 'Deal Name', 'Contact Name', 'Phone', 'Stage', 'Lost Reason',
+        'Closing Date', 'Amount', 'Owner', 'Owner Email', 'Lead Source', 'Lead Source (raw)',
+        'Meta Lead ID', 'Products', 'Total Calls', 'Talk Time (min)', 'Longest Call (s)',
+        'Avg Grade', 'First Call', 'Last Call', 'Bigin Modified',
+      ];
+      lines = [cols.map(csvCell).join(',')];
+      for (const d of deals) {
+        const j = journeys.get(d.zohoId) || {};
+        lines.push([
+          d.zohoId, d.name, d.contactName, d.contactPhone, d.stage, d.lostReason,
+          d.closingDate, d.amount, d.ownerName, d.ownerEmail, d.leadSourceKey, d.leadSource,
+          d.socialLeadId, (d.products || []).map((p) => p.name).filter(Boolean).join('; '),
+          j.totalCalls ?? 0,
+          j.totalDuration ? Math.round(j.totalDuration / 60) : 0,
+          j.longestCall ?? '',
+          j.avgScore != null ? Math.round(j.avgScore) : '',
+          j.firstCall ? new Date(j.firstCall).toISOString() : '',
+          j.lastCall ? new Date(j.lastCall).toISOString() : '',
+          d.modifiedTime ? new Date(d.modifiedTime).toISOString() : '',
+        ].map(csvCell).join(','));
+      }
+    }
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${slug}-${kind}.csv"`);
+    // BOM so Excel reads Tamil names as UTF-8 instead of mojibake. Not on the WATI
+    // file: its importer would read the BOM into the first header name. WATI's own
+    // template uses CRLF, so match it.
+    const eol = kind === 'wati' ? '\r\n' : '\n';
+    res.send(`${kind === 'full' ? '\uFEFF' : ''}${lines.join(eol)}${eol}`);
+  } catch (err) {
+    console.error('Lost export failed:', err.message);
+    res.status(500).json({ success: false, message: 'Export failed' });
+  }
+}
+
 module.exports = {
+  exportLost,
   pipelineHealth,
   listCalls,
   listJourneys,

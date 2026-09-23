@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { api } from '../api';
+import { api, download } from '../api';
 import CallDetail from './CallDetail';
 import { formatDateTime } from '../utils';
 
@@ -158,6 +158,19 @@ export default function Calls() {
 
   const isWon = outcome === 'won';
 
+  // Lost-lead CSVs: the selected reason, or every lost deal when none is picked.
+  // Follows the salesperson filter too; the server scopes reps to their own deals.
+  async function exportLost(kind) {
+    const qs = new URLSearchParams({ kind });
+    if (reason) qs.set('reason', reason);
+    if (owner) qs.set('owner', owner);
+    try {
+      await download(`/api/calls/export?${qs.toString()}`);
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+
   // Switching tab is a different question, so drop the filters that only make
   // sense on the other one and go back to page 1.
   function switchTab(next) {
@@ -241,7 +254,26 @@ export default function Calls() {
       {/* Only the lost tab has a "why". */}
       {!isWon && reasonList.length > 0 && (
         <div className="card" style={{ padding: '14px 16px', marginBottom: 16 }}>
-          <div className="label" style={{ marginBottom: 10 }}>Why deals are lost</div>
+          <div
+            style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', marginBottom: 10 }}
+          >
+            <div className="label" style={{ marginRight: 'auto' }}>Why deals are lost</div>
+            <span className="label" style={{ opacity: 0.7 }}>
+              Export {reason ? `“${reason}”` : 'all lost'}:
+            </span>
+            <button
+              onClick={() => exportLost('full')}
+              title="Every field on these deals, plus their call totals"
+            >
+              Full CSV
+            </button>
+            <button
+              onClick={() => exportLost('wati')}
+              title="Name, CountryCode, Phone — WATI contact-import format"
+            >
+              WATI CSV
+            </button>
+          </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             {reasonList.map((r) => (
               <button
