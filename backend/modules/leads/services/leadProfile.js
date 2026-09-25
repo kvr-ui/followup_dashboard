@@ -32,6 +32,7 @@ const MetaLead = require('../../ads/models/MetaLead');
 const Deal = require('../../calls/models/Deal');
 const Call = require('../../calls/models/Call');
 const zoho = require('../../../services/zoho');
+const vslConnection = require('../../vsl/services/connection');
 const { serialize, serializeDetail } = require('../../../controllers/taskController');
 const { buildAcquisition } = require('../../ads/services/acquisitionView');
 const { buildVslBlock, contactPhoneOf } = require('../../vsl/services/vslView');
@@ -129,6 +130,13 @@ function repOwnsSomething(user, { tasks, deals, calls }) {
   if (tasks.some((t) => taskOwnerEmails(t).includes(mine))) return true;
   if (deals.some((d) => lower(d.ownerEmail) === mine)) return true;
   return calls.some((c) => lower(c.ownerEmail) === mine);
+}
+
+/** No owner email on any Task, Deal or Call — an unassigned lead. */
+function nobodyOwns({ tasks, deals, calls }) {
+  if (tasks.some((t) => taskOwnerEmails(t).length)) return false;
+  if (deals.some((d) => lower(d.ownerEmail))) return false;
+  return !calls.some((c) => lower(c.ownerEmail));
 }
 
 // ---------------------------------------------------------------------------
@@ -457,12 +465,16 @@ async function buildLeadProfile(phoneKey, user) {
       : fail(404, 'No lead found for this phone number');
   }
 
-  // ---- 403: a rep must own at least one Task, Deal or Call on the key ------
+  // ---- 403: a rep must own a Task, Deal or Call on the key — or nobody may ---
+  // A lead nobody owns yet (a fresh form fill) is open to every rep, the same
+  // rule the Leads list uses to show it. Only when every ownership source
+  // answered can we say "nobody owns it".
   if (!isAdmin && !repOwnsSomething(user, { tasks, deals, calls })) {
     const ownershipUnknown = failed.has('tasks') || failed.has('deals') || failed.has('calls');
-    return ownershipUnknown
-      ? fail(503, 'Could not verify access to this lead right now — please try again')
-      : fail(403, 'Not your lead');
+    if (ownershipUnknown) {
+      return fail(503, 'Could not verify access to this lead right now — please try again');
+    }
+    if (!nobodyOwns({ tasks, deals, calls })) return fail(403, 'Not your lead');
   }
 
   const [latestTask, vsl, acquisition] = await Promise.all([latestTaskP, vslP, acquisitionP]);
@@ -484,6 +496,9 @@ async function buildLeadProfile(phoneKey, user) {
         deals,
         calls,
         vsl: vsl || null,
+        // null vsl means "never watched" only when the VSL cluster is wired up;
+        // otherwise nobody can know, and the page says which.
+        vslConfigured: vslConnection.isConfigured(),
         acquisition: acquisition || null,
         timeline: buildTimeline({ tasks, webLeads, metaLeads, deals, calls }),
       },
@@ -499,4 +514,15 @@ function mergeForms(webLeads, metaLeads) {
   ].sort(byNewest((f) => f.at));
 }
 
-module.exports = { buildLeadProfile, buildHeader, buildTimeline };
+module.exports = {
+  buildLeadProfile,
+  buildHeader,
+  buildTimeline,
+  // Shared with the Leads list (leadList.js), so a row and its profile agree.
+  mergeForms,
+  bodiesOf,
+  toDate,
+  lower,
+  taskAt,
+  dealAt,
+};
