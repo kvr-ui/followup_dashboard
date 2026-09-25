@@ -2297,3 +2297,226 @@ tr.row-today td {
   background: var(--surface-inset);
   color: var(--muted);
 }
+
+/* ============================================================
+   Lead profile page (#/lead/<phoneKey>) — `.lp-` prefix
+   Appended block — nothing above is modified. Section cards reuse
+   .drawer-section / .fields / .timeline from the old lead drawer.
+   ============================================================ */
+.lead-profile {
+  max-width: 1200px;
+  margin: 0 auto;
+  min-width: 0;
+}
+.lp-back {
+  display: inline-block;
+  font-size: 0.86rem;
+  font-weight: 500;
+}
+.lp-header {
+  margin-bottom: 1.1rem;
+}
+.lp-header-main {
+  margin-top: 0.6rem;
+}
+.lp-name {
+  font-family: var(--serif);
+  font-size: 1.6rem;
+  font-weight: 600;
+  line-height: 1.2;
+  word-break: break-word;
+}
+.lp-header-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  margin-top: 0.5rem;
+  font-size: 0.9rem;
+}
+
+/* Actions column | main column; one column when there is no Task or on a phone. */
+.lp-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 320px) minmax(0, 1fr);
+  gap: 1.1rem;
+  align-items: start;
+}
+.lp-grid.lp-single {
+  grid-template-columns: minmax(0, 1fr);
+}
+.lp-actions,
+.lp-main {
+  min-width: 0;
+}
+.lp-actions select,
+.lp-actions input,
+.lp-actions textarea {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+.lp-task-subject {
+  margin-top: 0.3rem;
+  font-weight: 600;
+  word-break: break-word;
+}
+
+/* Timeline */
+.lp-ev-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+}
+.lp-ev-text {
+  font-size: 0.9rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.lp-ev-by {
+  font-size: 0.78rem;
+}
+.lp-type {
+  background: var(--slate-soft);
+  color: var(--slate);
+}
+.lp-type-note {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+.lp-type-call,
+.lp-type-whatsapp {
+  background: var(--green-soft);
+  color: var(--green);
+}
+.lp-type-deal,
+.lp-type-status {
+  background: var(--amber-soft);
+  color: var(--amber);
+}
+.lp-ev-note {
+  border-left-color: var(--accent);
+}
+
+/* Deals, calls and forms: a list of inset items inside one section card. */
+.lp-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  margin-top: 0.6rem;
+}
+.lp-item {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.75rem 0.85rem;
+  min-width: 0;
+}
+.lp-item-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem 0.6rem;
+}
+.lp-item-head b {
+  word-break: break-word;
+}
+.lp-owed {
+  color: var(--red);
+  font-weight: 600;
+}
+.lp-paid {
+  color: var(--green);
+  font-weight: 600;
+}
+.lp-call-meta {
+  margin-top: 0.3rem;
+  font-size: 0.8rem;
+  word-break: break-word;
+}
+.lp-call-summary {
+  font-size: 0.85rem;
+}
+.lp-call-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  margin-top: 0.5rem;
+}
+.lp-call-actions .audio-player {
+  margin-top: 0;
+}
+.lead-profile .link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 0.82rem;
+}
+.lead-profile .link-btn:hover {
+  background: none;
+  color: var(--accent-hover);
+  text-decoration: underline;
+}
+
+/* Form answers as a key-value list. minmax(0, …) lets long URLs wrap
+   instead of widening the page. */
+.lp-kv {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.35rem;
+  margin: 0.55rem 0 0;
+}
+.lp-kv-row {
+  display: grid;
+  grid-template-columns: minmax(90px, 160px) minmax(0, 1fr);
+  gap: 0.75rem;
+  font-size: 0.86rem;
+}
+.lp-kv dt {
+  color: var(--muted);
+  text-transform: capitalize;
+}
+.lp-kv dd {
+  margin: 0;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.lp-older summary {
+  cursor: pointer;
+}
+.lp-older[open] summary {
+  margin-bottom: 0.3rem;
+}
+
+.lp-empty {
+  margin-top: 1rem;
+  max-width: 560px;
+}
+.lp-empty p {
+  margin: 0.5rem 0 1rem;
+}
+.lp-empty-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+@media (max-width: 900px) {
+  .lp-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 640px) {
+  .lp-kv-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.05rem;
+  }
+  .lp-name {
+    font-size: 1.35rem;
+  }
+}

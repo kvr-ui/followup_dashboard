@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import TaskTable from './TaskTable';
-import TaskDetail from './TaskDetail';
 import AdminUsers from './AdminUsers';
 import Analytics from './Analytics';
 import Calls from './Calls';
@@ -31,7 +30,6 @@ export default function Dashboard({ user, onLogout }) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [filters, setFilters] = useState({ ...DEFAULT_FILTERS });
-  const [selectedId, setSelectedId] = useState(null);
   // #/lead/<phoneKey> — the lead page, shown in place of the tab content.
   const leadKey = useLeadRoute();
 
@@ -322,14 +320,6 @@ export default function Dashboard({ user, onLogout }) {
           <AdminUsers />
         )}
       </main>
-
-      {selectedId && (
-        <TaskDetail
-          recordId={selectedId}
-          onClose={() => setSelectedId(null)}
-          onUpdated={loadTasks}
-        />
-      )}
     </>
   );
 }
