@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../api';
 import CopyButton from './CopyButton';
+import LeadLink from './LeadLink';
+import { rowPhoneKey } from '../leadRoute';
 import { inr, upsoldTo } from '../upsell';
 
 /** Days since the deal closed — how long the balance has been outstanding. */
@@ -173,7 +175,11 @@ export default function Installments({ isAdmin }) {
               const stale = age !== null && age >= 60;
               return (
                 <tr key={r.id}>
-                  <td style={{ fontWeight: 500 }}>{r.contactName || r.dealName || '—'}</td>
+                  <td style={{ fontWeight: 500 }}>
+                    <LeadLink phoneKey={rowPhoneKey(r, r.contactPhone)}>
+                      {r.contactName || r.dealName || '—'}
+                    </LeadLink>
+                  </td>
                   <td>
                     {r.contactPhone ? (
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>

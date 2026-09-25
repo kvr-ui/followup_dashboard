@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../api';
 import DateRangeBar from './DateRangeBar';
+import { openLead, rowPhoneKey } from '../leadRoute';
 import {
   LEAD_STATES,
   LEAD_STATUS,
@@ -55,7 +56,7 @@ const STATUS_FILTERS = {
 
 const dash = (value) => (value == null || value === '' ? '—' : value);
 
-export default function AdLeads({ onOpenTask }) {
+export default function AdLeads() {
   const [range, setRange] = useState(defaultRange);
   const [leads, setLeads] = useState(null);
   const [meta, setMeta] = useState(null);
@@ -237,7 +238,7 @@ export default function AdLeads({ onOpenTask }) {
                 </thead>
                 <tbody>
                   {rows.map((lead) => (
-                    <LeadRow key={`${lead.source}-${lead.id}`} lead={lead} onOpenTask={onOpenTask} />
+                    <LeadRow key={`${lead.source}-${lead.id}`} lead={lead} />
                   ))}
                 </tbody>
               </table>
@@ -249,8 +250,14 @@ export default function AdLeads({ onOpenTask }) {
   );
 }
 
-function LeadRow({ lead, onOpenTask }) {
+function LeadRow({ lead }) {
   const utm = lead.utm;
+  // The row opens the lead page. A lead with no usable phone has nowhere to go.
+  const leadKey = rowPhoneKey(lead, lead.phone);
+  const open = (e) => {
+    e.stopPropagation();
+    openLead(leadKey);
+  };
   const how = lead.resolvedBy ? RESOLVED_BY[lead.resolvedBy] : null;
   // A web lead can arrive with the UTM object present but every field empty —
   // somebody reached the form from an untagged link. That is a different problem
@@ -259,7 +266,7 @@ function LeadRow({ lead, onOpenTask }) {
   const tagged = Boolean(utm) && Object.values(utm).some((v) => v != null && v !== '');
 
   return (
-    <tr>
+    <tr className={leadKey ? 'clickable-row' : undefined} onClick={leadKey ? open : undefined}>
       <td>
         <div className="contact-name">{dash(lead.name)}</div>
         <div className="subtle">{dash(lead.phone)}</div>
@@ -323,10 +330,12 @@ function LeadRow({ lead, onOpenTask }) {
         <LeadStatus lead={lead} />
       </td>
       <td>
-        {lead.linked && lead.task ? (
-          <button className="mkt-open" onClick={() => onOpenTask && onOpenTask(lead.task.id)}>
+        {lead.linked && lead.task && leadKey ? (
+          <button className="mkt-open" onClick={open}>
             Open follow-up
           </button>
+        ) : lead.linked && lead.task ? (
+          <span className="subtle">no phone</span>
         ) : (
           <span className="subtle">not linked</span>
         )}
