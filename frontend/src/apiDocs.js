@@ -197,6 +197,87 @@ export const GROUPS = [
 
   // -------------------------------------------------------------------------
   {
+    id: 'leads',
+    title: 'Leads',
+    blurb:
+      'Every person the dashboard knows about — anyone with a follow-up task, a web or Meta form fill, ' +
+      'or a deal — one row per phone number. A rep gets their own leads plus the ones nobody owns yet.',
+    endpoints: [
+      {
+        method: 'GET',
+        path: '/api/leads-list',
+        auth: USER,
+        summary: 'One row per lead, filtered, sorted and paged server-side.',
+        source: 'backend/modules/leads/services/leadList.js',
+        note:
+          'Calls never create a row; they only decide ownership. `facets` are counted over the ' +
+          'caller\'s whole scope before any filter, so the dropdowns always offer every value.',
+        query: [
+          ['q', 'string', 'Name, or 3+ digits of the phone.'],
+          ['status', 'string', 'won | lost | pipeline | followup | none'],
+          ['source', 'string', 'One of `facets.sources`.'],
+          ['owner', 'email', 'Admin only — ignored for a rep.'],
+          ['unassigned', '1', 'Only leads with no task, deal or call owner.'],
+          ['from / to', 'YYYY-MM-DD', 'Created date window, IST days, both inclusive.'],
+          ['sort', 'string', 'lastActivity (default) | created | nextFollowUp | name'],
+          ['page', 'number', 'Default 1.'],
+          ['limit', 'number', 'Default 50, capped at 200.'],
+        ],
+        example: '/api/leads-list?status=followup&sort=nextFollowUp&limit=20',
+        response: {
+          success: true,
+          total: 812,
+          page: 1,
+          limit: 20,
+          rows: [
+            {
+              phoneKey: '9876543210',
+              name: 'Rahul S',
+              phone: '+919876543210',
+              state: 'followup',
+              ownerName: 'Veera',
+              ownerEmail: 'veera@focasedu.com',
+              source: 'Meta form',
+              campaign: 'CA Inter — Aug',
+              nextFollowUp: '2026-09-26',
+              createdAt: '2026-08-11T06:12:44.101Z',
+              lastActivity: '2026-09-24T10:02:00.000Z',
+              unassigned: false,
+              counts: { tasks: 1, forms: 1, deals: 0 },
+            },
+          ],
+          facets: {
+            total: 812,
+            byState: { won: 90, lost: 140, pipeline: 61, followup: 402, none: 119 },
+            unassigned: 119,
+            sources: ['Meta Ads', 'Meta form', 'Web form'],
+            owners: [{ email: 'veera@focasedu.com', name: 'Veera' }],
+          },
+        },
+      },
+      {
+        method: 'GET',
+        path: '/api/lead-profile/:phoneKey',
+        auth: USER,
+        summary: 'Everything about one lead: tasks, forms, deals, calls, VSL watch time, timeline.',
+        source: 'backend/modules/leads/services/leadProfile.js',
+        note:
+          'A rep may open a lead they own a task, deal or call on, or one nobody owns yet. ' +
+          'Acquisition cost is included for admins only.',
+        example: '/api/lead-profile/9876543210',
+        response: { success: true, zohoSync: true, data: '…header, latestTask, deals, calls, timeline…' },
+        errors: [
+          ['400', 'phoneKey must be exactly 10 digits'],
+          ['403', 'Not your lead'],
+          ['404', 'No lead found for this phone number'],
+          ['503', 'A source failed, so the answer could not be trusted'],
+        ],
+      },
+    ],
+  },
+
+  // -------------------------------------------------------------------------
+  {
     id: 'agent',
     title: 'Ask (data assistant)',
     blurb:

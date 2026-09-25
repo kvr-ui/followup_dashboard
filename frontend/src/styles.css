@@ -2304,9 +2304,13 @@ tr.row-today td {
    .drawer-section / .fields / .timeline from the old lead drawer.
    ============================================================ */
 .lead-profile {
-  max-width: 1200px;
+  /* Wide enough for three columns on a laptop; capped so a 4K screen doesn't
+     stretch lines past reading length. */
+  max-width: 1760px;
   margin: 0 auto;
   min-width: 0;
+  /* Where the pinned columns stop: just under the sticky app header. */
+  --lp-top: 124px;
 }
 .lp-back {
   display: inline-block;
@@ -2335,16 +2339,302 @@ tr.row-today td {
   font-size: 0.9rem;
 }
 
-/* Actions column | main column; one column when there is no Task or on a phone. */
-.lp-grid {
+/* Header card: who they are on the left, the counts on the right. */
+.lp-hero {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem 2rem;
+  margin-top: 0.6rem;
+  padding: 1.1rem 1.3rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+}
+.lp-hero .lp-header-main {
+  margin-top: 0;
+  min-width: 0;
+}
+.lp-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.lp-title-row .lp-back {
+  flex: none;
+  padding: 0.2rem 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
+}
+.lp-title-row .lp-back:hover {
+  background: var(--surface-2);
+  text-decoration: none;
+}
+/* Tighter cards on this page: it shows many at once. */
+.lead-profile .drawer-section {
+  padding: 0.95rem 1.05rem;
+  margin-bottom: 0.8rem;
+}
+.lead-profile .lp-hero {
+  padding: 0.9rem 1.1rem;
+}
+
+/* Deals: as many fields per row as fit (four on a laptop). */
+.lp-deal-grid {
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 0.6rem 1rem;
+  margin-top: 0.5rem;
+}
+
+/* Call scores */
+.lp-calls-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem 1rem;
+  margin-bottom: 0.6rem;
+  font-size: 0.88rem;
+}
+.lp-score {
+  display: inline-block;
+  min-width: 2.2rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 0.8rem;
+  text-align: center;
+}
+.lp-score-good {
+  background: var(--green-soft);
+  color: var(--green);
+}
+.lp-score-mid {
+  background: var(--amber-soft);
+  color: var(--amber);
+}
+.lp-score-low {
+  background: var(--red-soft);
+  color: var(--red);
+}
+.lp-score-none {
+  font-size: 0.76rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.lp-warn {
+  margin-bottom: 0.6rem;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--amber);
+  border-radius: var(--radius-sm);
+  background: var(--amber-soft);
+  color: var(--ink);
+  font-size: 0.84rem;
+}
+.lp-empty-note {
+  margin: 0;
+}
+
+/* Calls: one line each. */
+.lp-calls {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.lp-call {
+  padding: 0.55rem 0.8rem;
+  min-width: 0;
+}
+.lp-call + .lp-call {
+  border-top: 1px solid var(--border);
+}
+.lp-call:hover {
+  background: var(--surface-2);
+}
+.lp-call-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.8rem;
+  font-size: 0.86rem;
+}
+.lp-call-when {
+  font-weight: 600;
+  color: var(--ink);
+  min-width: 10.5rem;
+  white-space: nowrap;
+}
+.lp-call-dir {
+  color: var(--muted);
+  text-transform: capitalize;
+  min-width: 5rem;
+  white-space: nowrap;
+}
+.lp-call-row .lp-call-actions {
+  white-space: nowrap;
+}
+@media (max-width: 1500px) {
+  .lp-call-when,
+  .lp-call-dir {
+    min-width: 0;
+  }
+  .lp-call-row {
+    gap: 0.35rem 0.6rem;
+  }
+}
+.lp-call-dir-inbound {
+  color: var(--green);
+}
+.lp-call-row .call-dur {
+  font-variant-numeric: tabular-nums;
+  min-width: 2.8rem;
+}
+.lp-call-who {
+  flex: 1 1 0;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lp-call-row .lp-call-actions {
+  display: inline-flex;
+  gap: 0.9rem;
+  margin: 0 0 0 auto;
+}
+.lp-call-summary {
+  margin: 0.3rem 0 0;
+  font-size: 0.82rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.lp-call-audio {
+  display: block;
+  width: 100%;
+  margin-top: 0.4rem;
+}
+.lp-owner {
+  font-size: 0.86rem;
+}
+.lp-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0;
+}
+.lp-stat {
+  min-width: 78px;
+  padding: 0.45rem 0.75rem;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.lp-stat dt {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.lp-stat dd {
+  margin: 0.1rem 0 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+.lp-stat-wide dd {
+  font-size: 0.86rem;
+  line-height: 1.55rem;
+}
+
+/* ---- Layout ----------------------------------------------------------
+   Actions (pinned) | tabbed sections. One column under 1000px. */
+.lp-layout {
   display: grid;
-  grid-template-columns: minmax(0, 320px) minmax(0, 1fr);
   gap: 1.1rem;
   align-items: start;
+  grid-template-columns: 290px minmax(0, 1fr);
 }
-.lp-grid.lp-single {
+.lp-layout.lp-no-actions {
   grid-template-columns: minmax(0, 1fr);
 }
+.lp-panel > .drawer-section:last-child,
+.lp-actions .drawer-section:last-child {
+  margin-bottom: 0;
+}
+.lp-actions {
+  position: sticky;
+  top: var(--lp-top);
+  max-height: calc(100vh - var(--lp-top) - 1rem);
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+/* Section tabs */
+.lp-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  padding: 0.3rem;
+  margin-bottom: 0.8rem;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.lp-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.85rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+.lp-tab:hover {
+  background: var(--surface);
+  color: var(--ink);
+}
+.lp-tab.active {
+  background: var(--surface);
+  border-color: var(--border);
+  color: var(--ink);
+  box-shadow: var(--shadow-sm);
+}
+.lp-tab-count {
+  min-width: 1.3rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  background: var(--slate-soft);
+  color: var(--slate);
+  font-size: 0.72rem;
+  line-height: 1.2rem;
+  text-align: center;
+}
+.lp-tab.active .lp-tab-count {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+/* The tab names the section, so its own heading would only repeat it. */
+.lp-panel > .drawer-section > .field-label:first-child,
+.lp-panel .lp-timeline-head {
+  display: none;
+}
+.lp-panel .lp-chips {
+  margin-top: 0;
+}
+
 .lp-actions,
 .lp-main {
   min-width: 0;
@@ -2362,21 +2652,92 @@ tr.row-today td {
   word-break: break-word;
 }
 
-/* Timeline */
-.lp-ev-head {
+/* Timeline: day headings, badge beside the text, time + who underneath. */
+.lp-timeline-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+.lp-chips {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  gap: 0.3rem;
+  margin-top: 0.6rem;
+}
+.lp-chip {
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.lp-chip:hover {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+.lp-chip.active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+.lp-timeline-scroll {
+  min-height: 0;
+  overflow-y: auto;
+  margin: 0.4rem -0.4rem 0 0;
+  padding-right: 0.4rem;
+  scrollbar-width: thin;
+}
+.lp-day + .lp-day {
+  margin-top: 0.4rem;
+}
+.lp-day-label {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 0.45rem 0 0.3rem;
+  background: var(--surface);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.lp-timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
   gap: 0.5rem;
-  font-size: 0.8rem;
+}
+.lp-ev {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 0.6rem;
+  align-items: start;
+  padding: 0.15rem 0 0.15rem 0.6rem;
+  border-left: 2px solid var(--border-strong);
+}
+.lp-ev .lp-type {
+  justify-self: start;
+  justify-content: center;
+  font-size: 0.7rem;
+  padding: 0.12rem 0.4rem;
 }
 .lp-ev-text {
-  font-size: 0.9rem;
+  font-size: 0.88rem;
+  line-height: 1.35;
   white-space: pre-wrap;
   word-break: break-word;
+  color: var(--ink);
 }
-.lp-ev-by {
-  font-size: 0.78rem;
+.lp-ev-meta {
+  margin-top: 0.1rem;
+  font-size: 0.74rem;
+  color: var(--muted);
+  overflow-wrap: anywhere;
 }
 .lp-type {
   background: var(--slate-soft);
@@ -2506,9 +2867,79 @@ tr.row-today td {
   gap: 0.5rem;
 }
 
-@media (max-width: 900px) {
-  .lp-grid {
+/* Laptop and up: the page fits the window and never scrolls; the open tab's
+   card (and the actions column, if it must) scroll inside themselves.
+   --lp-offset is where the page starts, measured in LeadProfile. */
+@media (min-width: 1000px) {
+  .lead-profile.lp-fit {
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - var(--lp-offset, 160px) - 1.75rem);
+    min-height: 420px;
+  }
+  .lp-fit .lp-layout {
+    flex: 1;
+    min-height: 0;
+    align-items: stretch;
+  }
+  .lp-fit .lp-actions {
+    position: static;
+    max-height: none;
+    min-height: 0;
+  }
+  .lp-fit .lp-main {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .lp-fit .lp-tabs {
+    flex: none;
+  }
+  .lp-fit .lp-panel {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .lp-fit .lp-panel > .drawer-section {
+    flex: 1;
+    min-height: 0;
+    margin: 0;
+    overflow-y: auto;
+    scrollbar-width: thin;
+  }
+  /* The timeline's filters stay put while its days scroll under them. */
+  .lp-fit .lp-panel .lp-chips {
+    position: sticky;
+    top: -0.95rem;
+    z-index: 2;
+    margin: -0.95rem 0 0;
+    padding: 0.95rem 0 0.5rem;
+    background: var(--surface);
+  }
+  /* The card is the scroller here, so the inner wrapper must not be one —
+     otherwise the day headings would stick to it instead. */
+  .lp-fit .lp-panel .lp-timeline-scroll {
+    overflow: visible;
+    margin: 0;
+    padding: 0;
+  }
+  .lp-fit .lp-panel .lp-day-label {
+    top: 2.6rem;
+  }
+  .lp-fit .lp-panel .lp-timeline-card:not(:has(.lp-chips)) .lp-day-label {
+    top: -0.95rem;
+  }
+}
+
+@media (max-width: 999px) {
+  .lp-layout {
     grid-template-columns: minmax(0, 1fr);
+  }
+  .lp-actions {
+    position: static;
+    max-height: none;
+    overflow: visible;
   }
 }
 @media (max-width: 640px) {

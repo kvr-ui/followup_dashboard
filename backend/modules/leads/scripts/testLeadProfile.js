@@ -25,6 +25,7 @@ const PK_FULL = '9000000001'; // everything: task, forms, deal, call
 const PK_VSL_FAIL = '9000000099'; // a deal only; VSL service throws for this key
 const PK_TASK_FAILS = '9000000077'; // Task.find rejects; nothing else matches
 const PK_UNKNOWN = '9999999999'; // matches nothing anywhere
+const PK_UNOWNED = '9000000055'; // a web form fill nobody owns yet
 
 // ---------------------------------------------------------------------------
 // Fixture data
@@ -74,6 +75,14 @@ const WEB_LEADS = [
     phone: '9000000001',
     source: 'landing-page',
     utmCampaign: 'aug-promo',
+  },
+  {
+    _id: 'w2',
+    phoneKey: PK_UNOWNED,
+    createdAt: new Date('2026-09-18T06:00:00Z'),
+    name: 'Fresh Lead',
+    phone: '9000000055',
+    source: 'landing-page',
   },
 ];
 
@@ -306,6 +315,13 @@ check('a rep who owns no Task, Deal or Call gets 403', async () => {
   const { status, body } = await quietly(() => buildLeadProfile(PK_FULL, REP_NOTHING));
   assert.strictEqual(status, 403);
   assert.strictEqual(body.success, false);
+});
+
+check('any rep can open a lead nobody owns yet', async () => {
+  const { status, body } = await buildLeadProfile(PK_UNOWNED, REP_NOTHING);
+  assert.strictEqual(status, 200);
+  assert.strictEqual(body.data.webLeads.length, 1);
+  assert.strictEqual(body.data.header.ownerEmail, null);
 });
 
 // ---------------------------------------------------------------------------

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import TaskTable from './TaskTable';
+import Leads from './Leads';
 import AdminUsers from './AdminUsers';
 import Analytics from './Analytics';
 import Calls from './Calls';
@@ -68,6 +69,9 @@ export default function Dashboard({ user, onLogout }) {
       isAdmin
         ? [
             'tasks',
+            // Every lead, one row per person. Open to reps too: the server scopes
+            // them to their own leads plus unassigned ones.
+            'leads',
             // The ask-the-data assistant. Open to reps as well (see the sales
             // list below): every tool it can call is owner-scoped server-side,
             // and the ones that cannot be scoped are admin-gated by name.
@@ -106,7 +110,7 @@ export default function Dashboard({ user, onLogout }) {
           // The API reference is open to reps too: it documents the endpoints, it does not
           // serve their data, and every admin-only entry is labelled as such (and would
           // answer 403 anyway). Hiding the docs would not have hidden anything.
-          ['tasks', 'agent', 'calls', 'scorecard', 'installments', 'upsells', 'vsl', 'apidocs'],
+          ['tasks', 'leads', 'agent', 'calls', 'scorecard', 'installments', 'upsells', 'vsl', 'apidocs'],
     [isAdmin]
   );
 
@@ -153,6 +157,12 @@ export default function Dashboard({ user, onLogout }) {
               onClick={() => selectTab('tasks')}
             >
               Follow-ups
+            </button>
+            <button
+              className={view === 'leads' ? 'tab active' : 'tab'}
+              onClick={() => selectTab('leads')}
+            >
+              Leads
             </button>
             <button
               className={view === 'agent' ? 'tab active' : 'tab'}
@@ -290,6 +300,8 @@ export default function Dashboard({ user, onLogout }) {
               <p className="subtle">No follow-ups match the current filters.</p>
             )}
           </>
+        ) : view === 'leads' ? (
+          <Leads isAdmin={isAdmin} />
         ) : view === 'agent' ? (
           <Agent user={user} />
         ) : view === 'installments' ? (

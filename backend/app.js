@@ -17,6 +17,7 @@ const adsRoutes = require('./modules/ads/routes/ads'); // v2: admin ads reportin
 const agentRoutes = require('./modules/agent/routes/agent'); // v2: ask-the-data assistant
 const vslRoutes = require('./modules/vsl/routes/vsl'); // v2: VSL watch time (second, read-only Mongo cluster)
 const leadProfileRoutes = require('./modules/leads/routes/leadProfile'); // v2: one lead across every tab
+const leadListRoutes = require('./modules/leads/routes/leadList'); // every lead, one row per phone
 
 const app = express();
 
@@ -65,6 +66,7 @@ app.use('/api/vsl', vslRoutes); // auth + role-based filtering (reps see their o
 // Auth; reps only for leads they own a Task/Deal/Call on. Deliberately NOT under
 // /api/leads/ — that prefix belongs to the unauthenticated ingest mounted above cors.
 app.use('/api/lead-profile', leadProfileRoutes);
+app.use('/api/leads-list', leadListRoutes); // auth + role-based filtering (reps: own + unassigned)
 app.use('/webhook', callWebhookRoutes); // /webhook/call (TeleCMI), /webhook/deal (Bigin)
 // Auth only, no admin gate: reps may ask about their own book. Access control is
 // per TOOL inside the module, not per route — see modules/agent/services/tools.js.
