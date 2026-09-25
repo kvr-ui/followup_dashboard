@@ -1,17 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { api, getToken } from '../api';
+import { api } from '../api';
 import { formatDateTime } from '../utils';
-
-function ts(sec) {
-  const s = Math.round(sec || 0);
-  return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
-}
+import { ts, useRecordingUrl } from './callParts';
 
 export default function CallDetail({ callId, onClose }) {
   const [call, setCall] = useState(null);
   const [error, setError] = useState('');
-  const [audioUrl, setAudioUrl] = useState(null);
-  const [loadingAudio, setLoadingAudio] = useState(false);
   const audioRef = useRef(null);
 
   useEffect(() => {
@@ -25,39 +19,10 @@ export default function CallDetail({ callId, onClose }) {
     return () => { cancelled = true; };
   }, [callId]);
 
-  // The recording route needs an auth header, so <audio src> can't fetch it
-  // directly — pull it as a blob and hand the player an object URL.
-  // Wait for the call to load and only fetch when it actually has a recording,
-  // otherwise we fire a guaranteed 404 on every call that has no audio.
-  useEffect(() => {
-    if (!call) return;
-    if (!call.hasRecording) {
-      setAudioUrl(null);
-      setLoadingAudio(false);
-      return;
-    }
-    let revoked = null;
-    let cancelled = false;
-    setLoadingAudio(true);
-    fetch(`/api/calls/${callId}/recording`, {
-      headers: { Authorization: `Bearer ${getToken()}` },
-    })
-      .then((r) => (r.ok ? r.blob() : Promise.reject(new Error('Recording unavailable'))))
-      .then((blob) => {
-        const url = URL.createObjectURL(blob);
-        // If we switched calls while the blob was downloading, drop it — don't hand a
-        // stale recording to the player.
-        if (cancelled) return URL.revokeObjectURL(url);
-        revoked = url;
-        setAudioUrl(url);
-      })
-      .catch(() => { if (!cancelled) setAudioUrl(null); })
-      .finally(() => { if (!cancelled) setLoadingAudio(false); });
-    return () => {
-      cancelled = true;
-      if (revoked) URL.revokeObjectURL(revoked);
-    };
-  }, [call, callId]);
+  const { url: audioUrl, loading: loadingAudio } = useRecordingUrl(
+    callId,
+    Boolean(call && call.hasRecording)
+  );
 
   function seek(seconds) {
     if (audioRef.current) {

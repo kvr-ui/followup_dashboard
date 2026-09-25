@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import TaskTable from './TaskTable';
-import TaskDetail from './TaskDetail';
 import AdminUsers from './AdminUsers';
 import Analytics from './Analytics';
 import Calls from './Calls';
@@ -17,8 +16,10 @@ import ApiDocs from './ApiDocs';
 import Agent from './Agent';
 import SummaryCards from './SummaryCards';
 import Filters from './Filters';
+import LeadProfile from './LeadProfile';
 import { api } from '../api';
 import { extractTasks } from '../utils';
+import { useLeadRoute, closeLead } from '../leadRoute';
 import { computeSummary, applyFilters, DEFAULT_FILTERS } from '../taskStats';
 
 export default function Dashboard({ user, onLogout }) {
@@ -29,7 +30,15 @@ export default function Dashboard({ user, onLogout }) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [filters, setFilters] = useState({ ...DEFAULT_FILTERS });
-  const [selectedId, setSelectedId] = useState(null);
+  // #/lead/<phoneKey> — the lead page, shown in place of the tab content.
+  const leadKey = useLeadRoute();
+
+  // A tab click also leaves the lead page. The view itself stays in state (and in
+  // fd_view), so Back from a lead lands on the tab it was opened from.
+  const selectTab = (next) => {
+    closeLead();
+    setView(next);
+  };
 
   const loadTasks = useCallback(async () => {
     setLoading(true);
@@ -141,66 +150,66 @@ export default function Dashboard({ user, onLogout }) {
         <nav className="tabs">
             <button
               className={view === 'tasks' ? 'tab active' : 'tab'}
-              onClick={() => setView('tasks')}
+              onClick={() => selectTab('tasks')}
             >
               Follow-ups
             </button>
             <button
               className={view === 'agent' ? 'tab active' : 'tab'}
-              onClick={() => setView('agent')}
+              onClick={() => selectTab('agent')}
             >
               Ask
             </button>
             {isAdmin && (
               <button
                 className={view === 'analytics' ? 'tab active' : 'tab'}
-                onClick={() => setView('analytics')}
+                onClick={() => selectTab('analytics')}
               >
                 Analytics
               </button>
             )}
             <button
               className={view === 'calls' ? 'tab active' : 'tab'}
-              onClick={() => setView('calls')}
+              onClick={() => selectTab('calls')}
             >
               Calls
             </button>
             <button
               className={view === 'scorecard' ? 'tab active' : 'tab'}
-              onClick={() => setView('scorecard')}
+              onClick={() => selectTab('scorecard')}
             >
               {isAdmin ? 'Scorecard' : 'My score'}
             </button>
             {isAdmin && (
               <button
                 className={view === 'products' ? 'tab active' : 'tab'}
-                onClick={() => setView('products')}
+                onClick={() => selectTab('products')}
               >
                 Products
               </button>
             )}
             <button
               className={view === 'installments' ? 'tab active' : 'tab'}
-              onClick={() => setView('installments')}
+              onClick={() => selectTab('installments')}
             >
               Installments
             </button>
             <button
               className={view === 'upsells' ? 'tab active' : 'tab'}
-              onClick={() => setView('upsells')}
+              onClick={() => selectTab('upsells')}
             >
               Upsells
             </button>
             <button
               className={view === 'vsl' ? 'tab active' : 'tab'}
-              onClick={() => setView('vsl')}
+              onClick={() => selectTab('vsl')}
             >
               VSL Tracking
             </button>
             {isAdmin && (
               <button
                 className={view === 'marketing' ? 'tab active' : 'tab'}
-                onClick={() => setView('marketing')}
+                onClick={() => selectTab('marketing')}
               >
                 Marketing
               </button>
@@ -208,7 +217,7 @@ export default function Dashboard({ user, onLogout }) {
             {isAdmin && (
               <button
                 className={view === 'sources' ? 'tab active' : 'tab'}
-                onClick={() => setView('sources')}
+                onClick={() => selectTab('sources')}
               >
                 Sources
               </button>
@@ -216,7 +225,7 @@ export default function Dashboard({ user, onLogout }) {
             {isAdmin && (
               <button
                 className={view === 'adleads' ? 'tab active' : 'tab'}
-                onClick={() => setView('adleads')}
+                onClick={() => selectTab('adleads')}
               >
                 Ad Leads
               </button>
@@ -224,7 +233,7 @@ export default function Dashboard({ user, onLogout }) {
             {isAdmin && (
               <button
                 className={view === 'usage' ? 'tab active' : 'tab'}
-                onClick={() => setView('usage')}
+                onClick={() => selectTab('usage')}
               >
                 AI Usage
               </button>
@@ -232,14 +241,14 @@ export default function Dashboard({ user, onLogout }) {
             {isAdmin && (
               <button
                 className={view === 'users' ? 'tab active' : 'tab'}
-                onClick={() => setView('users')}
+                onClick={() => selectTab('users')}
               >
                 Users
               </button>
             )}
             <button
               className={view === 'apidocs' ? 'tab active' : 'tab'}
-              onClick={() => setView('apidocs')}
+              onClick={() => selectTab('apidocs')}
             >
               API Docs
             </button>
@@ -247,7 +256,9 @@ export default function Dashboard({ user, onLogout }) {
       </header>
 
       <main>
-        {view === 'tasks' ? (
+        {leadKey ? (
+          <LeadProfile phoneKey={leadKey} />
+        ) : view === 'tasks' ? (
           <>
             <SummaryCards
               summary={summary}
@@ -274,7 +285,7 @@ export default function Dashboard({ user, onLogout }) {
             </div>
 
             {filtered.length > 0 ? (
-              <TaskTable tasks={filtered} onSelect={setSelectedId} />
+              <TaskTable tasks={filtered} />
             ) : (
               <p className="subtle">No follow-ups match the current filters.</p>
             )}
@@ -286,9 +297,7 @@ export default function Dashboard({ user, onLogout }) {
         ) : view === 'upsells' ? (
           <Upsells isAdmin={isAdmin} />
         ) : view === 'vsl' ? (
-          // Opening a lead's follow-up reuses the drawer this file already owns,
-          // exactly as the Ad Leads tab does.
-          <VSLTracking isAdmin={isAdmin} onOpenTask={setSelectedId} />
+          <VSLTracking isAdmin={isAdmin} />
         ) : view === 'analytics' ? (
           <Analytics />
         ) : view === 'calls' ? (
@@ -302,9 +311,7 @@ export default function Dashboard({ user, onLogout }) {
         ) : view === 'sources' ? (
           <Sources />
         ) : view === 'adleads' ? (
-          // Opening a lead's follow-up reuses the drawer this file already
-          // owns rather than mounting a second copy of it inside the tab.
-          <AdLeads onOpenTask={setSelectedId} />
+          <AdLeads />
         ) : view === 'usage' ? (
           <ApiUsage />
         ) : view === 'apidocs' ? (
@@ -313,14 +320,6 @@ export default function Dashboard({ user, onLogout }) {
           <AdminUsers />
         )}
       </main>
-
-      {selectedId && (
-        <TaskDetail
-          recordId={selectedId}
-          onClose={() => setSelectedId(null)}
-          onUpdated={loadTasks}
-        />
-      )}
     </>
   );
 }

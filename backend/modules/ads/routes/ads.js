@@ -39,6 +39,8 @@ const { syncAll, isSyncing } = require('../services/syncAll');
 const cplCache = require('../services/cplCache');
 const { phoneFromFieldData } = require('../services/leadLinker');
 const { getSourceRollup } = require('../services/sourceRollup');
+const { LEAD_STATES, leadStatus } = require('../services/leadState');
+const { NAME_FIELDS, EMAIL_FIELDS, fieldValue } = require('../services/metaFields');
 const { rateLimit } = require('../middleware/rateLimit');
 const { authenticate, requireAdmin } = require('../../../middleware/auth');
 const campaignAliasRoutes = require('./campaignAliases');
@@ -302,8 +304,8 @@ function clamp(raw, fallback, min, max) {
 // ---------------------
 // "Somebody is following this up" is not the question the money asks. Each row
 // therefore also carries a `status`, resolved from the Deal mirror first and the
-// Task second — see leadStatus() below for the precedence and what each state
-// means.
+// Task second — see leadStatus() in services/leadState for the precedence and
+// what each state means.
 
 const TASK_FIELDS = { _id: 1, phone: 1, 'body.Who_Id': 1, 'body.Status': 1 };
 
@@ -319,8 +321,6 @@ const DEAL_FIELDS = {
   modifiedTime: 1,
 };
 
-const LEAD_STATES = ['won', 'lost', 'pipeline', 'followup', 'none'];
-
 /** Query-string boolean: `?unlinked=1`, `?unlinked=true` and `?unlinked` are all true. */
 function boolParam(raw) {
   if (raw === undefined) return undefined;
@@ -330,30 +330,8 @@ function boolParam(raw) {
   return undefined;
 }
 
-// A Meta instant-form answer set is an untyped [{name, values}] list whose field
-// names are chosen per form, so a display name has to be looked for under
-// several. Display only — the PHONE is deliberately not extracted here but taken
-// from leadLinker.phoneFromFieldData, so the number shown is the same 10-digit
-// key everything else joins on rather than a second, subtly different normaliser.
-const NAME_FIELDS = ['fullname', 'name', 'firstname', 'yourname'];
-const EMAIL_FIELDS = ['email', 'emailaddress', 'youremail'];
-
-function fieldValue(fieldData, wanted) {
-  if (!Array.isArray(fieldData)) return null;
-  for (const want of wanted) {
-    for (const entry of fieldData) {
-      if (!entry || typeof entry !== 'object') continue;
-      const name = String(entry.name == null ? '' : entry.name)
-        .toLowerCase()
-        .replace(/[^a-z0-9]/g, '');
-      if (name !== want) continue;
-      const values = Array.isArray(entry.values) ? entry.values : [entry.values];
-      const value = values.find((v) => v != null && String(v).trim() !== '');
-      if (value != null) return String(value);
-    }
-  }
-  return null;
-}
+// Meta instant-form display fields (name, email) come from services/metaFields,
+// shared with the lead profile so both name a Meta lead the same way.
 
 /**
  * Which Meta lead ids can even be looked up against `Task.linkedLeadId`.
@@ -405,50 +383,8 @@ function indexDeals(deals, keyOf) {
   return map;
 }
 
-/**
- * What actually happened to this lead.
- *
- * The Deal answers first because it is the commercial fact: a contact with a
- * "Closed with Sale" deal has bought, whatever their follow-up task still says.
- * The Task answers only when no deal exists at all — "somebody is working it".
- *
- *   won      the deal closed with a sale
- *   lost     the deal closed without one
- *   pipeline a deal exists and is still open
- *   followup a follow-up task exists but no deal does
- *   none     nobody has picked this lead up
- *
- * `outcome` is READ, never re-derived from the stage string: dealStore normalised
- * it at write time (outcomeOf), and recomputing here would mean this tab and the
- * Sources tab could disagree about the same deal.
- *
- * `matchedBy` is carried out to the UI because the two joins are not equally
- * strong. 'lead-id' is Meta's own lead id on both sides — a fact. 'phone' is a
- * 10-digit key, which a family or a reused handset can share — an inference. The
- * tab shows the difference rather than flattening a guess into a sale, the same
- * way `resolvedBy` does for campaign attribution.
- */
-function leadStatus(task, deal, matchedBy) {
-  const taskStatus = (task && task.body && task.body.Status) || null;
-  const state = deal
-    ? deal.outcome === 'won'
-      ? 'won'
-      : deal.outcome === 'lost'
-        ? 'lost'
-        : 'pipeline'
-    : task
-      ? 'followup'
-      : 'none';
-
-  return {
-    state,
-    stage: deal ? deal.stage || null : null,
-    taskStatus,
-    amount: deal && deal.outcome === 'won' ? deal.amount || 0 : null,
-    closingDate: deal ? deal.closingDate || null : null,
-    matchedBy: deal ? matchedBy : null,
-  };
-}
+// Each row's `status` comes from leadStatus() in services/leadState — the one
+// won/lost/pipeline/followup/none derivation, shared with the lead profile.
 
 router.get('/leads', async (req, res) => {
   const range = parseRange(req.query);

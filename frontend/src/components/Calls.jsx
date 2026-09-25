@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { api, download } from '../api';
 import CallDetail from './CallDetail';
+import LeadLink from './LeadLink';
+import { rowPhoneKey } from '../leadRoute';
 import { formatDateTime } from '../utils';
 
 function mmss(sec) {
@@ -449,6 +451,7 @@ export default function Calls() {
       <div className="journeys">
         {journeys.map((j) => {
           const isOpen = open[j._id];
+          const leadKey = rowPhoneKey(j, j.phone);
           return (
             <div key={j._id} className={`journey ${isOpen ? 'open' : ''}`}>
               <div
@@ -460,7 +463,9 @@ export default function Calls() {
                     {isOpen ? '▾' : '▸'}
                   </span>
                   <div>
-                    <div className="who">{j.contactName || j.phone || j.deal?.name}</div>
+                    <div className="who">
+                      <LeadLink phoneKey={leadKey}>{j.contactName || j.phone || j.deal?.name}</LeadLink>
+                    </div>
                     <div className="subtle">
                       {j.phone} · {j.deal?.name}
                       {j.outcome === 'lost' && (

@@ -4,6 +4,7 @@ import DateRangeBar from './DateRangeBar';
 import CopyButton from './CopyButton';
 import { defaultRange, formatCount, sortRows } from '../adStats';
 import { formatDateTime } from '../utils';
+import { openLead, rowPhoneKey } from '../leadRoute';
 import {
   ENGAGEMENT,
   ENGAGEMENT_FILTERS,
@@ -37,7 +38,7 @@ const PAGE_LIMIT = 1000;
 
 const dash = <span className="subtle">—</span>;
 
-export default function VSLTracking({ isAdmin, onOpenTask }) {
+export default function VSLTracking({ isAdmin }) {
   const [range, setRange] = useState(defaultRange);
   const [res, setRes] = useState(null);
   const [error, setError] = useState('');
@@ -300,7 +301,7 @@ export default function VSLTracking({ isAdmin, onOpenTask }) {
                 </thead>
                 <tbody>
                   {rows.map((lead) => (
-                    <Row key={lead.leadId} lead={lead} onOpenTask={onOpenTask} />
+                    <Row key={lead.leadId} lead={lead} />
                   ))}
                 </tbody>
               </table>
@@ -312,8 +313,14 @@ export default function VSLTracking({ isAdmin, onOpenTask }) {
   );
 }
 
-function Row({ lead, onOpenTask }) {
+function Row({ lead }) {
   const watch = lead.watch || {};
+  // The row opens the lead page. A lead with no usable phone has nowhere to go.
+  const leadKey = rowPhoneKey(lead, lead.phone);
+  const open = (e) => {
+    e.stopPropagation();
+    openLead(leadKey);
+  };
   const src = lead.leadSource || {};
   const contact = lead.dashboard?.contactName;
   // Both names are shown when they differ: the VSL takes whatever the lead typed
@@ -322,7 +329,7 @@ function Row({ lead, onOpenTask }) {
   const secondary = contact && lead.name && contact !== lead.name ? lead.name : null;
 
   return (
-    <tr>
+    <tr className={leadKey ? 'clickable-row' : undefined} onClick={leadKey ? open : undefined}>
       <td>
         <div className="contact-name">{contact || lead.name || '—'}</div>
         {secondary && <div className="subtle">VSL: {secondary}</div>}
@@ -330,7 +337,7 @@ function Row({ lead, onOpenTask }) {
       <td>
         {lead.phone ? (
           <span className="phone-row">
-            <a className="phone-link" href={`tel:${lead.phone}`}>
+            <a className="phone-link" href={`tel:${lead.phone}`} onClick={(e) => e.stopPropagation()}>
               {lead.phone}
             </a>
             <CopyButton text={lead.phone} title="Copy phone number" />
@@ -382,8 +389,8 @@ function Row({ lead, onOpenTask }) {
       </td>
       <td className="subtle">{lead.lastActivityAt ? formatDateTime(lead.lastActivityAt) : '—'}</td>
       <td>
-        {lead.dashboard ? (
-          <button className="mkt-open" onClick={() => onOpenTask?.(lead.dashboard.taskId)}>
+        {lead.dashboard && leadKey ? (
+          <button className="mkt-open" onClick={open}>
             {lead.dashboard.ownerName || 'Open follow-up'}
           </button>
         ) : (

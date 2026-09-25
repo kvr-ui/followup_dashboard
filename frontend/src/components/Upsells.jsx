@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../api';
 import CopyButton from './CopyButton';
+import LeadLink from './LeadLink';
+import { rowPhoneKey } from '../leadRoute';
 import { inr, upsoldFrom, upsoldTo } from '../upsell';
 
 /**
@@ -159,7 +161,11 @@ export default function Upsells({ isAdmin }) {
               const dead = r.uplift !== null && r.uplift <= 0;
               return (
                 <tr key={r.id}>
-                  <td style={{ fontWeight: 500 }}>{r.contactName || r.dealName || '—'}</td>
+                  <td style={{ fontWeight: 500 }}>
+                    <LeadLink phoneKey={rowPhoneKey(r, r.contactPhone)}>
+                      {r.contactName || r.dealName || '—'}
+                    </LeadLink>
+                  </td>
                   <td>
                     {r.contactPhone ? (
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
