@@ -16,9 +16,18 @@ import { statusClass } from '../utils';
 
 const PAGE_SIZE = 50;
 
+// Funnel stage — derived server-side (leadState.funnelStage).
+const STAGE = {
+  mql: { label: 'MQL', hint: 'Marketing qualified — a form fill, ad lead or task, no call over 30s yet' },
+  sql: { label: 'SQL', hint: 'Sales qualified — a call over 30s, or a deal in Bigin' },
+  closed: { label: 'Closed', hint: 'Closed with sale' },
+};
+const STAGES = Object.keys(STAGE);
+
 const EMPTY_FILTERS = {
   q: '',
   status: '',
+  stage: '',
   source: '',
   owner: '', // email, or '__unassigned'
   from: '',
@@ -94,6 +103,11 @@ export default function Leads({ isAdmin }) {
     setPage(1);
   };
 
+  const focusStage = (stage) => {
+    setFilters((f) => ({ ...f, stage: f.stage === stage ? '' : stage }));
+    setPage(1);
+  };
+
   return (
     <>
       <div className="summary-grid">
@@ -110,6 +124,20 @@ export default function Leads({ isAdmin }) {
           >
             <div className="num">{facets ? formatCount(facets.byState[s]) : '—'}</div>
             <div className="label">{LEAD_STATUS[s].label}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="summary-grid">
+        {STAGES.map((s) => (
+          <div
+            key={s}
+            className={filters.stage === s ? 'card clickable week' : 'card clickable'}
+            title={STAGE[s].hint}
+            onClick={() => focusStage(s)}
+          >
+            <div className="num">{facets?.byStage ? formatCount(facets.byStage[s]) : '—'}</div>
+            <div className="label">{STAGE[s].label}</div>
           </div>
         ))}
       </div>
@@ -131,6 +159,17 @@ export default function Leads({ isAdmin }) {
             {LEAD_STATES.map((s) => (
               <option key={s} value={s}>
                 {LEAD_STATUS[s].label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Stage
+          <select value={filters.stage} onChange={set('stage')}>
+            <option value="">All</option>
+            {STAGES.map((s) => (
+              <option key={s} value={s}>
+                {STAGE[s].label}
               </option>
             ))}
           </select>
@@ -204,6 +243,7 @@ export default function Leads({ isAdmin }) {
               <th>Lead</th>
               <th>Phone</th>
               <th>Status</th>
+              <th>Stage</th>
               <th>Owner</th>
               <th>Source</th>
               <th>Next follow-up</th>
@@ -236,6 +276,15 @@ export default function Leads({ isAdmin }) {
                   <span className={statusClass(r.state)} title={LEAD_STATUS[r.state]?.hint}>
                     {LEAD_STATUS[r.state]?.label || r.state}
                   </span>
+                </td>
+                <td>
+                  {STAGE[r.stage] ? (
+                    <span className={`badge stage-${r.stage}`} title={STAGE[r.stage].hint}>
+                      {STAGE[r.stage].label}
+                    </span>
+                  ) : (
+                    <span className="subtle">—</span>
+                  )}
                 </td>
                 <td>
                   {r.unassigned ? (

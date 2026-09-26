@@ -12,6 +12,7 @@ const callRoutes = require('./modules/calls/routes/calls'); // v2: call grading
 const installmentRoutes = require('./modules/calls/routes/installments'); // v2: pending payments
 const upsellRoutes = require('./modules/calls/routes/upsells'); // v2: upsold leads
 const callWebhookRoutes = require('./modules/calls/routes/webhooks'); // v2: TeleCMI + Bigin deal webhooks
+const contactWebhookRoutes = require('./modules/leads/routes/contactWebhook'); // Bigin contact create/edit
 const webLeadRoutes = require('./modules/ads/routes/webLeads'); // v2: public landing-page lead ingest
 const adsRoutes = require('./modules/ads/routes/ads'); // v2: admin ads reporting (Marketing + Ad Leads)
 const agentRoutes = require('./modules/agent/routes/agent'); // v2: ask-the-data assistant
@@ -68,6 +69,7 @@ app.use('/api/vsl', vslRoutes); // auth + role-based filtering (reps see their o
 app.use('/api/lead-profile', leadProfileRoutes);
 app.use('/api/leads-list', leadListRoutes); // auth + role-based filtering (reps: own + unassigned)
 app.use('/webhook', callWebhookRoutes); // /webhook/call (TeleCMI), /webhook/deal (Bigin)
+app.use('/webhook', contactWebhookRoutes); // /webhook/contact (Bigin) — the Funnel's MQL list
 // Auth only, no admin gate: reps may ask about their own book. Access control is
 // per TOOL inside the module, not per route — see modules/agent/services/tools.js.
 app.use('/api/agent', agentRoutes);
@@ -107,6 +109,7 @@ app.use((err, req, res, next) => {
 // to the task router and be silently dropped (it matches no route there).
 app.use('/webhook', webhookRoutes);
 app.use('/webhook', callWebhookRoutes);
+app.use('/webhook', contactWebhookRoutes);
 
 /**
  * Attempt to parse a raw body that failed strict JSON parsing.

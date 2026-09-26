@@ -189,6 +189,96 @@ check('default sort is newest activity first', () => {
   assert.strictEqual(res.rows[0].phoneKey, PK_FRESH);
 });
 
+// ---- funnel stage ----------------------------------------------------------
+
+// Form-only leads, so only calls and deals can move the stage.
+const form = (phoneKey) => ({ phoneKey, name: phoneKey, createdAt: new Date('2026-09-01T00:00:00Z') });
+const PK_31S = '9100000001';
+const PK_30S = '9100000002';
+const PK_SHORT_THEN_LONG = '9100000003';
+const PK_LOST = '9100000004';
+const PK_NO_LEAD = '9100000005';
+const STAGE_ROWS = groupLeads({
+  tasks: [],
+  webLeads: [PK_31S, PK_30S, PK_SHORT_THEN_LONG, PK_LOST].map(form),
+  metaLeads: [],
+  deals: [{ contactPhoneKey: PK_LOST, outcome: 'lost' }],
+  calls: [
+    { phoneKeys: [PK_31S], duration: 31 },
+    { phoneKeys: [PK_30S], duration: 30, ownerEmail: REP_A },
+    { phoneKeys: [PK_SHORT_THEN_LONG], duration: 5 },
+    { phoneKeys: [PK_SHORT_THEN_LONG], duration: 180 },
+    { phoneKeys: [PK_NO_LEAD], duration: 600 },
+  ],
+  campaigns: [],
+});
+
+check('stage: form only is mql, open deal sql, won deal closed', () => {
+  assert.strictEqual(byKey(ROWS, PK_FRESH).stage, 'mql');
+  assert.strictEqual(byKey(ROWS, PK_CALLED).stage, 'mql'); // a call with no duration
+  assert.strictEqual(byKey(ROWS, PK_ALL).stage, 'sql');
+  assert.strictEqual(byKey(ROWS, PK_WON).stage, 'closed');
+});
+
+check('stage: a call must run strictly over 30s to make an sql', () => {
+  assert.strictEqual(byKey(STAGE_ROWS, PK_31S).stage, 'sql');
+  assert.strictEqual(byKey(STAGE_ROWS, PK_30S).stage, 'mql');
+});
+
+check('stage: a short first call does not block a later long one', () => {
+  assert.strictEqual(byKey(STAGE_ROWS, PK_SHORT_THEN_LONG).stage, 'sql');
+});
+
+check('stage: a lost deal stays sql', () => {
+  assert.strictEqual(byKey(STAGE_ROWS, PK_LOST).stage, 'sql');
+});
+
+// A Bigin contact alone is a lead (an MQL); a Bigin-logged call over 30s makes it
+// an SQL even when TeleCMI measured the leg shorter.
+const PK_CONTACT = '9200000001';
+const PK_CONTACT_CALLED = '9200000002';
+const CONTACT_ROWS = groupLeads({
+  tasks: [],
+  webLeads: [],
+  metaLeads: [],
+  deals: [],
+  calls: [
+    { phoneKeys: [PK_CONTACT_CALLED], duration: 12, biginDurationSec: 45 },
+    { phoneKeys: [PK_CONTACT], duration: 90, biginDurationSec: 20 },
+  ],
+  campaigns: [],
+  contacts: [
+    { phoneKeys: [PK_CONTACT], name: 'New Contact', leadSource: 'Instagram', ownerEmail: REP_A, ownerName: 'Rep A', createdTime: new Date('2026-09-26T08:00:00Z') },
+    { phoneKeys: [PK_CONTACT_CALLED], name: 'Called Contact', leadSource: 'Facebook', createdTime: new Date('2026-09-25T08:00:00Z') },
+  ],
+});
+
+check('contact: a Bigin contact alone is a lead row with its source and owner', () => {
+  const row = byKey(CONTACT_ROWS, PK_CONTACT);
+  assert.strictEqual(row.name, 'New Contact');
+  assert.strictEqual(row.source, 'Instagram');
+  assert.strictEqual(row.ownerEmail, REP_A);
+  assert.strictEqual(row.unassigned, false);
+  assert.strictEqual(row.createdAt.toISOString(), '2026-09-26T08:00:00.000Z');
+});
+
+check('contact: Bigin call duration decides sql over TeleCMI duration', () => {
+  assert.strictEqual(byKey(CONTACT_ROWS, PK_CONTACT).stage, 'mql'); // Bigin 20s
+  assert.strictEqual(byKey(CONTACT_ROWS, PK_CONTACT_CALLED).stage, 'sql'); // Bigin 45s
+});
+
+check('stage: an unowned qualifying call leaves the lead unassigned; a call alone is no lead', () => {
+  assert.strictEqual(byKey(STAGE_ROWS, PK_31S).unassigned, true);
+  assert.strictEqual(byKey(STAGE_ROWS, PK_NO_LEAD), undefined);
+});
+
+check('stage filter and byStage facet', () => {
+  assert.deepStrictEqual(keys(selectRows(ROWS, { stage: 'sql' }, ADMIN)), [PK_ALL]);
+  assert.deepStrictEqual(keys(selectRows(ROWS, { stage: 'closed' }, ADMIN)), [PK_WON]);
+  assert.strictEqual(selectRows(ROWS, { stage: 'bogus' }, ADMIN).total, 4);
+  assert.deepStrictEqual(selectRows(ROWS, {}, ADMIN).facets.byStage, { mql: 2, sql: 1, closed: 1 });
+});
+
 if (failures.length) {
   console.error(`\n${failures.length} FAILED, ${passed} passed\n`);
   failures.forEach((f) => console.error(`  ✗ ${f}\n`));

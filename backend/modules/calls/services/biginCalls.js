@@ -59,6 +59,8 @@ function toCallDoc(row, leadIndex, extByEmail) {
     cmiuid: `bigin:${row.id}`,
     source: 'bigin',
     biginCallId: String(row.id),
+    biginContactId: (row.Who_Id && row.Who_Id.id && String(row.Who_Id.id)) || null,
+    biginDurationSec: duration,
     direction: directionOf(row),
     from: directionOf(row) === 'inbound' ? phone : row.Caller_ID || null,
     to: directionOf(row) === 'inbound' ? row.Caller_ID || null : phone,
@@ -144,6 +146,8 @@ async function upsertBiginCall(row, leadIndex, extByEmail, { minDurationSec = 0 
   const twin = await findTelecmiTwin(doc);
   if (twin) {
     twin.biginCallId = doc.biginCallId;
+    twin.biginContactId = doc.biginContactId;
+    twin.biginDurationSec = doc.biginDurationSec;
     if (!twin.ownerEmail && doc.ownerEmail) twin.ownerEmail = doc.ownerEmail;
     if (!twin.leadName && doc.leadName) twin.leadName = doc.leadName;
     if (!twin.recordingUrl && doc.recordingUrl) twin.recordingUrl = doc.recordingUrl;

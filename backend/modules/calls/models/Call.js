@@ -60,6 +60,11 @@ const callSchema = new mongoose.Schema(
     // Bigin Calls record id. Set on rows that came from Bigin AND on TeleCMI rows we
     // matched to a Bigin record during dedupe, so the two views stay linked.
     biginCallId: { type: String, default: null, index: true },
+    // The Bigin contact the call is logged against (Who_Id) and Bigin's own
+    // duration for it. The Funnel's SQL rule reads these: it must count what
+    // Bigin counts, and a TeleCMI twin measures a different leg (40s vs 29s).
+    biginContactId: { type: String, default: null, index: true },
+    biginDurationSec: { type: Number, default: null },
 
     // Bigin/PhoneBridge recordings are fetched by URL, not by TeleCMI filename.
     recordingUrl: { type: String, default: null },

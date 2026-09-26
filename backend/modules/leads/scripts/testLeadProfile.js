@@ -26,6 +26,7 @@ const PK_VSL_FAIL = '9000000099'; // a deal only; VSL service throws for this ke
 const PK_TASK_FAILS = '9000000077'; // Task.find rejects; nothing else matches
 const PK_UNKNOWN = '9999999999'; // matches nothing anywhere
 const PK_UNOWNED = '9000000055'; // a web form fill nobody owns yet
+const PK_CONTACT = '9000000066'; // a Bigin contact only, owned by the task owner
 
 // ---------------------------------------------------------------------------
 // Fixture data
@@ -120,6 +121,19 @@ const DEALS = [
   },
 ];
 
+const CONTACTS = [
+  {
+    zohoId: 'bc1',
+    phoneKeys: [PK_CONTACT],
+    name: 'Contact Only',
+    phone: '+91 90000 00066',
+    leadSource: 'Instagram',
+    ownerName: 'Task Owner',
+    ownerEmail: TASK_OWNER_EMAIL,
+    createdTime: new Date('2026-09-20T05:00:00Z'),
+  },
+];
+
 const CALLS = [
   {
     _id: 'c1',
@@ -166,6 +180,7 @@ const WebLead = require('../../ads/models/WebLead');
 const MetaLead = require('../../ads/models/MetaLead');
 const Deal = require('../../calls/models/Deal');
 const Call = require('../../calls/models/Call');
+const Contact = require('../models/Contact');
 
 Task.find = (filter) => {
   const key = filter && filter.phoneKey;
@@ -177,6 +192,8 @@ MetaLead.find = (filter) => fakeQuery(META_LEADS.filter((m) => m.phoneKey === (f
 Deal.find = (filter) => fakeQuery(DEALS.filter((d) => d.contactPhoneKey === (filter && filter.contactPhoneKey)));
 Call.find = (filter) =>
   fakeQuery(CALLS.filter((c) => Array.isArray(c.phoneKeys) && c.phoneKeys.includes(filter && filter.phoneKeys)));
+Contact.find = (filter) =>
+  fakeQuery(CONTACTS.filter((c) => c.phoneKeys.includes(filter && filter.phoneKeys)));
 
 // ---------------------------------------------------------------------------
 // Service stubs — VSL watch block and ad-lead acquisition block.
@@ -388,6 +405,23 @@ check('a failed source that would otherwise 404 returns 503 instead', async () =
   const { status, body } = await quietly(() => buildLeadProfile(PK_TASK_FAILS, ADMIN));
   assert.strictEqual(status, 503);
   assert.strictEqual(body.success, false);
+});
+
+// ---------------------------------------------------------------------------
+// 8b — a Bigin contact alone is a lead
+// ---------------------------------------------------------------------------
+
+check('contact-only lead: 200 for its owner, header from the Bigin contact', async () => {
+  const { status, body } = await buildLeadProfile(PK_CONTACT, REP_TASK_OWNER);
+  assert.strictEqual(status, 200);
+  assert.strictEqual(body.data.header.name, 'Contact Only');
+  assert.strictEqual(body.data.header.leadSource, 'Instagram');
+  assert.strictEqual(body.data.header.ownerEmail, TASK_OWNER_EMAIL);
+});
+
+check('contact-only lead: 403 for a rep who does not own the contact', async () => {
+  const { status } = await buildLeadProfile(PK_CONTACT, REP_NOTHING);
+  assert.strictEqual(status, 403);
 });
 
 // ---------------------------------------------------------------------------

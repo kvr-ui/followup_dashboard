@@ -31,6 +31,7 @@ const WebLead = require('../../ads/models/WebLead');
 const MetaLead = require('../../ads/models/MetaLead');
 const Deal = require('../../calls/models/Deal');
 const Call = require('../../calls/models/Call');
+const Contact = require('../models/Contact');
 const zoho = require('../../../services/zoho');
 const vslConnection = require('../../vsl/services/connection');
 const { serialize, serializeDetail } = require('../../../controllers/taskController');
@@ -124,18 +125,20 @@ function guard(name, promise, fallback, failed) {
  * A rep with no ownerEmail owns nothing: comparing '' against a deal with no
  * owner would otherwise hand them every unowned deal on the key.
  */
-function repOwnsSomething(user, { tasks, deals, calls }) {
+function repOwnsSomething(user, { tasks, deals, calls, contacts = [] }) {
   const mine = lower(user && user.ownerEmail);
   if (!mine) return false;
   if (tasks.some((t) => taskOwnerEmails(t).includes(mine))) return true;
   if (deals.some((d) => lower(d.ownerEmail) === mine)) return true;
+  if (contacts.some((c) => lower(c.ownerEmail) === mine)) return true;
   return calls.some((c) => lower(c.ownerEmail) === mine);
 }
 
-/** No owner email on any Task, Deal or Call — an unassigned lead. */
-function nobodyOwns({ tasks, deals, calls }) {
+/** No owner email on any Task, Deal, Call or Bigin contact — an unassigned lead. */
+function nobodyOwns({ tasks, deals, calls, contacts = [] }) {
   if (tasks.some((t) => taskOwnerEmails(t).length)) return false;
   if (deals.some((d) => lower(d.ownerEmail))) return false;
+  if (contacts.some((c) => lower(c.ownerEmail))) return false;
   return !calls.some((c) => lower(c.ownerEmail));
 }
 
@@ -187,6 +190,15 @@ function callContact(call) {
   return { name: call.leadName || null, phone: call.leadPhone || null, leadSource: null };
 }
 
+function biginContact(contact) {
+  if (!contact) return { name: null, phone: null, leadSource: null };
+  return {
+    name: contact.name || null,
+    phone: firstPresent(contact.phone, contact.mobile),
+    leadSource: contact.leadSource || null,
+  };
+}
+
 function taskOwner(taskDoc) {
   const owner = bodiesOf(taskDoc)
     .map((b) => b.Owner)
@@ -205,13 +217,15 @@ function taskOwner(taskDoc) {
  * The state is the newest deal's — a lead that lost a deal last year and has an
  * open one now is in the pipeline, not lost.
  */
-function buildHeader({ phoneKey, tasks, forms, deals, calls }) {
+function buildHeader({ phoneKey, tasks, forms, deals, calls, contacts = [] }) {
   const latestTask = tasks[0] || null;
   const newestDeal = deals[0] || null;
+  const contact = contacts[0] || null;
   const candidates = [
     taskContact(latestTask),
     formContact(forms[0] || null),
     dealContact(newestDeal),
+    biginContact(contact),
     callContact(calls[0] || null),
   ];
   const pick = (field) => firstPresent(...candidates.map((c) => c[field]));
@@ -220,6 +234,9 @@ function buildHeader({ phoneKey, tasks, forms, deals, calls }) {
     (latestTask && taskOwner(latestTask)) ||
     (newestDeal && (newestDeal.ownerName || newestDeal.ownerEmail)
       ? { name: newestDeal.ownerName || null, email: newestDeal.ownerEmail || null }
+      : null) ||
+    (contact && (contact.ownerName || contact.ownerEmail)
+      ? { name: contact.ownerName || null, email: contact.ownerEmail || null }
       : null);
 
   return {
@@ -417,6 +434,14 @@ async function buildLeadProfile(phoneKey, user) {
     failed
   );
 
+  // The Bigin contact(s) on this number — enough on their own to make a lead.
+  const contactsP = guard(
+    'contacts',
+    Contact.find({ phoneKeys: key }).sort({ createdTime: -1 }).lean(),
+    [],
+    failed
+  );
+
   // The newest Task, in exactly the GET /api/tasks/:id shape. serializeDetail
   // builds that shape's own acquisition + vsl (each already failure-bounded
   // inside detailFor), which the profile-level blocks below reuse rather than
@@ -449,16 +474,18 @@ async function buildLeadProfile(phoneKey, user) {
     null
   );
 
-  const [tasks, webLeads, metaLeads, deals, calls] = await Promise.all([
+  const [tasks, webLeads, metaLeads, deals, calls, contacts] = await Promise.all([
     tasksP,
     webP,
     metaP,
     dealsP,
     callsP,
+    contactsP,
   ]);
 
   // ---- 404: nothing anywhere — but only if everywhere actually answered -----
-  const nothing = !tasks.length && !webLeads.length && !metaLeads.length && !deals.length && !calls.length;
+  const nothing =
+    !tasks.length && !webLeads.length && !metaLeads.length && !deals.length && !calls.length && !contacts.length;
   if (nothing) {
     return failed.size
       ? fail(503, 'Could not load this lead right now — please try again')
@@ -469,12 +496,13 @@ async function buildLeadProfile(phoneKey, user) {
   // A lead nobody owns yet (a fresh form fill) is open to every rep, the same
   // rule the Leads list uses to show it. Only when every ownership source
   // answered can we say "nobody owns it".
-  if (!isAdmin && !repOwnsSomething(user, { tasks, deals, calls })) {
-    const ownershipUnknown = failed.has('tasks') || failed.has('deals') || failed.has('calls');
+  if (!isAdmin && !repOwnsSomething(user, { tasks, deals, calls, contacts })) {
+    const ownershipUnknown =
+      failed.has('tasks') || failed.has('deals') || failed.has('calls') || failed.has('contacts');
     if (ownershipUnknown) {
       return fail(503, 'Could not verify access to this lead right now — please try again');
     }
-    if (!nobodyOwns({ tasks, deals, calls })) return fail(403, 'Not your lead');
+    if (!nobodyOwns({ tasks, deals, calls, contacts })) return fail(403, 'Not your lead');
   }
 
   const [latestTask, vsl, acquisition] = await Promise.all([latestTaskP, vslP, acquisitionP]);
@@ -487,7 +515,7 @@ async function buildLeadProfile(phoneKey, user) {
       zohoSync: zoho.isConfigured(),
       data: {
         phoneKey: key,
-        header: buildHeader({ phoneKey: key, tasks, forms, deals, calls }),
+        header: buildHeader({ phoneKey: key, tasks, forms, deals, calls, contacts }),
         latestTask,
         // Read-only rows in the UI; the newest one is `latestTask` above.
         olderTasks: tasks.slice(1).map((t) => serialize(t)),

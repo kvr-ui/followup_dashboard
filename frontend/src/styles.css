@@ -160,12 +160,11 @@ label {
 /* ---------- Header ---------- */
 header {
   display: flex;
-  /* Two stacked rows: title + account, then the tabs across the full width.
-     Side by side, the three fought over one line and the tabs always lost. */
   flex-direction: column;
   align-items: stretch;
-  gap: 0.65rem;
-  padding: 0.85rem 2.25rem;
+  justify-content: center;
+  height: 4rem; /* matches .app-shell --header-h, which the sidebar sticks under */
+  padding: 0 1.5rem;
   background: rgba(255, 255, 255, 0.85);
   backdrop-filter: saturate(1.1) blur(8px);
   border-bottom: 1px solid var(--border);
@@ -196,30 +195,47 @@ header h1 {
   border-radius: 10px;
   border: 1px solid var(--border);
 }
-/* Scoped to the header: Calls.jsx reuses .tabs for its own sub-tab bar at
-   width:fit-content, which must keep hugging its buttons. */
-header .tabs {
-  /* Only ever ONE row. Below about 1100px the last tabs scroll into reach
-     rather than wrapping into a ragged second row of pills. */
-  overflow-x: auto;
-  scrollbar-width: none; /* Firefox */
-
-  /* Edge shading that appears ONLY when there is something scrolled out of
-     view, so a clipped tab announces itself instead of just vanishing. The
-     four layers pair up: the first two scroll WITH the content (attachment:
-     local) and so slide away to uncover the fixed shadows underneath exactly
-     when you are not at that end. No JS, no scroll listener. */
-  background-image: linear-gradient(to right, var(--surface-inset) 60%, transparent),
-    linear-gradient(to left, var(--surface-inset) 60%, transparent),
-    linear-gradient(to right, rgba(15, 23, 42, 0.13), transparent),
-    linear-gradient(to left, rgba(15, 23, 42, 0.13), transparent);
-  background-position: left center, right center, left center, right center;
-  background-repeat: no-repeat;
-  background-size: 2.5rem 100%, 2.5rem 100%, 0.9rem 100%, 0.9rem 100%;
-  background-attachment: local, local, scroll, scroll;
+/* The main tab list, as a left sidebar column. Calls.jsx reuses .tabs for its
+   own horizontal sub-tab bar, so everything vertical is scoped to .side-nav. */
+.app-shell {
+  display: flex;
+  align-items: flex-start;
+  --header-h: 4rem;
 }
-header .tabs::-webkit-scrollbar {
-  display: none;
+/* A full-height rail flush to the left edge, pinned under the sticky header,
+   so the content gets every remaining pixel of width. */
+.side-nav {
+  flex-direction: column;
+  gap: 0.1rem;
+  width: 180px;
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0.75rem 0.6rem;
+  border: none;
+  border-right: 1px solid var(--border);
+  border-radius: 0;
+  position: sticky;
+  top: var(--header-h);
+  height: calc(100vh - var(--header-h));
+  overflow-y: auto;
+}
+.side-nav .tab {
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+}
+.app-shell > main {
+  flex: 1;
+  min-width: 0; /* let wide tables scroll inside main, not push the page */
+  padding: 1.25rem 1.5rem;
+}
+
+.tab {
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+}
+.app-shell > main {
+  flex: 1;
+  min-width: 0; /* let wide tables scroll inside main, not push the page */
 }
 
 .tab {
@@ -402,6 +418,19 @@ main {
 .status-none {
   background: var(--surface-inset);
   color: var(--ink-2);
+}
+/* Leads tab: funnel stage (MQL -> SQL -> Closed). */
+.stage-mql {
+  background: var(--slate-soft);
+  color: var(--slate);
+}
+.stage-sql {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+.stage-closed {
+  background: var(--green-soft);
+  color: var(--green);
 }
 
 /* ---------- Quick tabs ---------- */
@@ -1022,11 +1051,28 @@ tr.row-today td {
   .fields {
     grid-template-columns: 1fr;
   }
-  main {
+  main,
+  .app-shell > main {
     padding: 1rem;
   }
   header {
-    padding: 0.75rem 1rem;
+    padding: 0 1rem;
+  }
+  /* Phones: the sidebar folds back into one scrolling row above the content. */
+  .app-shell {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .side-nav {
+    flex-direction: row;
+    width: auto;
+    height: auto;
+    margin: 0.75rem 1rem 0;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    position: static;
+    overflow-x: auto;
+    overflow-y: visible;
   }
 }
 
@@ -2950,4 +2996,48 @@ tr.row-today td {
   .lp-name {
     font-size: 1.35rem;
   }
+}
+
+/* ---------- Funnel tab (MQL vs SQL by source x month) ---------- */
+.funnel-scroll {
+  overflow-x: auto;
+}
+.funnel-table th,
+.funnel-table td {
+  text-align: right;
+  white-space: nowrap;
+}
+.funnel-table .funnel-src {
+  text-align: left;
+  position: sticky;
+  left: 0;
+  background: var(--surface);
+}
+.funnel-table .funnel-mh {
+  border-left: 1px solid var(--border);
+}
+.funnel-table .funnel-center {
+  text-align: center;
+}
+.funnel-table tfoot td {
+  border-top: 2px solid var(--border);
+}
+.funnel-pct {
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+.funnel-unit {
+  font-size: 13px;
+  font-weight: 400;
+}
+.funnel-bar {
+  height: 6px;
+  margin-top: 10px;
+  border-radius: 3px;
+  background: var(--accent-soft);
+  overflow: hidden;
+}
+.funnel-bar-sql {
+  height: 100%;
+  background: var(--accent);
 }

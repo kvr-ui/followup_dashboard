@@ -57,4 +57,41 @@ function leadStatus(task, deal, matchedBy) {
   };
 }
 
-module.exports = { LEAD_STATES, leadState, leadStatus };
+// ---------------------------------------------------------------------------
+// Funnel stage — MQL / SQL / Closed
+// ---------------------------------------------------------------------------
+
+const FUNNEL_STAGES = ['mql', 'sql', 'closed'];
+
+// A call must run strictly longer than this to qualify a lead. Anything shorter
+// is a missed call, a ring-out or "call me later" — not a sales conversation.
+const SQL_MIN_CALL_SEC = 30;
+
+/**
+ * Where a lead sits in the funnel.
+ *
+ *   closed  any deal closed with a sale
+ *   sql     a call over SQL_MIN_CALL_SEC (either direction, any attempt — an
+ *           early missed call doesn't count against the lead), OR any deal at
+ *           all: a deal in Bigin means sales already qualified them, even when
+ *           the conversation never reached our call log (WhatsApp, unlogged call)
+ *   mql     everyone else — a form fill, Meta lead or follow-up task
+ *
+ * A lost deal stays sql: the stage is how far the lead got, and the Status
+ * column already says "lost".
+ */
+function funnelStage({ deals, hasQualifyingCall }) {
+  const list = deals || [];
+  if (list.some((d) => d && d.outcome === 'won')) return 'closed';
+  if (list.length || hasQualifyingCall) return 'sql';
+  return 'mql';
+}
+
+module.exports = {
+  LEAD_STATES,
+  leadState,
+  leadStatus,
+  FUNNEL_STAGES,
+  SQL_MIN_CALL_SEC,
+  funnelStage,
+};

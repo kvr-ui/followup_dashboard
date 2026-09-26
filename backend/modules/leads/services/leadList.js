@@ -1,6 +1,8 @@
 // Every lead the dashboard knows about, one row per person.
 //
-// A "lead" is anyone with a follow-up Task, a web or Meta form fill, or a Deal —
+// A "lead" is anyone with a follow-up Task, a web or Meta form fill, a Deal, or
+// a Bigin contact (the MQL list — a contact created in Bigin shows up here as
+// soon as the contact webhook stores it) —
 // grouped on the shared join key, the last 10 digits of the phone. Calls alone do
 // not make a lead (random inbound numbers would flood the list); they are read
 // only to decide who OWNS a lead.
@@ -24,6 +26,7 @@ const MetaLead = require('../../ads/models/MetaLead');
 const MetaCampaign = require('../../ads/models/MetaCampaign');
 const Deal = require('../../calls/models/Deal');
 const Call = require('../../calls/models/Call');
+const Contact = require('../models/Contact');
 const { taskOwnerEmails } = require('../../../utils/owner');
 const { getCachedTasks } = require('../../../controllers/taskController');
 const {
@@ -35,6 +38,7 @@ const {
   taskAt,
   dealAt,
 } = require('./leadProfile');
+const { FUNNEL_STAGES, SQL_MIN_CALL_SEC, funnelStage } = require('../../ads/services/leadState');
 
 const HAS_KEY = { $nin: [null, ''] };
 const STATES = ['won', 'lost', 'pipeline', 'followup', 'none'];
@@ -43,6 +47,10 @@ const MAX_LIMIT = 200;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 const SOURCE_LABELS = { web: 'Web form', meta: 'Meta form' };
+
+// Same rule as the Funnel: Bigin's own duration when the call is logged in
+// Bigin, else TeleCMI's.
+const callSeconds = (c) => Number(c.biginDurationSec != null ? c.biginDurationSec : c.duration) || 0;
 
 function fail(status, message) {
   return { status, body: { success: false, message } };
@@ -66,7 +74,7 @@ const newestFirst = (atOf) => (a, b) =>
 // ---------------------------------------------------------------------------
 
 async function loadSources() {
-  const [tasks, webLeads, metaLeads, deals, calls, campaigns] = await Promise.all([
+  const [tasks, webLeads, metaLeads, deals, calls, campaigns, contacts] = await Promise.all([
     // The follow-ups list's own warm cache (slim rows: body, receivedAt,
     // leadSource, phoneKey). A fresh Task read costs ~25s on Atlas M0.
     getCachedTasks().then((rows) => rows.filter((t) => t.phoneKey)),
@@ -105,11 +113,25 @@ async function loadSources() {
         updatedAt: 1,
       }
     ).lean(),
-    // Ownership only: an unowned call changes nothing.
-    Call.find({ ownerEmail: HAS_KEY }, { phoneKeys: 1, ownerEmail: 1 }).lean(),
+    // Ownership, and the funnel stage: an owned call claims a lead, a call over
+    // SQL_MIN_CALL_SEC qualifies one. Any other call changes nothing.
+    Call.find(
+      {
+        $or: [
+          { ownerEmail: HAS_KEY },
+          { duration: { $gt: SQL_MIN_CALL_SEC } },
+          { biginDurationSec: { $gt: SQL_MIN_CALL_SEC } },
+        ],
+      },
+      { phoneKeys: 1, ownerEmail: 1, duration: 1, biginDurationSec: 1 }
+    ).lean(),
     MetaCampaign.find({}, { name: 1 }).lean(),
+    Contact.find(
+      { 'phoneKeys.0': { $exists: true } },
+      { phoneKeys: 1, name: 1, phone: 1, mobile: 1, leadSource: 1, ownerName: 1, ownerEmail: 1, createdTime: 1, modifiedTime: 1 }
+    ).lean(),
   ]);
-  return { tasks, webLeads, metaLeads, deals, calls, campaigns };
+  return { tasks, webLeads, metaLeads, deals, calls, campaigns, contacts };
 }
 
 // ---------------------------------------------------------------------------
@@ -142,9 +164,11 @@ function buildRow(phoneKey, group, campaignNames) {
   const tasks = group.tasks.sort(newestFirst(taskAt));
   const deals = group.deals.sort(newestFirst(dealAt));
   const forms = mergeForms(group.webLeads, group.metaLeads);
-  const header = buildHeader({ phoneKey, tasks, forms, deals, calls: [] });
+  const contacts = group.contacts.sort(newestFirst((c) => c.createdTime));
+  const header = buildHeader({ phoneKey, tasks, forms, deals, calls: [], contacts });
 
   const owners = new Set(group.callOwners);
+  contacts.forEach((c) => lower(c.ownerEmail) && owners.add(lower(c.ownerEmail)));
   tasks.forEach((t) => taskOwnerEmails(t).forEach((e) => owners.add(lower(e))));
   deals.forEach((d) => lower(d.ownerEmail) && owners.add(lower(d.ownerEmail)));
 
@@ -156,12 +180,14 @@ function buildRow(phoneKey, group, campaignNames) {
     ...tasks.map((t) => t.receivedAt),
     ...forms.map((f) => f.at),
     ...deals.map((d) => d.createdAt),
+    ...contacts.map((c) => c.createdTime),
   ]);
   const lastActivity = latest([
     ...tasks.map((t) => t.receivedAt),
     ...taskBodies.map((b) => b.Modified_Time),
     ...forms.map((f) => f.at),
     ...deals.map(dealAt),
+    ...contacts.map((c) => c.modifiedTime),
   ]);
 
   return {
@@ -169,6 +195,7 @@ function buildRow(phoneKey, group, campaignNames) {
     name: header.name,
     phone: header.phone,
     state: header.state,
+    stage: funnelStage({ deals, hasQualifyingCall: group.qualified }),
     ownerName: header.ownerName,
     ownerEmail: header.ownerEmail,
     source: SOURCE_LABELS[header.leadSource] || header.leadSource || null,
@@ -188,11 +215,19 @@ function buildRow(phoneKey, group, campaignNames) {
 }
 
 /** Every lead, grouped by phoneKey. Exported for the tests. */
-function groupLeads({ tasks, webLeads, metaLeads, deals, calls, campaigns }) {
+function groupLeads({ tasks, webLeads, metaLeads, deals, calls, campaigns, contacts = [] }) {
   const groups = new Map();
   const group = (key) => {
     if (!groups.has(key)) {
-      groups.set(key, { tasks: [], webLeads: [], metaLeads: [], deals: [], callOwners: new Set() });
+      groups.set(key, {
+        tasks: [],
+        webLeads: [],
+        metaLeads: [],
+        deals: [],
+        contacts: [],
+        callOwners: new Set(),
+        qualified: false,
+      });
     }
     return groups.get(key);
   };
@@ -201,13 +236,18 @@ function groupLeads({ tasks, webLeads, metaLeads, deals, calls, campaigns }) {
   webLeads.forEach((w) => group(w.phoneKey).webLeads.push(w));
   metaLeads.forEach((m) => group(m.phoneKey).metaLeads.push(m));
   deals.forEach((d) => group(d.contactPhoneKey).deals.push(d));
+  contacts.forEach((c) => (c.phoneKeys || []).forEach((k) => group(k).contacts.push(c)));
 
-  // After the lead-making sources: a call never creates a row, only claims one.
+  // After the lead-making sources: a call never creates a row, only claims or
+  // qualifies one.
   for (const call of calls) {
     const owner = lower(call.ownerEmail);
-    if (!owner) continue;
+    const qualifies = callSeconds(call) > SQL_MIN_CALL_SEC;
     for (const key of call.phoneKeys || []) {
-      if (groups.has(key)) groups.get(key).callOwners.add(owner);
+      const g = groups.get(key);
+      if (!g) continue;
+      if (owner) g.callOwners.add(owner);
+      if (qualifies) g.qualified = true;
     }
   }
 
@@ -249,6 +289,15 @@ function compare(sort) {
   }
 }
 
+/** The Owner dropdown: admins only — a rep's scope is pinned server-side. */
+function ownerFacet(owners, isAdmin) {
+  return isAdmin
+    ? [...owners.entries()]
+        .map(([email, name]) => ({ email, name }))
+        .sort((a, b) => a.name.localeCompare(b.name))
+    : [];
+}
+
 /**
  * Pure: scoped + filtered + sorted + paged rows, plus the facets the filter bar
  * needs. Exported so the tests can drive it without a database.
@@ -258,6 +307,7 @@ function selectRows(allRows, query, user) {
   const q = String(query.q || '').trim().toLowerCase();
   const qDigits = q.replace(/\D/g, '');
   const status = STATES.includes(query.status) ? query.status : '';
+  const stage = FUNNEL_STAGES.includes(query.stage) ? query.stage : '';
   const source = String(query.source || '');
   const owner = isAdmin ? lower(query.owner) : '';
   const unassigned = query.unassigned === '1' || query.unassigned === 'true';
@@ -274,16 +324,19 @@ function selectRows(allRows, query, user) {
   const owners = new Map();
   const sources = new Set();
   const byState = Object.fromEntries(STATES.map((s) => [s, 0]));
+  const byStage = Object.fromEntries(FUNNEL_STAGES.map((s) => [s, 0]));
   let unassignedCount = 0;
   for (const r of scoped) {
     if (r.ownerEmail) owners.set(lower(r.ownerEmail), r.ownerName || r.ownerEmail);
     if (r.source) sources.add(r.source);
     byState[r.state] = (byState[r.state] || 0) + 1;
+    byStage[r.stage] = (byStage[r.stage] || 0) + 1;
     if (r.unassigned) unassignedCount += 1;
   }
 
   const filtered = scoped.filter((r) => {
     if (status && r.state !== status) return false;
+    if (stage && r.stage !== stage) return false;
     if (source && r.source !== source) return false;
     if (owner && !r._owners.has(owner)) return false;
     if (unassigned && !r.unassigned) return false;
@@ -315,13 +368,10 @@ function selectRows(allRows, query, user) {
     facets: {
       total: scoped.length,
       byState,
+      byStage,
       unassigned: unassignedCount,
       sources: [...sources].sort(),
-      owners: isAdmin
-        ? [...owners.entries()]
-            .map(([email, name]) => ({ email, name }))
-            .sort((a, b) => a.name.localeCompare(b.name))
-        : [],
+      owners: ownerFacet(owners, isAdmin),
     },
   };
 }
@@ -354,6 +404,11 @@ function getCachedLeads() {
   return listCache || listRefreshing;
 }
 
+/** Drop the cache so the next read reloads — the contact webhook calls this. */
+function invalidateLeadListCache() {
+  listCacheAt = 0;
+}
+
 /** Warm at boot, after the task cache, so the first Leads tab isn't the slow one. */
 async function warmLeadListCache() {
   const rows = await getCachedLeads();
@@ -379,4 +434,4 @@ async function buildLeadList(query, user) {
   };
 }
 
-module.exports = { buildLeadList, warmLeadListCache, groupLeads, selectRows };
+module.exports = { buildLeadList, warmLeadListCache, invalidateLeadListCache, groupLeads, selectRows };
