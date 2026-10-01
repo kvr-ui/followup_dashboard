@@ -41,6 +41,9 @@ Three access levels appear below, copied from the router that enforces each one:
   - `PATCH /api/tasks/:id/status` — Move a follow-up along. Writes locally, then pushes to Bigin/Zoho.
   - `POST /api/tasks/:id/notes` — Add a note. Mirrored into Zoho as a note on the contact when a zohoId exists.
   - `POST /api/tasks/:id/whatsapp` — Send a WATI template to this lead's phone and log the send.
+- [Leads](#leads)
+  - `GET /api/leads-list` — One row per lead, filtered, sorted and paged server-side.
+  - `GET /api/lead-profile/:phoneKey` — Everything about one lead: tasks, forms, deals, calls, VSL watch time, timeline.
 - [Ask (data assistant)](#ask-data-assistant)
   - `GET /api/agent/status` — Whether the assistant is configured, which model, and the tools this user may use.
   - `POST /api/agent/chat` — Ask a question. Returns the answer plus the tools it used to get there.
@@ -489,6 +492,147 @@ const json = await res.json();
 | `502` | WATI rejected the send — the attempt is still logged on the task |
 
 Served by `backend/controllers/taskController.js`.
+
+---
+
+## Leads
+
+Every person the dashboard knows about — anyone with a follow-up task, a web or Meta form fill, or a deal — one row per phone number. A rep gets their own leads plus the ones nobody owns yet.
+
+### `GET /api/leads-list`
+
+**Any logged-in user.** One row per lead, filtered, sorted and paged server-side.
+
+> Calls never create a row; they only decide ownership. `facets` are counted over the caller's whole scope before any filter, so the dropdowns always offer every value.
+
+**Query parameters**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `q` | string | Name, or 3+ digits of the phone. |
+| `status` | string | won \| lost \| pipeline \| followup \| none |
+| `source` | string | One of `facets.sources`. |
+| `owner` | email | Admin only — ignored for a rep. |
+| `unassigned` | 1 | Only leads with no task, deal or call owner. |
+| `from / to` | YYYY-MM-DD | Created date window, IST days, both inclusive. |
+| `sort` | string | lastActivity (default) \| created \| nextFollowUp \| name |
+| `page` | number | Default 1. |
+| `limit` | number | Default 50, capped at 200. |
+
+**Request**
+
+```bash
+curl 'http://localhost:3000/api/leads-list?status=followup&sort=nextFollowUp&limit=20' \
+  -H 'Authorization: Bearer <YOUR_TOKEN>'
+```
+
+```js
+const res = await fetch('/api/leads-list?status=followup&sort=nextFollowUp&limit=20', {
+  headers: {
+    Authorization: `Bearer ${token}`,
+  },
+});
+const json = await res.json();
+```
+
+**Response** `200`
+
+```json
+{
+  "success": true,
+  "total": 812,
+  "page": 1,
+  "limit": 20,
+  "rows": [
+    {
+      "phoneKey": "9876543210",
+      "name": "Rahul S",
+      "phone": "+919876543210",
+      "state": "followup",
+      "ownerName": "Veera",
+      "ownerEmail": "veera@focasedu.com",
+      "source": "Meta form",
+      "campaign": "CA Inter — Aug",
+      "nextFollowUp": "2026-09-26",
+      "createdAt": "2026-08-11T06:12:44.101Z",
+      "lastActivity": "2026-09-24T10:02:00.000Z",
+      "unassigned": false,
+      "counts": {
+        "tasks": 1,
+        "forms": 1,
+        "deals": 0
+      }
+    }
+  ],
+  "facets": {
+    "total": 812,
+    "byState": {
+      "won": 90,
+      "lost": 140,
+      "pipeline": 61,
+      "followup": 402,
+      "none": 119
+    },
+    "unassigned": 119,
+    "sources": [
+      "Meta Ads",
+      "Meta form",
+      "Web form"
+    ],
+    "owners": [
+      {
+        "email": "veera@focasedu.com",
+        "name": "Veera"
+      }
+    ]
+  }
+}
+```
+
+Served by `backend/modules/leads/services/leadList.js`.
+
+### `GET /api/lead-profile/:phoneKey`
+
+**Any logged-in user.** Everything about one lead: tasks, forms, deals, calls, VSL watch time, timeline.
+
+> A rep may open a lead they own a task, deal or call on, or one nobody owns yet. Acquisition cost is included for admins only.
+
+**Request**
+
+```bash
+curl 'http://localhost:3000/api/lead-profile/9876543210' \
+  -H 'Authorization: Bearer <YOUR_TOKEN>'
+```
+
+```js
+const res = await fetch('/api/lead-profile/9876543210', {
+  headers: {
+    Authorization: `Bearer ${token}`,
+  },
+});
+const json = await res.json();
+```
+
+**Response** `200`
+
+```json
+{
+  "success": true,
+  "zohoSync": true,
+  "data": "…header, latestTask, deals, calls, timeline…"
+}
+```
+
+**Errors**
+
+| Status | Message |
+| --- | --- |
+| `400` | phoneKey must be exactly 10 digits |
+| `403` | Not your lead |
+| `404` | No lead found for this phone number |
+| `503` | A source failed, so the answer could not be trusted |
+
+Served by `backend/modules/leads/services/leadProfile.js`.
 
 ---
 

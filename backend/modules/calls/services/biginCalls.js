@@ -59,6 +59,8 @@ function toCallDoc(row, leadIndex, extByEmail) {
     cmiuid: `bigin:${row.id}`,
     source: 'bigin',
     biginCallId: String(row.id),
+    biginContactId: (row.Who_Id && row.Who_Id.id && String(row.Who_Id.id)) || null,
+    biginDurationSec: duration,
     direction: directionOf(row),
     from: directionOf(row) === 'inbound' ? phone : row.Caller_ID || null,
     to: directionOf(row) === 'inbound' ? row.Caller_ID || null : phone,
@@ -143,7 +145,18 @@ async function upsertBiginCall(row, leadIndex, extByEmail, { minDurationSec = 0 
   // Bigin knows better — the rep who owns it and the contact's name.
   const twin = await findTelecmiTwin(doc);
   if (twin) {
-    twin.biginCallId = doc.biginCallId;
+    // Bigin can log one physical call twice (a 220s record and an 11s one), and quick
+    // redials fall in the same window. Keep the longer record: last-writer-wins let a
+    // short duplicate hide the real conversation and drop the contact out of SQL.
+    const keepCurrent =
+      twin.biginCallId &&
+      twin.biginCallId !== doc.biginCallId &&
+      (twin.biginDurationSec || 0) >= doc.biginDurationSec;
+    if (!keepCurrent) {
+      twin.biginCallId = doc.biginCallId;
+      twin.biginContactId = doc.biginContactId;
+      twin.biginDurationSec = doc.biginDurationSec;
+    }
     if (!twin.ownerEmail && doc.ownerEmail) twin.ownerEmail = doc.ownerEmail;
     if (!twin.leadName && doc.leadName) twin.leadName = doc.leadName;
     if (!twin.recordingUrl && doc.recordingUrl) twin.recordingUrl = doc.recordingUrl;

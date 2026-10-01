@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import TaskTable from './TaskTable';
+import Leads from './Leads';
+import Funnel from './Funnel';
 import AdminUsers from './AdminUsers';
 import Analytics from './Analytics';
 import Calls from './Calls';
@@ -68,6 +70,11 @@ export default function Dashboard({ user, onLogout }) {
       isAdmin
         ? [
             'tasks',
+            // Every lead, one row per person. Open to reps too: the server scopes
+            // them to their own leads plus unassigned ones.
+            'leads',
+            // Monthly MQL -> SQL -> Closed counts, scoped the same way as leads.
+            'funnel',
             // The ask-the-data assistant. Open to reps as well (see the sales
             // list below): every tool it can call is owner-scoped server-side,
             // and the ones that cannot be scoped are admin-gated by name.
@@ -106,7 +113,7 @@ export default function Dashboard({ user, onLogout }) {
           // The API reference is open to reps too: it documents the endpoints, it does not
           // serve their data, and every admin-only entry is labelled as such (and would
           // answer 403 anyway). Hiding the docs would not have hidden anything.
-          ['tasks', 'agent', 'calls', 'scorecard', 'installments', 'upsells', 'vsl', 'apidocs'],
+          ['tasks', 'leads', 'funnel', 'agent', 'calls', 'scorecard', 'installments', 'upsells', 'vsl', 'apidocs'],
     [isAdmin]
   );
 
@@ -134,10 +141,8 @@ export default function Dashboard({ user, onLogout }) {
   return (
     <>
       <header>
-        {/* Title and account on one line, the tabs on their own full-width line
-            below. They used to share a row, so every tab added squeezed the
-            others until labels broke across two lines and the account name was
-            pushed off the edge — at thirteen tabs an admin had reached that. */}
+        {/* Title and account only — the tabs live in the left sidebar below,
+            where a growing list just gets longer instead of squeezing a row. */}
         <div className="header-row">
           <h1>Followup Dashboard</h1>
           <div className="user-box">
@@ -147,12 +152,27 @@ export default function Dashboard({ user, onLogout }) {
             <button onClick={onLogout}>Logout</button>
           </div>
         </div>
-        <nav className="tabs">
+      </header>
+
+      <div className="app-shell">
+        <nav className="tabs side-nav">
             <button
               className={view === 'tasks' ? 'tab active' : 'tab'}
               onClick={() => selectTab('tasks')}
             >
               Follow-ups
+            </button>
+            <button
+              className={view === 'leads' ? 'tab active' : 'tab'}
+              onClick={() => selectTab('leads')}
+            >
+              Leads
+            </button>
+            <button
+              className={view === 'funnel' ? 'tab active' : 'tab'}
+              onClick={() => selectTab('funnel')}
+            >
+              Funnel
             </button>
             <button
               className={view === 'agent' ? 'tab active' : 'tab'}
@@ -253,7 +273,6 @@ export default function Dashboard({ user, onLogout }) {
               API Docs
             </button>
         </nav>
-      </header>
 
       <main>
         {leadKey ? (
@@ -290,6 +309,10 @@ export default function Dashboard({ user, onLogout }) {
               <p className="subtle">No follow-ups match the current filters.</p>
             )}
           </>
+        ) : view === 'leads' ? (
+          <Leads isAdmin={isAdmin} />
+        ) : view === 'funnel' ? (
+          <Funnel isAdmin={isAdmin} />
         ) : view === 'agent' ? (
           <Agent user={user} />
         ) : view === 'installments' ? (
@@ -320,6 +343,7 @@ export default function Dashboard({ user, onLogout }) {
           <AdminUsers />
         )}
       </main>
+      </div>
     </>
   );
 }

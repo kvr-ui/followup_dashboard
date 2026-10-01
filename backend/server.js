@@ -12,6 +12,7 @@ const callJobs = require('./modules/calls/services/scheduler');
 const taskJobs = require('./services/taskSync');
 const adJobs = require('./modules/ads/services/scheduler');
 const { warmTaskCache } = require('./controllers/taskController');
+const { warmLeadListCache } = require('./modules/leads/services/leadList');
 const { warm: warmJourneyCache } = require('./modules/calls/services/journeyCache');
 
 // The Meta ads mirror, listed only so their indexes get built at boot like
@@ -49,6 +50,9 @@ connectDB()
       // warming it here means a user never waits for it. Outside start() above,
       // so it still happens when the polls are switched off.
       warmTaskCache().catch((e) => console.warn('task cache warm failed:', e.message));
+      // Shares the task cache's in-flight read (getCachedTasks dedupes), so this
+      // costs the Deal / Call / form reads only.
+      warmLeadListCache().catch((e) => console.warn('lead list cache warm failed:', e.message));
       warmJourneyCache().catch((e) => console.warn('journey cache warm failed:', e.message));
 
       // The cost-per-lead cache is the ads module's equivalent of the two warms

@@ -378,6 +378,9 @@ module.exports = {
   sendWhatsapp,
   invalidateTaskCache,
   warmTaskCache,
+  // The Leads list (modules/leads/services/leadList.js) groups these same rows
+  // instead of paying for a second ~25s full Task read on Atlas M0.
+  getCachedTasks,
   // The lead profile (modules/leads) renders the newest Task exactly as the
   // drawer does and the older ones as rows — one serializer, not two.
   serialize,
