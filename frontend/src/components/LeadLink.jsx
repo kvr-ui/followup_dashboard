@@ -1,4 +1,4 @@
-import { openLead } from '../leadRoute';
+import { openLead } from '../route';
 
 // A name or phone that opens the lead page, without triggering the row's own click.
 // With no usable key it renders the text as-is — no link to nowhere.

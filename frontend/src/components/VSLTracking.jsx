@@ -4,7 +4,7 @@ import DateRangeBar from './DateRangeBar';
 import CopyButton from './CopyButton';
 import { defaultRange, formatCount, sortRows } from '../adStats';
 import { formatDateTime } from '../utils';
-import { openLead, rowPhoneKey } from '../leadRoute';
+import { openLead, rowPhoneKey } from '../route';
 import {
   ENGAGEMENT,
   ENGAGEMENT_FILTERS,

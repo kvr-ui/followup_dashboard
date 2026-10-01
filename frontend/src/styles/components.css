@@ -1,0 +1,243 @@
+/* ============================================================
+   Shared UI kit — styles for components/ui/*
+   ============================================================ */
+
+/* ---------- Sub-tabs (underlined strip) ---------- */
+.sub-tabs {
+  display: flex;
+  gap: var(--space-1);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.sub-tabs::-webkit-scrollbar {
+  display: none;
+}
+.sub-tab {
+  padding: 0.55rem var(--space-3);
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--ink-2);
+  font-size: 0.86rem;
+  font-weight: 500;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.sub-tab:hover {
+  background: transparent;
+  color: var(--ink);
+}
+.sub-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+  font-weight: 600;
+}
+/* Inside a view (not the module header) the strip carries its own baseline. */
+.module-body .sub-tabs {
+  border-bottom: 1px solid var(--border);
+  margin-bottom: var(--space-4);
+}
+
+/* Segmented control — the older .tabs pill group, still used for two-way switches. */
+.tabs {
+  display: flex;
+  gap: 2px;
+  width: fit-content;
+  padding: 2px;
+  margin-bottom: var(--space-4);
+  background: var(--surface-inset);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.tab {
+  padding: 0.35rem 0.8rem;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-2);
+  font-size: 0.84rem;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.tab:hover {
+  background: transparent;
+  color: var(--ink);
+}
+.tab.active {
+  background: var(--surface);
+  color: var(--accent);
+  box-shadow: var(--shadow-sm);
+}
+
+/* ---------- Page header (a view's title row) ---------- */
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-3);
+}
+.page-title {
+  font-size: 1rem;
+  font-weight: 600;
+}
+.page-meta {
+  font-size: 0.84rem;
+  color: var(--ink-2);
+}
+.page-meta .error {
+  color: var(--red);
+}
+.page-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+/* ---------- Filter bar ---------- */
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.filter-bar label {
+  gap: var(--space-1);
+}
+.filter-bar input,
+.filter-bar select {
+  padding: 0.4rem 0.6rem;
+  font-size: 0.85rem;
+}
+
+/* ---------- Data table ---------- */
+.data-table-wrap {
+  overflow-x: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+table.data-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+table.data-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 0.6rem var(--space-3);
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+  color: var(--ink-2);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  text-align: left;
+  white-space: nowrap;
+}
+table.data-table td {
+  padding: 0.6rem var(--space-3);
+  border-bottom: 1px solid var(--border);
+  font-size: 0.86rem;
+  vertical-align: top;
+}
+table.data-table tbody tr:last-child td {
+  border-bottom: none;
+}
+table.data-table tbody tr:hover td {
+  background: var(--surface-2);
+}
+table.data-table tr.clickable-row {
+  cursor: pointer;
+}
+table.data-table .num,
+table.data-table th.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Stat cards ---------- */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+.stat-card {
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.stat-card.clickable {
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.stat-card.clickable:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow);
+}
+.stat-card.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.stat-value {
+  font-size: 1.6rem;
+  font-weight: 600;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+.stat-label {
+  margin-top: var(--space-1);
+  font-size: 0.74rem;
+  font-weight: 500;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.stat-hint {
+  margin-top: var(--space-1);
+  font-size: 0.78rem;
+  color: var(--ink-2);
+}
+.stat-card.tone-red .stat-value {
+  color: var(--red);
+}
+.stat-card.tone-amber .stat-value {
+  color: var(--amber);
+}
+.stat-card.tone-green .stat-value {
+  color: var(--green);
+}
+.stat-card.tone-accent .stat-value {
+  color: var(--accent);
+}
+
+/* ---------- Empty state ---------- */
+.empty-state {
+  padding: var(--space-6) var(--space-4);
+  text-align: center;
+  background: var(--surface);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+}
+.empty-title {
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.empty-body {
+  margin-top: var(--space-1);
+  font-size: 0.84rem;
+  color: var(--muted);
+}

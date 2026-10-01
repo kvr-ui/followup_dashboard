@@ -1,0 +1,211 @@
+/* ============================================================
+   App shell: top bar, module rail, module header
+   ============================================================ */
+
+/* ---------- Top bar ---------- */
+.top-bar {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  height: var(--header-h);
+  padding: 0 var(--space-4) 0 0;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+/* The logo sits over the rail, so it lines up with the module list below it. */
+.top-bar .brand {
+  display: flex;
+  align-items: center;
+  width: var(--sidenav-w);
+  height: 100%;
+  padding: 0 var(--space-4);
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+}
+.top-bar .brand:hover {
+  background: transparent;
+}
+.top-bar .brand img {
+  height: 1.6rem;
+}
+
+.top-bar-center {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+
+.user-box {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0; /* the name and Logout are never what gets squeezed */
+}
+.avatar {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.who-mini {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+.who-name {
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+.who-role {
+  font-size: 0.72rem;
+  color: var(--muted);
+  text-transform: capitalize;
+}
+
+.icon-btn {
+  display: inline-grid;
+  place-items: center;
+  padding: 0.4rem;
+  border-color: transparent;
+  background: transparent;
+  color: var(--ink-2);
+}
+.icon-btn:hover {
+  background: var(--surface-inset);
+  border-color: transparent;
+  color: var(--ink);
+}
+
+/* ---------- Layout ---------- */
+.app-shell {
+  display: flex;
+  align-items: flex-start;
+}
+.app-shell > main {
+  flex: 1;
+  min-width: 0; /* let wide tables scroll inside main, not push the page */
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  min-height: calc(100vh - var(--header-h));
+}
+
+/* ---------- Module rail ---------- */
+/* Dark FOCAS navy, pinned under the top bar, full height. */
+.side-nav {
+  position: sticky;
+  top: var(--header-h);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: var(--sidenav-w);
+  height: calc(100vh - var(--header-h));
+  flex-shrink: 0;
+  padding: var(--space-3) var(--space-2);
+  overflow-y: auto;
+  background: #0c0a4d;
+}
+.side-nav-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--space-3);
+  width: 100%;
+  padding: 0.6rem var(--space-3);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 0.88rem;
+  font-weight: 500;
+  text-align: left;
+  white-space: nowrap;
+}
+.side-nav-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+.side-nav-item.active {
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+}
+/* FOCAS green marks the open module. */
+.side-nav-item.active::before {
+  content: '';
+  position: absolute;
+  left: calc(-1 * var(--space-2));
+  top: 6px;
+  bottom: 6px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--brand-green);
+}
+.side-nav-item .icon {
+  flex-shrink: 0;
+}
+
+/* ---------- Module header + body ---------- */
+.module-header {
+  padding: var(--space-4) var(--space-5) 0;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.module-title {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--ink);
+  padding-bottom: var(--space-3);
+}
+/* A single-tab module has no strip, so the title needs its own bottom room. */
+.module-header .sub-tabs {
+  margin-bottom: -1px; /* the active underline sits on the header border */
+}
+.module-body {
+  padding: var(--space-4) var(--space-5) var(--space-6);
+}
+
+/* ---------- Narrow screens: the rail becomes an icon strip ---------- */
+@media (max-width: 900px) {
+  :root {
+    --sidenav-w: 56px;
+  }
+  .side-nav-item span {
+    display: none;
+  }
+  .side-nav-item {
+    justify-content: center;
+    padding: 0.65rem 0;
+  }
+  .top-bar .brand {
+    width: auto;
+  }
+  .top-bar .brand img {
+    height: 1.25rem;
+  }
+  .who-mini {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .module-header {
+    padding: var(--space-3) var(--space-4) 0;
+  }
+  .module-body {
+    padding: var(--space-3) var(--space-3) var(--space-5);
+  }
+}

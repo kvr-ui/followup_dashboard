@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../api';
 import CopyButton from './CopyButton';
 import LeadLink from './LeadLink';
-import { rowPhoneKey } from '../leadRoute';
+import { rowPhoneKey } from '../route';
 import { inr, upsoldTo } from '../upsell';
 
 /** Days since the deal closed — how long the balance has been outstanding. */

@@ -2,7 +2,7 @@ import { formatDateTime, priorityClass, statusClass, getContact } from '../utils
 import { classifyDue } from '../taskStats';
 import CopyButton from './CopyButton';
 import { formatWatch } from '../vslStats';
-import { openLead, toPhoneKey } from '../leadRoute';
+import { openLead, toPhoneKey } from '../route';
 
 // Where the lead came from, read straight off the row. The list response carries
 // a denormalised `leadSource`, so this is a plain lookup in a map — never a fetch

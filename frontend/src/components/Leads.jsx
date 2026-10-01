@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../api';
 import CopyButton from './CopyButton';
-import { openLead } from '../leadRoute';
+import { openLead } from '../route';
 import { LEAD_STATES, LEAD_STATUS, formatCount, formatDay, relativeTime } from '../adStats';
 import { parseDueDate, startOfToday } from '../taskStats';
 import { statusClass } from '../utils';

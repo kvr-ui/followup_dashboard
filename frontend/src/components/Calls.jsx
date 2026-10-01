@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { api, download } from '../api';
 import CallDetail from './CallDetail';
 import LeadLink from './LeadLink';
-import { rowPhoneKey } from '../leadRoute';
+import { rowPhoneKey } from '../route';
 import { formatDateTime } from '../utils';
 
 function mmss(sec) {

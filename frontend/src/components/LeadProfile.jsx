@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { api } from '../api';
 import { statusClass } from '../utils';
-import { leaveLead } from '../leadRoute';
+import { leaveLead } from '../route';
 import { LEAD_STATUS } from '../adStats';
 import { rupees } from '../money';
 import { upsoldTo } from '../upsell';

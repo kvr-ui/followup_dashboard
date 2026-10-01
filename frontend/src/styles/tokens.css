@@ -1,0 +1,64 @@
+/* ============================================================
+   FOCAS Sales CRM — design tokens
+   Brand colours are sampled from public/logo.png: navy #0F0098, green #08B708.
+   Token names are unchanged from the old stylesheet so every view rule that
+   reads them picks up the new palette without edits.
+   ============================================================ */
+
+:root {
+  /* Surfaces: a grey canvas with white cards, the usual CRM contrast. */
+  --bg: #f4f5f8;
+  --surface: #ffffff;
+  --surface-2: #f8f9fb;
+  --surface-inset: #eef0f4;
+
+  /* Lines */
+  --border: #e3e6ec;
+  --border-strong: #cfd4dc;
+
+  /* Ink */
+  --ink: #1a1d29;
+  --ink-2: #4b5263;
+  --muted: #858c9b;
+
+  /* FOCAS navy */
+  --accent: #0f0098;
+  --accent-hover: #0b0074;
+  --accent-soft: #ecebfa;
+  --accent-ink: #0f0098;
+
+  /* FOCAS green. --green is a shade darker than the logo so text on
+     --green-soft stays readable; --brand-green is the logo colour itself. */
+  --brand-green: #08b708;
+  --green: #0b7d1a;
+  --green-soft: #e6f5e8;
+  --amber: #a16207;
+  --amber-soft: #fdf3dc;
+  --red: #b42318;
+  --red-soft: #fdecea;
+  --slate: #5b6475;
+  --slate-soft: #eef0f4;
+
+  --radius-sm: 6px;
+  --radius: 8px;
+  --radius-lg: 12px;
+
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.05);
+  --shadow: 0 4px 12px -4px rgba(16, 24, 40, 0.12);
+  --shadow-lg: 0 16px 40px -12px rgba(16, 24, 40, 0.25);
+
+  /* Spacing scale for the kit and new rules. */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+
+  --header-h: 3.5rem;
+  --sidenav-w: 200px;
+
+  --font: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  /* Headings no longer use a serif. Kept as an alias so old rules still resolve. */
+  --serif: var(--font);
+}

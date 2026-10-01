@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../api';
 import CopyButton from './CopyButton';
 import LeadLink from './LeadLink';
-import { rowPhoneKey } from '../leadRoute';
+import { rowPhoneKey } from '../route';
 import { inr, upsoldFrom, upsoldTo } from '../upsell';
 
 /**

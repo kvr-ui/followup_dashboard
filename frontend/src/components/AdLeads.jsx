@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../api';
 import DateRangeBar from './DateRangeBar';
-import { openLead, rowPhoneKey } from '../leadRoute';
+import { openLead, rowPhoneKey } from '../route';
 import {
   LEAD_STATES,
   LEAD_STATUS,
