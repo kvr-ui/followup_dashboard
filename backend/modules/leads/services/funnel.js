@@ -100,12 +100,15 @@ function monthStart(month) {
 // ---------------------------------------------------------------------------
 
 /**
+ * Every in-scope, in-window contact with what it became. selectFunnel counts
+ * these; selectWonLeads lists the won ones behind one cell.
+ *
  * @param {object} src  { contacts, calls, deals } — see loadFunnelSources
  * @param {object} query  req.query: months, owner, unassigned
  * @param {object} user  role + ownerEmail
  * @param {Date} now
  */
-function selectFunnel({ contacts, calls, deals }, query, user, now = new Date()) {
+function classifyContacts({ contacts, calls, deals }, query, user, now) {
   const isAdmin = Boolean(user && user.role === 'admin');
   const count = MONTH_CHOICES.includes(Number(query.months)) ? Number(query.months) : DEFAULT_MONTHS;
   const months = monthWindow(now, count);
@@ -139,18 +142,7 @@ function selectFunnel({ contacts, calls, deals }, query, user, now = new Date())
   }
 
   const owners = new Map();
-  const empty = () => ({ mql: 0, sql: 0, lateSql: 0, won: 0, lost: 0, revenue: 0 });
-  const newRow = () => ({
-    byMonth: Object.fromEntries(months.map((m) => [m, empty()])),
-    total: empty(),
-    reasons: new Map(),
-  });
-  const bySource = new Map(); // name -> row
-  const byOwner = new Map(); // owner email ('' = unassigned) -> row
-  const byMonth = Object.fromEntries(months.map((m) => [m, empty()]));
-  const total = empty();
-  const totalReasons = new Map();
-
+  const facts = [];
   for (const c of contacts) {
     const owner = lower(c.ownerEmail);
     // Scope first — a rep's owner facet and counts never include a colleague.
@@ -170,31 +162,61 @@ function selectFunnel({ contacts, calls, deals }, query, user, now = new Date())
     for (const k of c.phoneKeys || []) for (const d of dealsByKey.get(k) || []) matched.add(d);
     const wonDeals = [...matched].filter((d) => d.outcome === 'won');
     const won = wonDeals.length > 0;
-    const revenue = wonDeals.reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
     const lost = !won && [...matched].some((d) => d.outcome === 'lost');
-    const reasons = lost
-      ? new Set([...matched].filter((d) => d.outcome === 'lost').map((d) => d.lostReason || NO_REASON))
-      : new Set();
+    facts.push({
+      contact: c,
+      month,
+      owner,
+      source: funnelSourceName(c.leadSource),
+      sql,
+      lateSql,
+      won,
+      wonDeals,
+      revenue: wonDeals.reduce((sum, d) => sum + (Number(d.amount) || 0), 0),
+      lost,
+      reasons: lost
+        ? new Set([...matched].filter((d) => d.outcome === 'lost').map((d) => d.lostReason || NO_REASON))
+        : new Set(),
+    });
+  }
+  return { isAdmin, months, owners, facts };
+}
 
-    const name = funnelSourceName(c.leadSource);
-    if (!bySource.has(name)) bySource.set(name, newRow());
-    const rows = [bySource.get(name)];
+/** The funnel counts — see the definitions at the top. */
+function selectFunnel(src, query, user, now = new Date()) {
+  const { isAdmin, months, owners, facts } = classifyContacts(src, query, user, now);
+
+  const empty = () => ({ mql: 0, sql: 0, lateSql: 0, won: 0, lost: 0, revenue: 0 });
+  const newRow = () => ({
+    byMonth: Object.fromEntries(months.map((m) => [m, empty()])),
+    total: empty(),
+    reasons: new Map(),
+  });
+  const bySource = new Map(); // name -> row
+  const byOwner = new Map(); // owner email ('' = unassigned) -> row
+  const byMonth = Object.fromEntries(months.map((m) => [m, empty()]));
+  const total = empty();
+  const totalReasons = new Map();
+
+  for (const f of facts) {
+    if (!bySource.has(f.source)) bySource.set(f.source, newRow());
+    const rows = [bySource.get(f.source)];
     if (isAdmin) {
-      if (!byOwner.has(owner)) byOwner.set(owner, newRow());
-      rows.push(byOwner.get(owner));
+      if (!byOwner.has(f.owner)) byOwner.set(f.owner, newRow());
+      rows.push(byOwner.get(f.owner));
     }
 
-    const buckets = [byMonth[month], total];
-    for (const r of rows) buckets.push(r.byMonth[month], r.total);
+    const buckets = [byMonth[f.month], total];
+    for (const r of rows) buckets.push(r.byMonth[f.month], r.total);
     for (const bucket of buckets) {
       bucket.mql += 1;
-      if (sql) bucket.sql += 1;
-      if (lateSql) bucket.lateSql += 1;
-      if (won) bucket.won += 1;
-      if (lost) bucket.lost += 1;
-      bucket.revenue += revenue;
+      if (f.sql) bucket.sql += 1;
+      if (f.lateSql) bucket.lateSql += 1;
+      if (f.won) bucket.won += 1;
+      if (f.lost) bucket.lost += 1;
+      bucket.revenue += f.revenue;
     }
-    for (const reason of reasons) {
+    for (const reason of f.reasons) {
       for (const map of [totalReasons, ...rows.map((r) => r.reasons)]) {
         map.set(reason, (map.get(reason) || 0) + 1);
       }
@@ -243,6 +265,44 @@ function selectFunnel({ contacts, calls, deals }, query, user, now = new Date())
   };
 }
 
+/**
+ * The won leads behind one funnel cell. On top of the funnel's own filters,
+ * `month` ('YYYY-MM', empty = whole window), `source` (a row name) and
+ * `rowOwner` (an owner row's email, '__unassigned' for that row; admin only)
+ * narrow it to the cell that was clicked.
+ */
+function selectWonLeads(src, query, user, now = new Date()) {
+  const { isAdmin, facts } = classifyContacts(src, query, user, now);
+  const month = query.month ? String(query.month) : '';
+  const source = query.source ? String(query.source) : '';
+  const rowOwner = isAdmin && query.rowOwner != null && query.rowOwner !== '' ? lower(query.rowOwner) : null;
+
+  const leads = facts
+    .filter((f) => f.won)
+    .filter((f) => !month || f.month === month)
+    .filter((f) => !source || f.source === source)
+    .filter((f) => rowOwner == null || f.owner === (rowOwner === '__unassigned' ? '' : rowOwner))
+    .map((f) => ({
+      contactId: String(f.contact.zohoId),
+      phoneKey: (f.contact.phoneKeys || [])[0] || null,
+      name: f.contact.name || null,
+      phone: f.contact.mobile || f.contact.phone || null,
+      source: f.source,
+      ownerName: f.contact.ownerName || null,
+      createdTime: f.contact.createdTime,
+      revenue: f.revenue,
+      deals: f.wonDeals.map((d) => ({
+        name: d.name || null,
+        amount: Number(d.amount) || 0,
+        closingDate: d.closingDate || null,
+        ownerName: d.ownerName || null,
+      })),
+    }))
+    .sort((a, b) => new Date(a.createdTime) - new Date(b.createdTime));
+
+  return { leads, revenue: leads.reduce((sum, l) => sum + l.revenue, 0) };
+}
+
 // ---------------------------------------------------------------------------
 // Reads + cache
 // ---------------------------------------------------------------------------
@@ -252,7 +312,7 @@ async function loadFunnelSources(now = new Date()) {
   const [contacts, calls, deals] = await Promise.all([
     Contact.find(
       { createdTime: { $gte: since } },
-      { zohoId: 1, phoneKeys: 1, leadSource: 1, ownerEmail: 1, ownerName: 1, createdTime: 1 }
+      { zohoId: 1, name: 1, phone: 1, mobile: 1, phoneKeys: 1, leadSource: 1, ownerEmail: 1, ownerName: 1, createdTime: 1 }
     ).lean(),
     Call.find(
       { biginContactId: { $ne: null }, biginDurationSec: { $gt: SQL_MIN_CALL_SEC }, startedAt: { $gte: since } },
@@ -260,7 +320,7 @@ async function loadFunnelSources(now = new Date()) {
     ).lean(),
     Deal.find(
       { outcome: { $in: ['won', 'lost'] } },
-      { contactId: 1, contactPhoneKey: 1, outcome: 1, amount: 1, lostReason: 1 }
+      { name: 1, contactId: 1, contactPhoneKey: 1, outcome: 1, amount: 1, lostReason: 1, closingDate: 1, ownerName: 1 }
     ).lean(),
   ]);
   return { contacts, calls, deals };
@@ -303,4 +363,23 @@ async function buildFunnel(query, user) {
   return { status: 200, body: { success: true, ...selectFunnel(src, query || {}, user) } };
 }
 
-module.exports = { buildFunnel, invalidateFunnelCache, selectFunnel, funnelSourceName, istMonth };
+async function buildWonLeads(query, user) {
+  let src;
+  try {
+    src = await getCachedSources();
+  } catch (err) {
+    console.error('[lead-funnel] load failed:', err && err.message ? err.message : err);
+    return { status: 503, body: { success: false, message: 'Could not load the won leads right now — please try again' } };
+  }
+  return { status: 200, body: { success: true, ...selectWonLeads(src, query || {}, user) } };
+}
+
+module.exports = {
+  buildFunnel,
+  buildWonLeads,
+  invalidateFunnelCache,
+  selectFunnel,
+  selectWonLeads,
+  funnelSourceName,
+  istMonth,
+};

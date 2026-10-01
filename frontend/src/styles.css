@@ -3052,3 +3052,32 @@ tr.row-today td {
 .funnel-table .funnel-reasons {
   text-align: left;
 }
+.funnel-won {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.funnel-won-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 3px;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--accent-ink);
+  cursor: pointer;
+  line-height: 0;
+}
+.funnel-won-btn:hover {
+  background: var(--accent-soft);
+}
+.funnel-won-lead {
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.6rem;
+}
+.funnel-won-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
+}

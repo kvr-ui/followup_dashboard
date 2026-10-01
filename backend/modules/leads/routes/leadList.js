@@ -8,7 +8,7 @@
 const express = require('express');
 const { authenticate } = require('../../../middleware/auth');
 const { buildLeadList } = require('../services/leadList');
-const { buildFunnel } = require('../services/funnel');
+const { buildFunnel, buildWonLeads } = require('../services/funnel');
 
 const router = express.Router();
 
@@ -32,6 +32,17 @@ router.get('/funnel', async (req, res) => {
   } catch (err) {
     console.error('Failed to build lead funnel:', err.message);
     res.status(500).json({ success: false, message: 'Failed to load the funnel' });
+  }
+});
+
+// The won leads behind one funnel cell (name, phone, deals).
+router.get('/funnel/won', async (req, res) => {
+  try {
+    const { status, body } = await buildWonLeads(req.query, req.user);
+    res.status(status).json(body);
+  } catch (err) {
+    console.error('Failed to list funnel won leads:', err.message);
+    res.status(500).json({ success: false, message: 'Failed to load the won leads' });
   }
 });
 

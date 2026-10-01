@@ -1,6 +1,7 @@
 import { Fragment, useCallback, useEffect, useState } from 'react';
 import { api } from '../api';
 import { formatCount } from '../adStats';
+import LeadLink from './LeadLink';
 
 // The Funnel tab — MQL vs SQL by lead source and month, the same numbers as the
 // Bigin MQL/SQL report, plus what those leads became.
@@ -19,6 +20,7 @@ const MONTH_LABEL = new Intl.DateTimeFormat('en-IN', { month: 'short', year: 'nu
 
 // Deal amounts are whole rupees; paise would only add noise across a table.
 const RUPEES = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 });
+const CREATED = new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short', timeZone: 'Asia/Kolkata' });
 
 /** 'Sep 2026', or 'Sep 2026 (1–25)' for the month still running. */
 function monthLabel(key, asOf) {
@@ -49,21 +51,38 @@ const VIEWS = {
   ],
   outcome: [
     { label: 'MQL', cell: (c) => formatCount(c.mql) },
-    { label: 'Won', cell: (c) => num(c.won) },
+    { label: 'Won', cell: (c, ctx) => <WonCount n={c.won} onOpen={ctx && ctx.onWon} /> },
     { label: 'Won %', cell: (c) => pct(c.won, c.mql), pct: true },
     { label: 'Revenue', cell: (c) => money(c.revenue) },
     { label: 'Lost', cell: (c) => num(c.lost) },
   ],
 };
 
-function Cells({ c, cols, bold }) {
+/** A won count with a small list button that opens the leads behind it. */
+function WonCount({ n, onOpen }) {
+  if (!n) return dot;
+  return (
+    <span className="funnel-won">
+      {formatCount(n)}
+      {onOpen && (
+        <button type="button" className="funnel-won-btn" title="Show the won leads" onClick={onOpen}>
+          <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
+            <path d="M2 4h12M2 8h12M2 12h8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+          </svg>
+        </button>
+      )}
+    </span>
+  );
+}
+
+function Cells({ c, cols, bold, ctx }) {
   const style = bold ? { fontWeight: 600 } : undefined;
   return cols.map((col, i) => {
     const className = [i === 0 && 'funnel-mh', col.pct && 'funnel-pct'].filter(Boolean).join(' ') || undefined;
     if (!c || !c.mql) return <td key={col.label} className={className}>{col.pct ? null : dot}</td>;
     return (
       <td key={col.label} className={className} style={col.pct ? undefined : style}>
-        {col.cell(c)}
+        {col.cell(c, ctx)}
       </td>
     );
   });
@@ -79,7 +98,8 @@ function Reasons({ list }) {
 }
 
 /** One row per source or owner, a column group per month, then Total. */
-function FunnelTable({ rows, labelKey, labelHead, months, asOf, cols, withReasons, footer }) {
+function FunnelTable({ rows, labelKey, labelHead, months, asOf, cols, withReasons, footer, rowCell, onWon }) {
+  const ctx = (cell, month) => ({ onWon: () => onWon({ ...cell, month }) });
   return (
     <div className="card funnel-scroll" style={{ padding: 0 }}>
       <table className="tasks funnel-table">
@@ -112,9 +132,9 @@ function FunnelTable({ rows, labelKey, labelHead, months, asOf, cols, withReason
             <tr key={r.email || r[labelKey]}>
               <td className="funnel-src">{r[labelKey]}</td>
               {months.map((m) => (
-                <Cells key={m} c={r.byMonth[m]} cols={cols} />
+                <Cells key={m} c={r.byMonth[m]} cols={cols} ctx={ctx(rowCell(r), m)} />
               ))}
-              <Cells c={r.total} cols={cols} bold />
+              <Cells c={r.total} cols={cols} bold ctx={ctx(rowCell(r), '')} />
               {withReasons && <Reasons list={r.topLostReasons} />}
             </tr>
           ))}
@@ -124,14 +144,84 @@ function FunnelTable({ rows, labelKey, labelHead, months, asOf, cols, withReason
             <tr style={{ fontWeight: 700 }}>
               <td className="funnel-src">{footer.label}</td>
               {months.map((m) => (
-                <Cells key={m} c={footer.byMonth[m]} cols={cols} bold />
+                <Cells key={m} c={footer.byMonth[m]} cols={cols} bold ctx={ctx({}, m)} />
               ))}
-              <Cells c={footer.total} cols={cols} bold />
+              <Cells c={footer.total} cols={cols} bold ctx={ctx({}, '')} />
               {withReasons && <Reasons list={footer.topLostReasons} />}
             </tr>
           </tfoot>
         )}
       </table>
+    </div>
+  );
+}
+
+/** Side drawer listing the won leads behind one cell. */
+function WonDrawer({ cell, filters, asOf, onClose }) {
+  const [res, setRes] = useState(null);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    const params = new URLSearchParams();
+    for (const [k, v] of Object.entries(filters)) {
+      if (!v) continue;
+      if (k === 'owner' && v === '__unassigned') params.set('unassigned', '1');
+      else params.set(k, v);
+    }
+    if (cell.month) params.set('month', cell.month);
+    if (cell.source) params.set('source', cell.source);
+    if (cell.rowOwner) params.set('rowOwner', cell.rowOwner);
+    api(`/api/leads-list/funnel/won?${params}`)
+      .then(setRes)
+      .catch((e) => setError(e.message));
+  }, [cell, filters]);
+
+  useEffect(() => {
+    const onKey = (e) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  const title = [cell.label, cell.month ? monthLabel(cell.month, asOf) : 'All months'].filter(Boolean).join(' · ');
+
+  return (
+    <div className="drawer-backdrop" onClick={onClose}>
+      <div className="drawer" onClick={(e) => e.stopPropagation()}>
+        <div className="drawer-head">
+          <h2>Won leads</h2>
+          <button type="button" onClick={onClose} aria-label="Close">
+            ✕
+          </button>
+        </div>
+        <p className="subtle" style={{ marginTop: 0 }}>
+          {title}
+          {res && ` — ${formatCount(res.leads.length)} leads · ${RUPEES.format(res.revenue)}`}
+        </p>
+        {error && <div className="error">{error}</div>}
+        {!res && !error && <p className="subtle">Loading…</p>}
+        {res && !res.leads.length && <p className="subtle">No won leads here.</p>}
+        {res?.leads.map((l, i) => (
+          <section key={l.contactId} className="drawer-section funnel-won-lead">
+            <div className="funnel-won-head">
+              <b>
+                {i + 1}. <LeadLink phoneKey={l.phoneKey}>{l.name || 'No name'}</LeadLink>
+              </b>
+              {l.phone ? <a href={`tel:${l.phone}`}>{l.phone}</a> : <span className="subtle">No phone</span>}
+            </div>
+            <div className="subtle">
+              Created {CREATED.format(new Date(l.createdTime))} · {l.source}
+              {l.ownerName ? ` · ${l.ownerName}` : ''}
+            </div>
+            {l.deals.map((d, j) => (
+              <div key={j} className="subtle">
+                {d.name || 'Deal'} · <b>{RUPEES.format(d.amount)}</b>
+                {d.closingDate ? ` · closed ${d.closingDate}` : ''}
+                {d.ownerName && d.ownerName !== l.ownerName ? ` · deal owner ${d.ownerName}` : ''}
+              </div>
+            ))}
+          </section>
+        ))}
+      </div>
     </div>
   );
 }
@@ -142,6 +232,7 @@ export default function Funnel({ isAdmin }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [view, setView] = useState('funnel');
+  const [wonCell, setWonCell] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -196,7 +287,7 @@ export default function Funnel({ isAdmin }) {
                 {c.lateSql ? ` · ${formatCount(c.lateSql)} late` : ''}
               </div>
               <div className="subtle">
-                {formatCount(c.won)} won · <b>{pct(c.won, c.mql) || '—'}</b> · {c.revenue ? RUPEES.format(c.revenue) : '₹0'}
+                <WonCount n={c.won} onOpen={() => setWonCell({ month: m })} /> won · <b>{pct(c.won, c.mql) || '—'}</b> · {c.revenue ? RUPEES.format(c.revenue) : '₹0'}
                 {' · '}
                 {formatCount(c.lost)} lost
               </div>
@@ -257,6 +348,8 @@ export default function Funnel({ isAdmin }) {
         cols={cols}
         withReasons={withReasons}
         footer={footer && { ...footer, label: 'All sources' }}
+        rowCell={(r) => ({ source: r.source, label: r.source })}
+        onWon={setWonCell}
       />
       {res && !res.sources.length && (
         <p className="subtle">No contacts yet — run the contact backfill, or wait for the Bigin contact webhook.</p>
@@ -275,9 +368,13 @@ export default function Funnel({ isAdmin }) {
             cols={cols}
             withReasons={withReasons}
             footer={footer && { ...footer, label: 'All owners' }}
+            rowCell={(r) => ({ rowOwner: r.email || '__unassigned', label: r.owner })}
+            onWon={setWonCell}
           />
         </>
       )}
+
+      {wonCell && <WonDrawer cell={wonCell} filters={filters} asOf={asOf} onClose={() => setWonCell(null)} />}
     </>
   );
 }

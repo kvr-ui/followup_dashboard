@@ -7,7 +7,7 @@
 // the dashboard's MQL/SQL numbers drifting from the Bigin report.
 
 const assert = require('assert');
-const { selectFunnel, funnelSourceName, istMonth } = require('../services/funnel');
+const { selectFunnel, selectWonLeads, funnelSourceName, istMonth } = require('../services/funnel');
 const { fromBiginRecord, normalizeContactPayload } = require('../services/contactStore');
 
 const REP_A = 'a@focasedu.com';
@@ -145,6 +145,22 @@ check('admin owner / unassigned filters', () => {
   assert.strictEqual(selectFunnel(SRC, { owner: REP_B }, ADMIN, NOW).total.mql, 4);
   assert.strictEqual(selectFunnel(SRC, { unassigned: '1' }, ADMIN, NOW).total.mql, 3);
   assert.strictEqual(res.facets.owners.length, 2);
+});
+
+check('won leads behind a cell match the cell count', () => {
+  const sep = selectWonLeads(SRC, { month: '2026-09' }, ADMIN, NOW);
+  assert.deepStrictEqual(sep.leads.map((l) => l.contactId), ['c1', 'c9']);
+  assert.strictEqual(sep.revenue, res.byMonth['2026-09'].revenue);
+  assert.strictEqual(sep.leads[1].deals.length, 1); // id + phone match, one deal
+  const wa = selectWonLeads(SRC, { source: 'WhatsApp' }, ADMIN, NOW);
+  assert.strictEqual(wa.leads.length, row(res, 'WhatsApp').total.won);
+  assert.deepStrictEqual(selectWonLeads(SRC, { rowOwner: REP_A }, ADMIN, NOW).leads.map((l) => l.contactId), ['c1', 'c9']);
+  assert.deepStrictEqual(selectWonLeads(SRC, { rowOwner: '__unassigned' }, ADMIN, NOW).leads.map((l) => l.contactId), ['c6']);
+});
+
+check('won leads: a rep never sees a colleague, rowOwner ignored', () => {
+  const r = selectWonLeads(SRC, { rowOwner: REP_B }, rep(REP_A), NOW);
+  assert.deepStrictEqual(r.leads.map((l) => l.contactId), ['c6', 'c1', 'c9']);
 });
 
 check('contact record -> mirror fields', () => {
