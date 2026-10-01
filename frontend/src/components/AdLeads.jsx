@@ -54,13 +54,17 @@ const STATUS_FILTERS = {
   ...Object.fromEntries(LEAD_STATES.map((s) => [s, (l) => statusState(l) === s])),
 };
 
-// The `source` tag focas-lead-server sends with each website form. Listed up
-// front so a form shows in the filter even before its first lead lands; any
-// other tag that turns up is listed under its raw value.
+// The `source` tag each website form sends, via focas-lead-server or the
+// site's own trackLead copy. Listed up front so a form shows in the filter even
+// before its first lead lands; any other tag is listed under its raw value.
 const FORM_LABELS = {
-  'counseling-form': 'Counseling',
+  'counseling-form': 'Student Registration',
   'workout-batch': 'Workout Batch',
   'foundation-school': 'Foundation School',
+  counselling: 'Counselling',
+  'manual-class': 'Manual Class',
+  rti: 'RTI',
+  'audit-crash': 'Audit Crash',
 };
 
 const formLabel = (form) => FORM_LABELS[form] || form;
