@@ -3006,15 +3006,23 @@ tr.row-today td {
 .funnel-table td {
   text-align: right;
   white-space: nowrap;
+  vertical-align: middle;
+  padding: 0.55rem 0.8rem;
+  border-left: 1px solid var(--border);
+  border-bottom: 1px solid var(--border-strong);
+}
+.funnel-table tbody tr:nth-child(even) td {
+  background: var(--surface-2);
 }
 .funnel-table .funnel-src {
   text-align: left;
   position: sticky;
   left: 0;
   background: var(--surface);
+  border-left: none;
 }
 .funnel-table .funnel-mh {
-  border-left: 1px solid var(--border);
+  border-left: 2px solid var(--border-strong);
 }
 .funnel-table .funnel-center {
   text-align: center;
@@ -3043,6 +3051,4 @@ tr.row-today td {
 }
 .funnel-table .funnel-reasons {
   text-align: left;
-  white-space: normal;
-  min-width: 220px;
 }
