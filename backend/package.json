@@ -6,10 +6,9 @@
   "scripts": {
     "start": "node --max-http-header-size=65536 server.js",
     "dev": "nodemon --exec \"node --max-http-header-size=65536\" server.js",
-    "test": "node modules/agent/scripts/testMongoQuery.js && node modules/leads/scripts/testLeadProfile.js && node modules/leads/scripts/testLeadList.js && node modules/leads/scripts/testFunnel.js"
+    "test": "node --test \"modules/**/__tests__/*.test.js\" && node modules/agent/scripts/testMongoQuery.js && node modules/leads/scripts/testLeadProfile.js && node modules/leads/scripts/testLeadList.js && node modules/leads/scripts/testFunnel.js"
   },
   "dependencies": {
-    "@santhosh785/meta-ads": "^1.0.0",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
