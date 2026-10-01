@@ -7,8 +7,17 @@
 //           in Bigin against that contact, in the SAME IST month the contact
 //           was created. A call in a later month does not count back; deals do
 //           not count at all.
-//   Closed  an MQL whose contact has a deal closed with a sale, at any time —
-//           shown per month as an extra, not part of the report's SQL %.
+//   Late SQL  an MQL that is not SQL, but had a qualifying call in a LATER
+//           month. Shown beside SQL so late follow-ups are visible without
+//           changing the report's SQL %.
+//   Won     an MQL whose contact has a deal closed with a sale, at any time.
+//           Revenue is the sum of those won deals' amounts.
+//   Lost    an MQL whose contact has a lost deal and no won deal. Its lost
+//           reasons feed the top-reasons list on each row.
+//
+// Deals count against the month the CONTACT was created, not the deal's
+// closing month — so a source's quality reads straight across a row, and
+// recent months keep growing as their deals close.
 //
 // Contacts come from our Contact mirror (webhook + backfill). Calls are the
 // Bigin calls in our Call collection (the scheduler's Bigin poll, plus
@@ -23,7 +32,7 @@
 // Facebook into "Meta Ads" — the funnel reports them apart.
 //
 // Scope matches the Leads tab: admins see everything, a rep sees contacts they
-// own plus contacts nobody owns.
+// own plus contacts nobody owns. The owner x month table is admin-only.
 
 const Contact = require('../models/Contact');
 const Call = require('../../calls/models/Call');
@@ -35,6 +44,9 @@ const DEFAULT_MONTHS = 3;
 const MAX_MONTHS = Math.max(...MONTH_CHOICES);
 const IST_OFFSET_MS = 330 * 60000;
 const NOT_SET = 'Not set';
+const UNASSIGNED = 'Unassigned';
+const NO_REASON = 'No reason';
+const TOP_REASONS = 3;
 
 const lower = (v) => String(v || '').trim().toLowerCase();
 
@@ -88,12 +100,12 @@ function monthStart(month) {
 // ---------------------------------------------------------------------------
 
 /**
- * @param {object} src  { contacts, calls, wonDeals } — see loadFunnelSources
+ * @param {object} src  { contacts, calls, deals } — see loadFunnelSources
  * @param {object} query  req.query: months, owner, unassigned
  * @param {object} user  role + ownerEmail
  * @param {Date} now
  */
-function selectFunnel({ contacts, calls, wonDeals }, query, user, now = new Date()) {
+function selectFunnel({ contacts, calls, deals }, query, user, now = new Date()) {
   const isAdmin = Boolean(user && user.role === 'admin');
   const count = MONTH_CHOICES.includes(Number(query.months)) ? Number(query.months) : DEFAULT_MONTHS;
   const months = monthWindow(now, count);
@@ -113,18 +125,31 @@ function selectFunnel({ contacts, calls, wonDeals }, query, user, now = new Date
     callMonths.get(id).add(m);
   }
 
-  const wonIds = new Set();
-  const wonKeys = new Set();
-  for (const d of wonDeals) {
-    if (d.contactId) wonIds.add(String(d.contactId));
-    if (d.contactPhoneKey) wonKeys.add(d.contactPhoneKey);
+  // Won/lost deals by contact id and by phone key. A deal can match a contact
+  // both ways, so matches are collected in a Set and counted once.
+  const dealsById = new Map();
+  const dealsByKey = new Map();
+  const push = (map, key, d) => {
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(d);
+  };
+  for (const d of deals) {
+    if (d.contactId) push(dealsById, String(d.contactId), d);
+    if (d.contactPhoneKey) push(dealsByKey, d.contactPhoneKey, d);
   }
 
   const owners = new Map();
-  const empty = () => ({ mql: 0, sql: 0, closed: 0 });
-  const bySource = new Map(); // name -> { byMonth: {m: counts}, total: counts }
+  const empty = () => ({ mql: 0, sql: 0, lateSql: 0, won: 0, lost: 0, revenue: 0 });
+  const newRow = () => ({
+    byMonth: Object.fromEntries(months.map((m) => [m, empty()])),
+    total: empty(),
+    reasons: new Map(),
+  });
+  const bySource = new Map(); // name -> row
+  const byOwner = new Map(); // owner email ('' = unassigned) -> row
   const byMonth = Object.fromEntries(months.map((m) => [m, empty()]));
   const total = empty();
+  const totalReasons = new Map();
 
   for (const c of contacts) {
     const owner = lower(c.ownerEmail);
@@ -137,28 +162,66 @@ function selectFunnel({ contacts, calls, wonDeals }, query, user, now = new Date
     const month = istMonth(c.createdTime);
     if (!inWindow.has(month)) continue;
 
-    const keys = c.phoneKeys || [];
-    const sql = Boolean(callMonths.get(String(c.zohoId)) && callMonths.get(String(c.zohoId)).has(month));
-    const closed = wonIds.has(String(c.zohoId)) || keys.some((k) => wonKeys.has(k));
+    const called = callMonths.get(String(c.zohoId));
+    const sql = Boolean(called && called.has(month));
+    const lateSql = !sql && Boolean(called && [...called].some((m) => m > month));
+
+    const matched = new Set(dealsById.get(String(c.zohoId)) || []);
+    for (const k of c.phoneKeys || []) for (const d of dealsByKey.get(k) || []) matched.add(d);
+    const wonDeals = [...matched].filter((d) => d.outcome === 'won');
+    const won = wonDeals.length > 0;
+    const revenue = wonDeals.reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
+    const lost = !won && [...matched].some((d) => d.outcome === 'lost');
+    const reasons = lost
+      ? new Set([...matched].filter((d) => d.outcome === 'lost').map((d) => d.lostReason || NO_REASON))
+      : new Set();
 
     const name = funnelSourceName(c.leadSource);
-    if (!bySource.has(name)) {
-      bySource.set(name, { byMonth: Object.fromEntries(months.map((m) => [m, empty()])), total: empty() });
+    if (!bySource.has(name)) bySource.set(name, newRow());
+    const rows = [bySource.get(name)];
+    if (isAdmin) {
+      if (!byOwner.has(owner)) byOwner.set(owner, newRow());
+      rows.push(byOwner.get(owner));
     }
-    const row = bySource.get(name);
-    for (const bucket of [row.byMonth[month], row.total, byMonth[month], total]) {
+
+    const buckets = [byMonth[month], total];
+    for (const r of rows) buckets.push(r.byMonth[month], r.total);
+    for (const bucket of buckets) {
       bucket.mql += 1;
       if (sql) bucket.sql += 1;
-      if (closed) bucket.closed += 1;
+      if (lateSql) bucket.lateSql += 1;
+      if (won) bucket.won += 1;
+      if (lost) bucket.lost += 1;
+      bucket.revenue += revenue;
+    }
+    for (const reason of reasons) {
+      for (const map of [totalReasons, ...rows.map((r) => r.reasons)]) {
+        map.set(reason, (map.get(reason) || 0) + 1);
+      }
     }
   }
 
+  const topReasons = (map) =>
+    [...map.entries()]
+      .map(([reason, count]) => ({ reason, count }))
+      .sort((a, b) => b.count - a.count || a.reason.localeCompare(b.reason))
+      .slice(0, TOP_REASONS);
+  const shape = ({ reasons, ...r }) => ({ ...r, topLostReasons: topReasons(reasons) });
+
   // Biggest source first; "Not set" always last, as in the report.
   const sources = [...bySource.entries()]
-    .map(([source, r]) => ({ source, ...r }))
+    .map(([source, r]) => ({ source, ...shape(r) }))
     .sort((a, b) => {
       if ((a.source === NOT_SET) !== (b.source === NOT_SET)) return a.source === NOT_SET ? 1 : -1;
       return b.total.mql - a.total.mql || a.source.localeCompare(b.source);
+    });
+
+  // Same layout per owner; "Unassigned" last.
+  const ownerRows = [...byOwner.entries()]
+    .map(([email, r]) => ({ email, owner: email ? owners.get(email) || email : UNASSIGNED, ...shape(r) }))
+    .sort((a, b) => {
+      if (!a.email !== !b.email) return a.email ? -1 : 1;
+      return b.total.mql - a.total.mql || a.owner.localeCompare(b.owner);
     });
 
   return {
@@ -166,8 +229,10 @@ function selectFunnel({ contacts, calls, wonDeals }, query, user, now = new Date
     months,
     monthChoices: MONTH_CHOICES,
     sources,
+    owners: isAdmin ? ownerRows : [],
     byMonth,
     total,
+    topLostReasons: topReasons(totalReasons),
     facets: {
       owners: isAdmin
         ? [...owners.entries()]
@@ -184,7 +249,7 @@ function selectFunnel({ contacts, calls, wonDeals }, query, user, now = new Date
 
 async function loadFunnelSources(now = new Date()) {
   const since = monthStart(monthWindow(now, MAX_MONTHS)[0]);
-  const [contacts, calls, wonDeals] = await Promise.all([
+  const [contacts, calls, deals] = await Promise.all([
     Contact.find(
       { createdTime: { $gte: since } },
       { zohoId: 1, phoneKeys: 1, leadSource: 1, ownerEmail: 1, ownerName: 1, createdTime: 1 }
@@ -193,9 +258,12 @@ async function loadFunnelSources(now = new Date()) {
       { biginContactId: { $ne: null }, biginDurationSec: { $gt: SQL_MIN_CALL_SEC }, startedAt: { $gte: since } },
       { biginContactId: 1, biginDurationSec: 1, startedAt: 1 }
     ).lean(),
-    Deal.find({ outcome: 'won' }, { contactId: 1, contactPhoneKey: 1 }).lean(),
+    Deal.find(
+      { outcome: { $in: ['won', 'lost'] } },
+      { contactId: 1, contactPhoneKey: 1, outcome: 1, amount: 1, lostReason: 1 }
+    ).lean(),
   ]);
-  return { contacts, calls, wonDeals };
+  return { contacts, calls, deals };
 }
 
 const CACHE_TTL_MS = Number(process.env.FUNNEL_CACHE_TTL_MS || 60000);

@@ -3041,3 +3041,8 @@ tr.row-today td {
   height: 100%;
   background: var(--accent);
 }
+.funnel-table .funnel-reasons {
+  text-align: left;
+  white-space: normal;
+  min-width: 220px;
+}
