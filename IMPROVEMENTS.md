@@ -208,14 +208,12 @@ logic**, which this codebase happens to have neatly isolated:
 }
 ```
 
-**CI** — one workflow that runs `npm ci` (with the `read:packages` token as a
-repo secret), `npm run lint`, `npm test`, and `docker compose build`. Even
+**CI** — one workflow that runs `npm ci`, `npm run lint`, `npm test`, and `docker compose build`. Even
 build-only CI would have caught a missing-dependency deploy failure.
 
-**Note on the `@santhosh785/meta-ads` dependency**: it is a private single-author
-package on GitHub Packages that the ads sync depends on entirely. If that account
-goes away, builds stop. Vendor it into `backend/modules/ads/vendor/` or at
-minimum pin an exact version and keep a tarball copy.
+**Note on the Meta connector**: done — the former `@santhosh785/meta-ads`
+package now lives in `backend/modules/ads/meta/`, so builds no longer depend on
+a GitHub Packages token.
 
 ---
 
