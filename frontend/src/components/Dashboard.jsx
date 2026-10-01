@@ -140,7 +140,7 @@ export default function Dashboard({ user, onLogout }) {
         {/* Title and account only — the tabs live in the left sidebar below,
             where a growing list just gets longer instead of squeezing a row. */}
         <div className="header-row">
-          <h1 className="brand"><img src="/logo.png" alt="FOCAS" />Sales Dashboard</h1>
+          <h1 className="brand"><img src="/logo.png" alt="FOCAS" /></h1>
           <div className="user-box">
             <span className="who-mini">
               {user.name} <span className="subtle">({user.role})</span>

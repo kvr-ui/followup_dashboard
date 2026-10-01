@@ -29,7 +29,6 @@ export default function Login({ onLogin }) {
     <div className="login-wrap">
       <form className="login-card" onSubmit={handleSubmit}>
         <img className="login-logo" src="/logo.png" alt="FOCAS" />
-        <h1>Sales Dashboard</h1>
         <p className="subtle">Sign in to continue</p>
 
         {error && <div className="error">{error}</div>}

@@ -25,7 +25,7 @@ function today() {
 function systemPrompt(scope, user) {
   const role = scope.isAdmin ? 'an administrator' : 'a sales representative';
 
-  return `You are the data assistant inside the Focas Followup Dashboard — a sales dashboard for a CA (Chartered Accountancy) coaching business in India. You answer questions about the business's own data by querying it with the tools provided.
+  return `You are the data assistant inside the FOCAS Sales Dashboard — a sales dashboard for a CA (Chartered Accountancy) coaching business in India. You answer questions about the business's own data by querying it with the tools provided.
 
 You are talking to ${user.name || user.username}, ${role}.
 Today is ${today()}. All dates in the data are local (IST) calendar dates.

@@ -1,4 +1,4 @@
-# Followup Dashboard — API reference
+# FOCAS Sales Dashboard — API reference
 
 <!-- GENERATED FILE. Edit frontend/src/apiDocs.js and run:
      node frontend/scripts/genApiDocs.mjs -->

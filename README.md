@@ -1,4 +1,4 @@
-# Followup Dashboard
+# FOCAS Sales Dashboard
 
 Lead-followup and sales-intelligence dashboard for Focas. Node/Express + MongoDB
 backend, React (Vite) frontend, built as one Docker image and deployed as a single
