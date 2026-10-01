@@ -54,6 +54,17 @@ const STATUS_FILTERS = {
   ...Object.fromEntries(LEAD_STATES.map((s) => [s, (l) => statusState(l) === s])),
 };
 
+// The `source` tag focas-lead-server sends with each website form. Listed up
+// front so a form shows in the filter even before its first lead lands; any
+// other tag that turns up is listed under its raw value.
+const FORM_LABELS = {
+  'counseling-form': 'Counseling',
+  'workout-batch': 'Workout Batch',
+  'foundation-school': 'Foundation School',
+};
+
+const formLabel = (form) => FORM_LABELS[form] || form;
+
 const dash = (value) => (value == null || value === '' ? '—' : value);
 
 export default function AdLeads() {
@@ -64,6 +75,7 @@ export default function AdLeads() {
   const [loading, setLoading] = useState(false);
 
   const [source, setSource] = useState('all');
+  const [form, setForm] = useState('all');
   const [link, setLink] = useState('all');
   const [resolution, setResolution] = useState('all');
   const [status, setStatus] = useState('all');
@@ -101,23 +113,32 @@ export default function AdLeads() {
       pipeline: byState('pipeline'),
       followup: byState('followup'),
       none: byState('none'),
+      forms: all.reduce(
+        (acc, l) => {
+          if (l.source === 'web' && l.form) acc[l.form] = (acc[l.form] || 0) + 1;
+          return acc;
+        },
+        Object.fromEntries(Object.keys(FORM_LABELS).map((f) => [f, 0])),
+      ),
     };
   }, [leads]);
 
   const rows = useMemo(() => {
     let out = leads || [];
     if (source !== 'all') out = out.filter((l) => l.source === source);
+    if (form !== 'all') out = out.filter((l) => l.source === 'web' && l.form === form);
     out = out.filter(LINK_FILTERS[link]);
     out = out.filter(RESOLUTION_FILTERS[resolution]);
     out = out.filter(STATUS_FILTERS[status]);
     return out;
-  }, [leads, source, link, resolution, status]);
+  }, [leads, source, form, link, resolution, status]);
 
   // Every card is a shortcut into one combination of the three filters, so it
   // sets all of them — clicking "Closed with sale" while "Not linked" is still
   // selected would otherwise hand back an empty table.
   function focus(nextLink, nextResolution, nextStatus = 'all') {
     setSource('all');
+    setForm('all');
     setLink(nextLink);
     setResolution(nextResolution);
     setStatus(nextStatus);
@@ -173,6 +194,17 @@ export default function AdLeads() {
                 <option value="all">All ({counts.all})</option>
                 <option value="web">Web form ({counts.web})</option>
                 <option value="meta">Meta instant form ({counts.meta})</option>
+              </select>
+            </label>
+            <label>
+              <span>Form</span>
+              <select value={form} onChange={(e) => setForm(e.target.value)}>
+                <option value="all">All</option>
+                {Object.entries(counts.forms).map(([f, n]) => (
+                  <option key={f} value={f}>
+                    {formLabel(f)} ({n})
+                  </option>
+                ))}
               </select>
             </label>
             <label>
@@ -275,7 +307,7 @@ function LeadRow({ lead }) {
       <td className="subtle">{lead.capturedAt ? new Date(lead.capturedAt).toLocaleString() : '—'}</td>
       <td>
         <span className="badge badge-normal">{lead.source}</span>
-        <div className="subtle">{dash(lead.form)}</div>
+        <div className="subtle">{dash(lead.source === 'web' ? formLabel(lead.form) : lead.form)}</div>
       </td>
       <td>
         {utm && !tagged ? (
