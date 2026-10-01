@@ -1,0 +1,359 @@
+/* ============================================================
+   Marketing + Ad Leads tabs (issue #13) — `.mkt-` prefix
+   ------------------------------------------------------------
+   Appended as one block; nothing above this line is modified.
+   Everything here leans on the existing design tokens and on the
+   established .card / .panel / table.tasks conventions, so these
+   two admin tabs read as part of the same dashboard rather than
+   as the retired CRM bolted back on.
+   ============================================================ */
+
+/* ---------- Tab header + date range selector ---------- */
+.mkt-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.9rem;
+  margin-bottom: 1.1rem;
+}
+.mkt-head h2 {
+  font-family: var(--serif);
+  font-size: 1.3rem;
+  font-weight: 600;
+}
+
+.mkt-rangebar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+/* Segmented presets. One button reads as active only when both ends of the
+   range still match it — nudge a date by hand and the highlight drops. */
+.mkt-presets {
+  display: inline-flex;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 2px;
+}
+.mkt-preset {
+  border: none;
+  background: transparent;
+  color: var(--ink-2);
+  font-size: 0.78rem;
+  padding: 0.35rem 0.7rem;
+  border-radius: 6px;
+}
+.mkt-preset:hover {
+  background: var(--surface);
+  border-color: transparent;
+}
+.mkt-preset-on,
+.mkt-preset-on:hover {
+  background: var(--accent);
+  color: #fff;
+}
+
+.mkt-dates {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.mkt-dates input {
+  padding: 0.35rem 0.5rem;
+  font-size: 0.82rem;
+}
+
+/* ---------- Figures ---------- */
+/* Every money / count / percentage cell lines up on the decimal point. */
+.mkt-num {
+  font-variant-numeric: tabular-nums;
+}
+/* A rupee total with Indian grouping is a long string — "₹2,11,681.84" at the
+   card's default 2rem overflows a 160px card, so KPI figures step down. */
+.card .num.mkt-num {
+  font-size: 1.45rem;
+}
+.mkt-right {
+  text-align: right;
+}
+
+.mkt-note {
+  margin: 0.6rem 0 0;
+  line-height: 1.5;
+  max-width: 78ch;
+}
+.mkt-note code {
+  background: var(--surface-inset);
+  padding: 0.05rem 0.3rem;
+  border-radius: 4px;
+  font-size: 0.92em;
+}
+
+/* ---------- Panels ---------- */
+.mkt-panel-head {
+  margin-bottom: 1rem;
+}
+.mkt-panel-head h2 {
+  margin-bottom: 0;
+}
+.mkt-subhead {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  font-weight: 600;
+  margin-bottom: 0.6rem;
+}
+
+/* Wide tables scroll sideways inside the panel instead of stretching the page. */
+.mkt-scroll {
+  overflow-x: auto;
+}
+.mkt-scroll table {
+  min-width: 900px;
+}
+.mkt-table th,
+.mkt-table td {
+  padding: 0.6rem 0.85rem;
+  font-size: 0.84rem;
+}
+.mkt-table tfoot td {
+  background: var(--surface-2);
+  border-top: 1px solid var(--border-strong);
+  font-weight: 600;
+}
+
+/* Sortable headers: the whole cell is the target, and the arrow marks the
+   column currently ordering the table. */
+.mkt-sortable {
+  cursor: pointer;
+  user-select: none;
+}
+.mkt-sortable:hover {
+  color: var(--ink-2);
+}
+
+.mkt-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+  gap: 1.4rem;
+  align-items: start;
+}
+
+/* ---------- Attribution tag ---------- */
+/* How a lead's campaign was decided — 'alias' means an admin asserted the
+   mapping by hand, which is worth seeing next to the campaign name. */
+.mkt-how {
+  display: inline-block;
+  margin-left: 0.35rem;
+  padding: 0.05rem 0.4rem;
+  border: 1px dashed var(--border-strong);
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  cursor: help;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+/* ---------- Reconciliation ---------- */
+.mkt-recon {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-width: 420px;
+}
+.mkt-recon > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+.mkt-recon > div:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+.mkt-recon dt {
+  color: var(--ink-2);
+  font-size: 0.86rem;
+}
+.mkt-recon dd {
+  margin: 0;
+  font-size: 0.95rem;
+}
+/* A non-zero gap is not an error — see the note under the panel — but it is
+   worth the eye landing on it. */
+.mkt-recon-gap dd {
+  color: var(--amber);
+  font-weight: 600;
+}
+
+/* ---------- Ad Leads ---------- */
+.mkt-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.9rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem 1.1rem;
+  margin-bottom: 1.1rem;
+  box-shadow: var(--shadow-sm);
+}
+.mkt-filters label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.mkt-filters label > span {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+/* The UTM tag set, as a compact key/value stack rather than five columns. */
+.mkt-utm {
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--ink-2);
+  max-width: 22rem;
+  word-break: break-word;
+}
+.mkt-utm b {
+  display: inline-block;
+  min-width: 4.6rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.mkt-open {
+  font-size: 0.78rem;
+  padding: 0.3rem 0.6rem;
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .mkt-split {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---------- API usage (AI provider spend + balance) ---------- */
+/* The balance headline sits beside its meter, so the number a manager scans for
+   ("how much is left") and the bar that gives it context read as one unit. */
+.usage-balance {
+  display: grid;
+  grid-template-columns: minmax(140px, auto) 1fr;
+  gap: 1.4rem;
+  align-items: center;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.1rem;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.usage-balance .num {
+  font-family: var(--serif);
+  font-size: 2rem;
+  font-weight: 500;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.usage-balance .label {
+  font-size: 0.76rem;
+  font-weight: 500;
+  color: var(--muted);
+  margin-top: 0.45rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+@media (max-width: 700px) {
+  .usage-balance {
+    grid-template-columns: 1fr;
+    gap: 0.9rem;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Sources tab
+   ---------------------------------------------------------------------------
+   Reuses the Marketing tab's panel, table and range-bar classes wholesale — the
+   two are siblings and must not drift apart visually. Only what is genuinely new
+   lives here: the revenue bar, the merged-spelling caption, and the block that
+   explains a table it cannot draw. */
+
+.src-bar {
+  display: block;
+  background: var(--surface-inset);
+  border-radius: 4px;
+  height: 14px;
+  overflow: hidden;
+}
+
+.src-bar-fill {
+  display: block;
+  height: 100%;
+}
+
+/* The raw values a canonical source name stands in for. Small and quiet: it is
+   provenance, not data — but it must be on the page, or the merge is a claim
+   nobody can check. */
+.src-raw {
+  font-size: 0.68rem;
+  margin-top: 2px;
+  opacity: 0.7;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.src-paid {
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+.src-divider {
+  padding-top: 14px !important;
+  font-size: 0.72rem;
+  border-top: 1px solid var(--border);
+}
+
+.src-barren td {
+  opacity: 0.65;
+}
+
+/* Why the campaign table is absent. Deliberately styled as a NOTICE and not as
+   an empty state: "we cannot see this yet" and "there is nothing here" must not
+   look the same. */
+.src-blocked {
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--amber, #e0a30c);
+  border-radius: 6px;
+  padding: 14px 16px;
+  background: var(--surface-inset);
+}
+
+.src-blocked strong {
+  display: block;
+  margin-bottom: 6px;
+}
+
+.src-blocked p {
+  margin: 6px 0 0;
+  font-size: 0.82rem;
+  line-height: 1.5;
+}

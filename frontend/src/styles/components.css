@@ -241,3 +241,41 @@ table.data-table th.num {
   font-size: 0.84rem;
   color: var(--muted);
 }
+
+/* ---------- Section card ---------- */
+.section-card {
+  margin-bottom: var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border);
+}
+.section-title {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+.section-meta {
+  margin-top: 2px;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.section-body {
+  padding: var(--space-4);
+}
+/* A table inside a flush section drops its own frame; the section is the frame. */
+.section-card.flush .section-body {
+  padding: 0;
+}
+.section-card.flush .data-table-wrap {
+  border: none;
+  border-radius: 0 0 var(--radius) var(--radius);
+}

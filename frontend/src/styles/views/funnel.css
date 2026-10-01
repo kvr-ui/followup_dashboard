@@ -1,0 +1,83 @@
+/* ---------- Funnel tab (MQL vs SQL by source x month) ---------- */
+.funnel-scroll {
+  overflow-x: auto;
+}
+.funnel-table th,
+.funnel-table td {
+  text-align: right;
+  white-space: nowrap;
+  vertical-align: middle;
+  padding: 0.55rem 0.8rem;
+  border-left: 1px solid var(--border);
+  border-bottom: 1px solid var(--border-strong);
+}
+.funnel-table tbody tr:nth-child(even) td {
+  background: var(--surface-2);
+}
+.funnel-table .funnel-src {
+  text-align: left;
+  position: sticky;
+  left: 0;
+  background: var(--surface);
+  border-left: none;
+}
+.funnel-table .funnel-mh {
+  border-left: 2px solid var(--border-strong);
+}
+.funnel-table .funnel-center {
+  text-align: center;
+}
+.funnel-table tfoot td {
+  border-top: 2px solid var(--border);
+}
+.funnel-pct {
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+.funnel-unit {
+  font-size: 13px;
+  font-weight: 400;
+}
+.funnel-bar {
+  height: 6px;
+  margin-top: 10px;
+  border-radius: 3px;
+  background: var(--accent-soft);
+  overflow: hidden;
+}
+.funnel-bar-sql {
+  height: 100%;
+  background: var(--accent);
+}
+.funnel-table .funnel-reasons {
+  text-align: left;
+}
+.funnel-won {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.funnel-won-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 3px;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--accent-ink);
+  cursor: pointer;
+  line-height: 0;
+}
+.funnel-won-btn:hover {
+  background: var(--accent-soft);
+}
+.funnel-won-lead {
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.6rem;
+}
+.funnel-won-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
+}

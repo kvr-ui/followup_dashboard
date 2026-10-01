@@ -1,0 +1,431 @@
+   Ask — the data assistant
+   ---------------------------------------------------------------------------
+   A floating launcher in the bottom-right corner that opens a small chat
+   panel over whatever view is open. Everything is built from the same tokens as
+   the rest of the app; there is no chat library here and no new colours.
+*/
+
+.agent-launcher {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 200;
+  width: 56px;
+  height: 56px;
+  padding: 0;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  color: #fff;
+  box-shadow: 0 6px 20px rgba(30, 40, 60, 0.25);
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+.agent-launcher:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+  transform: scale(1.06);
+}
+.agent-launcher-x {
+  font-size: 1.7rem;
+  line-height: 1;
+}
+.agent-unread {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--red);
+  border: 2px solid var(--surface);
+}
+
+.agent-panel {
+  position: fixed;
+  right: 20px;
+  bottom: 88px;
+  z-index: 200;
+  width: 380px;
+  height: 560px;
+  max-height: calc(100vh - 110px);
+  display: flex;
+  flex-direction: column;
+  background: var(--bg, var(--surface));
+  border: 1px solid var(--border-strong);
+  border-radius: 14px;
+  box-shadow: 0 16px 48px rgba(30, 40, 60, 0.28);
+  overflow: hidden;
+  animation: agent-pop 0.16s ease-out;
+}
+.agent-panel.expanded {
+  width: min(620px, calc(100vw - 40px));
+  height: calc(100vh - 110px);
+}
+@keyframes agent-pop {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .agent-panel {
+    animation: none;
+  }
+}
+
+.agent-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.7rem 0.8rem;
+  background: var(--accent);
+  color: #fff;
+}
+.agent-avatar {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.18);
+}
+.agent-title {
+  flex: 1;
+  min-width: 0;
+}
+.agent-head h2 {
+  font-family: var(--serif);
+  font-size: 0.98rem;
+  font-weight: 600;
+  margin: 0;
+  color: #fff;
+}
+.agent-head p,
+.agent-head .subtle {
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.8);
+  margin: 0;
+}
+.agent-head-actions {
+  display: flex;
+  gap: 0.2rem;
+}
+.agent-icon-btn {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: #fff;
+  font-size: 1.05rem;
+  border-radius: 6px;
+}
+.agent-icon-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.agent-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 0.7rem 0.8rem 0.8rem;
+}
+
+@media (max-width: 640px) {
+  .agent-panel,
+  .agent-panel.expanded {
+    inset: 0;
+    width: auto;
+    height: auto;
+    max-height: none;
+    border-radius: 0;
+  }
+  .agent-expand-btn {
+    display: none;
+  }
+  .agent-launcher.open {
+    display: none;
+  }
+}
+
+.agent-unconfigured {
+  padding: 1rem 1.2rem;
+}
+.agent-unconfigured p {
+  margin-bottom: 0.35rem;
+}
+
+.agent-thread {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.2rem 0.1rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+/* --- Empty state ---------------------------------------------------------- */
+
+.agent-empty {
+  margin: auto 0;
+  padding: 1rem 0;
+}
+.agent-starters {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.45rem;
+  margin-top: 0.7rem;
+}
+.agent-starter {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--ink-2);
+  text-align: left;
+  font-size: 0.85rem;
+  padding: 0.5rem 0.8rem;
+  border-radius: var(--radius-sm);
+}
+.agent-starter:hover {
+  background: var(--accent-soft);
+  border-color: var(--border-strong);
+  color: var(--accent-ink);
+}
+
+/* --- Messages ------------------------------------------------------------- */
+
+.agent-msg {
+  display: flex;
+}
+.agent-msg.user {
+  justify-content: flex-end;
+}
+.agent-msg.assistant {
+  justify-content: flex-start;
+}
+
+.agent-bubble {
+  max-width: min(78ch, 88%);
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius);
+  font-size: 0.88rem;
+  line-height: 1.55;
+}
+.agent-msg.user .agent-bubble {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  border: 1px solid var(--border);
+  white-space: pre-wrap;
+}
+.agent-msg.assistant .agent-bubble {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+}
+
+.agent-bubble p {
+  margin-bottom: 0.6rem;
+}
+.agent-bubble p:last-child {
+  margin-bottom: 0;
+}
+.agent-bubble ul,
+.agent-bubble ol {
+  margin: 0 0 0.6rem 1.1rem;
+}
+.agent-bubble li {
+  margin-bottom: 0.2rem;
+}
+.agent-bubble code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8rem;
+  background: var(--surface-inset);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+.agent-heading {
+  font-weight: 600;
+  margin-bottom: 0.4rem;
+}
+
+/* Tables can be wide; they scroll inside the bubble rather than stretching it. */
+.agent-table-wrap {
+  overflow-x: auto;
+  margin-bottom: 0.6rem;
+}
+.agent-table {
+  border-collapse: collapse;
+  font-size: 0.82rem;
+  min-width: 100%;
+}
+.agent-table th,
+.agent-table td {
+  border-bottom: 1px solid var(--border);
+  padding: 0.35rem 0.7rem 0.35rem 0;
+  text-align: left;
+  white-space: nowrap;
+}
+.agent-table th {
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* --- Thinking indicator --------------------------------------------------- */
+
+.agent-thinking {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.agent-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--muted);
+  animation: agent-pulse 1.2s infinite ease-in-out;
+}
+.agent-dot:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.agent-dot:nth-child(3) {
+  animation-delay: 0.3s;
+  margin-right: 4px;
+}
+@keyframes agent-pulse {
+  0%,
+  80%,
+  100% {
+    opacity: 0.25;
+  }
+  40% {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .agent-dot {
+    animation: none;
+    opacity: 0.5;
+  }
+}
+
+/* --- The trace: what the answer was built from ---------------------------- */
+
+.agent-trace {
+  margin-top: 0.7rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.5rem;
+}
+.agent-trace-toggle {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+.agent-trace-toggle:hover {
+  background: none;
+  color: var(--accent-ink);
+}
+.agent-trace-list {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.agent-trace-row {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.45rem 0.6rem;
+  font-size: 0.76rem;
+}
+.agent-trace-row.failed {
+  background: var(--red-soft);
+  border-color: var(--red-soft);
+}
+.agent-trace-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+.agent-trace-head code {
+  background: none;
+  padding: 0;
+  font-size: 0.78rem;
+  color: var(--ink);
+}
+.agent-trace-args {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.15rem 0.7rem;
+  margin-top: 0.25rem;
+  color: var(--muted);
+}
+.agent-arg b {
+  color: var(--ink-2);
+  font-weight: 500;
+}
+.agent-pipeline {
+  margin-top: 0.35rem;
+  padding: 0.4rem 0.55rem;
+  background: var(--surface-inset);
+  border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.7rem;
+  line-height: 1.35;
+  overflow-x: auto;
+  white-space: pre;
+  color: var(--ink-2);
+}
+.agent-trace-error {
+  margin-top: 0.3rem;
+  color: var(--red);
+}
+
+/* --- Composer ------------------------------------------------------------- */
+
+.agent-composer {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.6rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--border);
+}
+.agent-composer textarea {
+  flex: 1;
+  resize: none;
+  font-family: var(--font);
+  font-size: 0.88rem;
+  line-height: 1.5;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+}
+.agent-composer textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.agent-composer button {
+  height: 42px;
+  padding: 0 1.2rem;
+}
