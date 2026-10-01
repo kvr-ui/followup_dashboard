@@ -2,6 +2,12 @@ import { Fragment, useCallback, useEffect, useState } from 'react';
 import { api } from '../api';
 import { formatCount } from '../adStats';
 import LeadLink from './LeadLink';
+import FilterBar from './ui/FilterBar';
+import DataTable from './ui/DataTable';
+import Section from './ui/Section';
+import StatCard, { StatGrid } from './ui/StatCard';
+import EmptyState from './ui/EmptyState';
+import Icon from './ui/Icon';
 
 // The Funnel tab — MQL vs SQL by lead source and month, the same numbers as the
 // Bigin MQL/SQL report, plus what those leads became.
@@ -76,12 +82,12 @@ function WonCount({ n, onOpen }) {
 }
 
 function Cells({ c, cols, bold, ctx }) {
-  const style = bold ? { fontWeight: 600 } : undefined;
   return cols.map((col, i) => {
     const className = [i === 0 && 'funnel-mh', col.pct && 'funnel-pct'].filter(Boolean).join(' ') || undefined;
     if (!c || !c.mql) return <td key={col.label} className={className}>{col.pct ? null : dot}</td>;
+    const boldClass = bold && !col.pct ? 'funnel-bold' : '';
     return (
-      <td key={col.label} className={className} style={col.pct ? undefined : style}>
+      <td key={col.label} className={[className, boldClass].filter(Boolean).join(' ') || undefined}>
         {col.cell(c, ctx)}
       </td>
     );
@@ -101,58 +107,56 @@ function Reasons({ list }) {
 function FunnelTable({ rows, labelKey, labelHead, months, asOf, cols, withReasons, footer, rowCell, onWon }) {
   const ctx = (cell, month) => ({ onWon: () => onWon({ ...cell, month }) });
   return (
-    <div className="card funnel-scroll" style={{ padding: 0 }}>
-      <table className="tasks funnel-table">
-        <thead>
-          <tr>
-            <th />
-            {[...months, 'total'].map((m) => (
-              <th key={m} colSpan={cols.length} className="funnel-mh funnel-center">
-                {m === 'total' ? 'Total' : monthLabel(m, asOf)}
-              </th>
-            ))}
-            {withReasons && <th />}
-          </tr>
-          <tr>
-            <th className="funnel-src">{labelHead}</th>
-            {[...months, 'total'].map((m) => (
-              <Fragment key={m}>
-                {cols.map((col, i) => (
-                  <th key={col.label} className={i === 0 ? 'funnel-mh' : undefined} title={col.title}>
-                    {col.label}
-                  </th>
-                ))}
-              </Fragment>
-            ))}
-            {withReasons && <th className="funnel-mh funnel-reasons">Top lost reasons</th>}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.email || r[labelKey]}>
-              <td className="funnel-src">{r[labelKey]}</td>
-              {months.map((m) => (
-                <Cells key={m} c={r.byMonth[m]} cols={cols} ctx={ctx(rowCell(r), m)} />
-              ))}
-              <Cells c={r.total} cols={cols} bold ctx={ctx(rowCell(r), '')} />
-              {withReasons && <Reasons list={r.topLostReasons} />}
-            </tr>
+    <DataTable className="funnel-table">
+      <thead>
+        <tr>
+          <th />
+          {[...months, 'total'].map((m) => (
+            <th key={m} colSpan={cols.length} className="funnel-mh funnel-center">
+              {m === 'total' ? 'Total' : monthLabel(m, asOf)}
+            </th>
           ))}
-        </tbody>
-        {footer && (
-          <tfoot>
-            <tr style={{ fontWeight: 700 }}>
-              <td className="funnel-src">{footer.label}</td>
-              {months.map((m) => (
-                <Cells key={m} c={footer.byMonth[m]} cols={cols} bold ctx={ctx({}, m)} />
+          {withReasons && <th />}
+        </tr>
+        <tr>
+          <th className="funnel-src">{labelHead}</th>
+          {[...months, 'total'].map((m) => (
+            <Fragment key={m}>
+              {cols.map((col, i) => (
+                <th key={col.label} className={i === 0 ? 'funnel-mh' : undefined} title={col.title}>
+                  {col.label}
+                </th>
               ))}
-              <Cells c={footer.total} cols={cols} bold ctx={ctx({}, '')} />
-              {withReasons && <Reasons list={footer.topLostReasons} />}
-            </tr>
-          </tfoot>
-        )}
-      </table>
-    </div>
+            </Fragment>
+          ))}
+          {withReasons && <th className="funnel-mh funnel-reasons">Top lost reasons</th>}
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((r) => (
+          <tr key={r.email || r[labelKey]}>
+            <td className="funnel-src">{r[labelKey]}</td>
+            {months.map((m) => (
+              <Cells key={m} c={r.byMonth[m]} cols={cols} ctx={ctx(rowCell(r), m)} />
+            ))}
+            <Cells c={r.total} cols={cols} bold ctx={ctx(rowCell(r), '')} />
+            {withReasons && <Reasons list={r.topLostReasons} />}
+          </tr>
+        ))}
+      </tbody>
+      {footer && (
+        <tfoot>
+          <tr className="funnel-foot">
+            <td className="funnel-src">{footer.label}</td>
+            {months.map((m) => (
+              <Cells key={m} c={footer.byMonth[m]} cols={cols} bold ctx={ctx({}, m)} />
+            ))}
+            <Cells c={footer.total} cols={cols} bold ctx={ctx({}, '')} />
+            {withReasons && <Reasons list={footer.topLostReasons} />}
+          </tr>
+        </tfoot>
+      )}
+    </DataTable>
   );
 }
 
@@ -193,7 +197,7 @@ function WonDrawer({ cell, filters, asOf, onClose }) {
             ✕
           </button>
         </div>
-        <p className="subtle" style={{ marginTop: 0 }}>
+        <p className="subtle funnel-drawer-meta">
           {title}
           {res && ` — ${formatCount(res.leads.length)} leads · ${RUPEES.format(res.revenue)}`}
         </p>
@@ -265,7 +269,7 @@ export default function Funnel({ isAdmin }) {
 
   return (
     <>
-      <p className="subtle" style={{ marginTop: 0 }}>
+      <p className="subtle funnel-intro">
         <b>MQL</b> = Bigin contacts created that month. <b>SQL</b> = those MQLs with at least one call
         longer than 30 seconds in that same month. SQL % = SQL ÷ MQL. <b>Late</b> = not SQL, but called
         over 30 seconds in a later month. <b>Won</b> / <b>Lost</b> = the contact's deals at any time
@@ -273,33 +277,40 @@ export default function Funnel({ isAdmin }) {
         the month the contact was created, so recent months keep growing.
       </p>
 
-      <div className="summary-grid">
+      <StatGrid>
         {months.map((m) => {
           const c = res.byMonth[m];
           return (
-            <div key={m} className="card">
-              <div className="label">{monthLabel(m, asOf)}</div>
-              <div className="num">
-                {formatCount(c.mql)} <span className="subtle funnel-unit">MQL</span>
-              </div>
-              <div className="subtle">
-                {formatCount(c.sql)} SQL · <b>{pct(c.sql, c.mql) || '—'}</b>
-                {c.lateSql ? ` · ${formatCount(c.lateSql)} late` : ''}
-              </div>
-              <div className="subtle">
-                <WonCount n={c.won} onOpen={() => setWonCell({ month: m })} /> won · <b>{pct(c.won, c.mql) || '—'}</b> · {c.revenue ? RUPEES.format(c.revenue) : '₹0'}
-                {' · '}
-                {formatCount(c.lost)} lost
-              </div>
-              <div className="funnel-bar">
-                <div className="funnel-bar-sql" style={{ width: `${c.mql ? (c.sql / c.mql) * 100 : 0}%` }} />
-              </div>
-            </div>
+            <StatCard
+              key={m}
+              label={monthLabel(m, asOf)}
+              value={
+                <>
+                  {formatCount(c.mql)} <span className="subtle funnel-unit">MQL</span>
+                </>
+              }
+              hint={
+                <>
+                  <div className="subtle">
+                    {formatCount(c.sql)} SQL · <b>{pct(c.sql, c.mql) || '—'}</b>
+                    {c.lateSql ? ` · ${formatCount(c.lateSql)} late` : ''}
+                  </div>
+                  <div className="subtle">
+                    <WonCount n={c.won} onOpen={() => setWonCell({ month: m })} /> won · <b>{pct(c.won, c.mql) || '—'}</b> · {c.revenue ? RUPEES.format(c.revenue) : '₹0'}
+                    {' · '}
+                    {formatCount(c.lost)} lost
+                  </div>
+                  <div className="funnel-bar">
+                    <div className="funnel-bar-sql" style={{ width: `${c.mql ? (c.sql / c.mql) * 100 : 0}%` }} />
+                  </div>
+                </>
+              }
+            />
           );
         })}
-      </div>
+      </StatGrid>
 
-      <div className="filters">
+      <FilterBar>
         <label>
           Months
           <select value={filters.months} onChange={set('months')}>
@@ -332,33 +343,36 @@ export default function Funnel({ isAdmin }) {
           </select>
         </label>
         <button onClick={load} disabled={loading}>
+          <Icon name="refresh" size={14} />
           {loading ? 'Loading…' : 'Refresh'}
         </button>
-      </div>
+      </FilterBar>
 
       {error && <div className="error">{error}</div>}
 
-      <h3 style={{ margin: '18px 0 8px' }}>Lead source × month</h3>
-      <FunnelTable
-        rows={res?.sources || []}
-        labelKey="source"
-        labelHead="Lead source"
-        months={months}
-        asOf={asOf}
-        cols={cols}
-        withReasons={withReasons}
-        footer={footer && { ...footer, label: 'All sources' }}
-        rowCell={(r) => ({ source: r.source, label: r.source })}
-        onWon={setWonCell}
-      />
+      <Section title="Lead source × month" flush>
+        <FunnelTable
+          rows={res?.sources || []}
+          labelKey="source"
+          labelHead="Lead source"
+          months={months}
+          asOf={asOf}
+          cols={cols}
+          withReasons={withReasons}
+          footer={footer && { ...footer, label: 'All sources' }}
+          rowCell={(r) => ({ source: r.source, label: r.source })}
+          onWon={setWonCell}
+        />
+      </Section>
       {res && !res.sources.length && (
-        <p className="subtle">No contacts yet — run the contact backfill, or wait for the Bigin contact webhook.</p>
+        <EmptyState title="No contacts yet">
+          Run the contact backfill, or wait for the Bigin contact webhook.
+        </EmptyState>
       )}
       {!res && !error && <p className="subtle">Loading…</p>}
 
       {isAdmin && res?.owners?.length > 0 && (
-        <>
-          <h3 style={{ margin: '18px 0 8px' }}>Owner × month</h3>
+        <Section title="Owner × month" flush>
           <FunnelTable
             rows={res.owners}
             labelKey="owner"
@@ -371,7 +385,7 @@ export default function Funnel({ isAdmin }) {
             rowCell={(r) => ({ rowOwner: r.email || '__unassigned', label: r.owner })}
             onWon={setWonCell}
           />
-        </>
+        </Section>
       )}
 
       {wonCell && <WonDrawer cell={wonCell} filters={filters} asOf={asOf} onClose={() => setWonCell(null)} />}

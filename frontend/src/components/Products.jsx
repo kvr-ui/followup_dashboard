@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../api';
+import PageHeader from './ui/PageHeader';
+import FilterBar from './ui/FilterBar';
+import DataTable from './ui/DataTable';
+import StatCard, { StatGrid } from './ui/StatCard';
+import EmptyState from './ui/EmptyState';
+import Icon from './ui/Icon';
+import '../styles/views/deals.css';
 
 function inr(n) {
   const v = Math.round(n || 0);
@@ -64,30 +71,15 @@ export default function Products() {
 
   return (
     <>
-      <div className="summary-grid">
-        <div className="card">
-          <div className="num">{products.length}</div>
-          <div className="label">Products sold</div>
-        </div>
-        <div className="card">
-          <div className="num" style={{ color: 'var(--green)' }}>{inr(totalRevenue)}</div>
-          <div className="label">Total revenue</div>
-        </div>
-        <div className="card">
-          <div className="num">{totalDeals}</div>
-          <div className="label">Deals with a product</div>
-        </div>
-        <div className="card week">
-          <div className="num">{top3Share}%</div>
-          <div className="label">Revenue from the top 3</div>
-        </div>
-        <div className="card">
-          <div className="num">{outcomes?.won ?? '—'}</div>
-          <div className="label">Won deals (total)</div>
-        </div>
-      </div>
+      <StatGrid>
+        <StatCard label="Products sold" value={products.length} />
+        <StatCard label="Total revenue" value={inr(totalRevenue)} tone="green" />
+        <StatCard label="Deals with a product" value={totalDeals} />
+        <StatCard label="Revenue from the top 3" value={`${top3Share}%`} tone="accent" />
+        <StatCard label="Won deals (total)" value={outcomes?.won ?? '—'} />
+      </StatGrid>
 
-      <div className="filters">
+      <FilterBar>
         <label>
           Salesperson
           <select value={owner} onChange={(e) => setOwner(e.target.value)}>
@@ -99,28 +91,39 @@ export default function Products() {
             ))}
           </select>
         </label>
-        <button onClick={load} disabled={loading}>
-          {loading ? 'Loading…' : 'Refresh'}
-        </button>
-      </div>
+      </FilterBar>
 
       {error && <div className="error">{error}</div>}
 
-      <p id="status">
-        {products.length} product{products.length === 1 ? '' : 's'} across {totalDeals} won
-        deal{totalDeals === 1 ? '' : 's'} — {inr(totalRevenue)} total
-      </p>
+      <PageHeader
+        meta={
+          <span id="status">
+            {products.length} product{products.length === 1 ? '' : 's'} across {totalDeals} won
+            deal{totalDeals === 1 ? '' : 's'} — {inr(totalRevenue)} total
+          </span>
+        }
+        actions={
+          <button onClick={load} disabled={loading}>
+            <Icon name="refresh" size={14} />
+            {loading ? 'Loading…' : 'Refresh'}
+          </button>
+        }
+      />
 
-      <div className="card" style={{ padding: '16px 18px' }}>
-        <table className="tasks">
+      {products.length === 0 && !loading ? (
+        <EmptyState title="No products found">
+          Products are attached to deals in Bigin when the sale is made.
+        </EmptyState>
+      ) : (
+        <DataTable>
           <thead>
             <tr>
-              <th style={{ width: 40 }}>#</th>
+              <th className="deals-rank-col">#</th>
               <th>Product</th>
-              <th style={{ width: '38%' }}>Share of revenue</th>
-              <th style={{ textAlign: 'right' }}>Revenue</th>
-              <th style={{ textAlign: 'right' }}>Deals</th>
-              <th style={{ textAlign: 'right' }}>Avg / deal</th>
+              <th className="deals-share-col">Share of revenue</th>
+              <th className="num">Revenue</th>
+              <th className="num">Deals</th>
+              <th className="num">Avg / deal</th>
             </tr>
           </thead>
           <tbody>
@@ -130,59 +133,30 @@ export default function Products() {
               return (
                 <tr key={p.name}>
                   <td className="subtle">{i + 1}</td>
-                  <td style={{ fontWeight: top ? 600 : 400 }}>{p.name}</td>
+                  <td className={top ? 'deals-strong' : undefined}>{p.name}</td>
                   <td>
-                    <span
-                      style={{
-                        display: 'block',
-                        background: 'var(--surface-inset)',
-                        borderRadius: 4,
-                        height: 14,
-                        overflow: 'hidden',
-                      }}
-                    >
+                    <span className="deals-share">
                       <span
-                        style={{
-                          display: 'block',
-                          height: '100%',
-                          width: `${Math.max((p.revenue / max) * 100, 1)}%`,
-                          background: top
-                            ? 'var(--green, #27ae60)'
-                            : bottom
-                              ? 'var(--red, #c0392b)'
-                              : 'var(--accent, #6b8afd)',
-                          opacity: top || bottom ? 1 : 0.55,
-                        }}
+                        className={`deals-share-fill ${top ? 'top' : bottom ? 'bottom' : ''}`.trim()}
+                        style={{ width: `${Math.max((p.revenue / max) * 100, 1)}%` }}
                       />
                     </span>
                   </td>
-                  <td style={{ textAlign: 'right', fontWeight: 600 }}>{inr(p.revenue)}</td>
-                  <td style={{ textAlign: 'right' }} className="subtle">
-                    {p.deals}
-                  </td>
-                  <td style={{ textAlign: 'right' }} className="subtle">
-                    {inr(p.revenue / (p.deals || 1))}
-                  </td>
+                  <td className="num deals-strong">{inr(p.revenue)}</td>
+                  <td className="num subtle">{p.deals}</td>
+                  <td className="num subtle">{inr(p.revenue / (p.deals || 1))}</td>
                 </tr>
               );
             })}
-            {products.length === 0 && !loading && (
-              <tr>
-                <td colSpan={6} className="subtle">
-                  No products found. Products are attached to deals in Bigin when the sale
-                  is made.
-                </td>
-              </tr>
-            )}
           </tbody>
-        </table>
+        </DataTable>
+      )}
 
-        <div className="subtle" style={{ marginTop: 12, fontSize: '0.75rem' }}>
-          Won deals only — products are attached in Bigin when the sale is made, so lost
-          deals carry none. That means this shows what <em>earns</em>, not what{' '}
-          <em>converts</em>.
-        </div>
-      </div>
+      <p className="subtle deals-note">
+        Won deals only — products are attached in Bigin when the sale is made, so lost
+        deals carry none. That means this shows what <em>earns</em>, not what{' '}
+        <em>converts</em>.
+      </p>
     </>
   );
 }

@@ -55,6 +55,9 @@
   --space-5: 1.5rem;
   --space-6: 2rem;
 
+  /* Module rail: a deep shade of the FOCAS navy. */
+  --nav-bg: #0c0a4d;
+
   --header-h: 3.5rem;
   --sidenav-w: 200px;
 

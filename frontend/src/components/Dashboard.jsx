@@ -4,6 +4,7 @@ import LeadProfile from './LeadProfile';
 import TopBar from './ui/TopBar';
 import SideNav from './ui/SideNav';
 import SubTabs from './ui/SubTabs';
+import GlobalSearch from './ui/GlobalSearch';
 import { useRoute, go, replaceRoute } from '../route';
 import { modulesFor, fromLegacyView, HOME } from '../nav';
 
@@ -55,7 +56,9 @@ export default function Dashboard({ user, onLogout }) {
 
   return (
     <div className="app">
-      <TopBar user={user} onLogout={onLogout} onHome={() => go(HOME.module, HOME.tab)} />
+      <TopBar user={user} onLogout={onLogout} onHome={() => go(HOME.module, HOME.tab)}>
+        <GlobalSearch />
+      </TopBar>
 
       <div className="app-shell">
         <SideNav modules={modules} active={leadKey ? 'leads' : moduleId} onSelect={openModule} />

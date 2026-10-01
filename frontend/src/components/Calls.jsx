@@ -2,6 +2,11 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { api, download } from '../api';
 import CallDetail from './CallDetail';
 import LeadLink from './LeadLink';
+import PageHeader from './ui/PageHeader';
+import FilterBar from './ui/FilterBar';
+import StatCard, { StatGrid } from './ui/StatCard';
+import Section from './ui/Section';
+import EmptyState from './ui/EmptyState';
 import { rowPhoneKey } from '../route';
 import { formatDateTime } from '../utils';
 
@@ -185,7 +190,7 @@ export default function Calls() {
 
   return (
     <>
-      <div className="tabs" style={{ width: 'fit-content', marginBottom: 16 }}>
+      <div className="tabs">
         <button
           onClick={() => switchTab('won')}
           className={isWon ? 'tab active' : 'tab'}
@@ -200,83 +205,57 @@ export default function Calls() {
         </button>
       </div>
 
-      <div className="summary-grid">
-        <div className="card">
-          <div
-            className="num"
-            style={{ color: isWon ? 'var(--green)' : 'var(--red, #c0392b)' }}
-          >
-            {coverage.count}
-          </div>
-          <div className="label">{isWon ? 'Won' : 'Lost'}</div>
-        </div>
-        <div className="card">
-          <div className="num">{coverage.withCalls}</div>
-          <div className="label">…with a recorded call</div>
-        </div>
-        <div className="card">
-          <div className="num" style={{ opacity: 0.6 }}>{coverage.withoutCalls}</div>
-          <div className="label">…with no call</div>
-        </div>
+      <StatGrid>
+        <StatCard label={isWon ? 'Won' : 'Lost'} value={coverage.count} tone={isWon ? 'green' : 'red'} />
+        <StatCard label="…with a recorded call" value={coverage.withCalls} />
+        <StatCard label="…with no call" value={coverage.withoutCalls} tone="muted" />
         {isWon ? (
-          <div
-            className="card"
-            // Click to see exactly who was upsold. Without this you'd be scanning
-            // four pages of won deals hunting for a badge.
+          // Click to see exactly who was upsold. Without this you'd be scanning
+          // four pages of won deals hunting for a badge.
+          // Counted server-side across ALL won deals — the journeys list is
+          // paginated, so counting the visible page would under-report.
+          <StatCard
+            label={`Upsold ${upsold === 'yes' ? '(filtered)' : ''}`}
+            value={outcomes?.upsold ?? '—'}
+            hint={upsold === 'yes' ? 'Click to clear' : 'Click to see who'}
+            tone="green"
+            active={upsold === 'yes'}
             onClick={() => setUpsold(upsold === 'yes' ? '' : 'yes')}
-            style={{
-              cursor: 'pointer',
-              outline: upsold === 'yes' ? '2px solid var(--green, #27ae60)' : 'none',
-            }}
-            title={upsold === 'yes' ? 'Showing upsold leads — click to clear' : 'Click to see who was upsold'}
-          >
-            {/* Counted server-side across ALL won deals — the journeys list is
-                paginated, so counting the visible page would under-report. */}
-            <div className="num" style={{ color: 'var(--green)' }}>
-              {outcomes?.upsold ?? '—'}
-            </div>
-            <div className="label">Upsold {upsold === 'yes' ? '(filtered)' : ''}</div>
-          </div>
+          />
         ) : (
-          <div className="card week">
-            <div className="num">{outcomes ? `${outcomes.winRate}%` : '—'}</div>
-            <div className="label">Win rate (overall)</div>
-          </div>
+          <StatCard
+            label="Win rate (overall)"
+            value={outcomes ? `${outcomes.winRate}%` : '—'}
+            tone="accent"
+          />
         )}
-        <div className="card">
-          <div className="num">{totals.mins}</div>
-          <div className="label">Minutes of audio</div>
-        </div>
-        <div className="card">
-          <div className="num" style={{ color: 'var(--green)' }}>{totals.done}</div>
-          <div className="label">Transcribed</div>
-        </div>
-      </div>
+        <StatCard label="Minutes of audio" value={totals.mins} />
+        <StatCard label="Transcribed" value={totals.done} tone="green" />
+      </StatGrid>
 
       {/* Only the lost tab has a "why". */}
       {!isWon && reasonList.length > 0 && (
-        <div className="card" style={{ padding: '14px 16px', marginBottom: 16 }}>
-          <div
-            style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', marginBottom: 10 }}
-          >
-            <div className="label" style={{ marginRight: 'auto' }}>Why deals are lost</div>
-            <span className="label" style={{ opacity: 0.7 }}>
-              Export {reason ? `“${reason}”` : 'all lost'}:
-            </span>
-            <button
-              onClick={() => exportLost('full')}
-              title="Every field on these deals, plus their call totals"
-            >
-              Full CSV
-            </button>
-            <button
-              onClick={() => exportLost('wati')}
-              title="Name, CountryCode, Phone — WATI contact-import format"
-            >
-              WATI CSV
-            </button>
-          </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+        <Section
+          title="Why deals are lost"
+          actions={
+            <>
+              <span className="subtle">Export {reason ? `“${reason}”` : 'all lost'}:</span>
+              <button
+                onClick={() => exportLost('full')}
+                title="Every field on these deals, plus their call totals"
+              >
+                Full CSV
+              </button>
+              <button
+                onClick={() => exportLost('wati')}
+                title="Name, CountryCode, Phone — WATI contact-import format"
+              >
+                WATI CSV
+              </button>
+            </>
+          }
+        >
+          <div className="reason-chips">
             {reasonList.map((r) => (
               <button
                 key={r.reason}
@@ -284,8 +263,7 @@ export default function Calls() {
                   setOutcome('lost');
                   setReason(reason === r.reason ? '' : r.reason);
                 }}
-                className={`badge ${reason === r.reason ? 'badge-high' : 'badge-normal'}`}
-                style={{ cursor: 'pointer', border: 'none' }}
+                className={`badge reason-chip ${reason === r.reason ? 'badge-high' : 'badge-normal'}`}
                 title="Click to filter"
               >
                 {r.reason} · {r.count}
@@ -297,10 +275,10 @@ export default function Calls() {
               </span>
             )}
           </div>
-        </div>
+        </Section>
       )}
 
-      <div className="filters">
+      <FilterBar>
         <label>
           Search lead
           <input
@@ -407,42 +385,35 @@ export default function Calls() {
             Clear ({activeCount})
           </button>
         )}
-      </div>
+      </FilterBar>
 
       {error && <div className="error">{error}</div>}
 
-      <p id="status">
-        {coverage.count} lead{coverage.count === 1 ? '' : 's'}{' '}
-        {isWon ? 'closed with sale' : 'closed without sale'} —{' '}
-        <strong>{coverage.withCalls}</strong> with recorded calls,{' '}
-        <strong>{coverage.withoutCalls}</strong> with none.
-        {isWon && outcomes?.upsold != null && (
-          <>
-            {' '}
-            <strong style={{ color: 'var(--green, #27ae60)' }}>{outcomes.upsold}</strong>{' '}
-            upsold.
-          </>
-        )}
-        {pages > 1 && ` Showing ${journeys.length} (page ${page} of ${pages}).`}
-      </p>
+      <PageHeader
+        meta={
+          <span id="status">
+            {coverage.count} lead{coverage.count === 1 ? '' : 's'}{' '}
+            {isWon ? 'closed with sale' : 'closed without sale'} —{' '}
+            <strong>{coverage.withCalls}</strong> with recorded calls,{' '}
+            <strong>{coverage.withoutCalls}</strong> with none.
+            {isWon && outcomes?.upsold != null && (
+              <>
+                {' '}
+                <strong className="upsold-count">{outcomes.upsold}</strong> upsold.
+              </>
+            )}
+            {pages > 1 && ` Showing ${journeys.length} (page ${page} of ${pages}).`}
+          </span>
+        }
+      />
 
       {/* Column headings for the journey rows. Without these the Upsell column is
           just an unexplained badge floating in the middle of the row. */}
       {isWon && journeys.length > 0 && (
-        <div
-          className="subtle"
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            padding: '0 14px 6px',
-            fontSize: '0.72rem',
-            textTransform: 'uppercase',
-            letterSpacing: '0.04em',
-          }}
-        >
+        <div className="journey-cols">
           <span>Lead</span>
-          <span style={{ display: 'flex', gap: 12 }}>
-            <span style={{ flex: '0 0 150px' }}>Upsell</span>
+          <span className="journey-cols-right">
+            <span className="journey-upsell">Upsell</span>
             <span>Calls · Duration · Dates · Owner · Score</span>
           </span>
         </div>
@@ -459,7 +430,7 @@ export default function Calls() {
                 onClick={() => setOpen((o) => ({ ...o, [j._id]: !o[j._id] }))}
               >
                 <div className="journey-main">
-                  <span className="chev" style={{ opacity: j.totalCalls ? 1 : 0.2 }}>
+                  <span className={j.totalCalls ? 'chev' : 'chev chev-empty'}>
                     {isOpen ? '▾' : '▸'}
                   </span>
                   <div>
@@ -474,7 +445,7 @@ export default function Calls() {
                           {j.lostReason ? (
                             <em>{j.lostReason}</em>
                           ) : (
-                            <em style={{ opacity: 0.6 }}>no reason given</em>
+                            <em className="no-reason">no reason given</em>
                           )}
                         </>
                       )}
@@ -492,14 +463,11 @@ export default function Calls() {
                       more important fact: how rarely this happens. */}
                   {isWon && (
                     <span
-                      style={{ flex: '0 0 150px', textAlign: 'left' }}
+                      className="journey-upsell"
                       title={j.deal?.upScale || 'No upsell recorded in Bigin'}
                     >
                       {j.deal?.upScale ? (
-                        <span
-                          className="badge"
-                          style={{ background: 'var(--green, #27ae60)', color: '#fff' }}
-                        >
+                        <span className="badge upsell-badge">
                           ⬆ {upsellLabel(j.deal.upScale).replace(/^upsold to /, '')}
                         </span>
                       ) : (
@@ -549,19 +517,19 @@ export default function Calls() {
           );
         })}
         {journeys.length === 0 && !loading && (
-          <p className="subtle">No closed leads match these filters.</p>
+          <EmptyState title="No closed leads match these filters" />
         )}
       </div>
 
       {pages > 1 && (
-        <div className="filters" style={{ justifyContent: 'center', marginTop: 16 }}>
+        <div className="pager">
           <button onClick={() => setPage(1)} disabled={page === 1 || loading}>
             « First
           </button>
           <button onClick={() => setPage((p) => p - 1)} disabled={page === 1 || loading}>
             ‹ Prev
           </button>
-          <span className="subtle" style={{ alignSelf: 'center' }}>
+          <span className="subtle">
             Page {page} of {pages}
           </span>
           <button onClick={() => setPage((p) => p + 1)} disabled={page >= pages || loading}>

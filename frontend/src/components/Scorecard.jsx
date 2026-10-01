@@ -1,6 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../api';
 import CallDetail from './CallDetail';
+import PageHeader from './ui/PageHeader';
+import FilterBar from './ui/FilterBar';
+import DataTable from './ui/DataTable';
+import Section from './ui/Section';
+import SubTabs from './ui/SubTabs';
+import EmptyState from './ui/EmptyState';
+import StatCard, { StatGrid } from './ui/StatCard';
+import Icon from './ui/Icon';
+import '../styles/views/reports.css';
 
 /**
  * The sales scorecard — AI call grades turned into something a manager coaches from.
@@ -17,20 +26,19 @@ import CallDetail from './CallDetail';
 const prettyCriterion = (k) => k.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 
 /** Green ≥75, amber 50–74, red below. One scale for the whole page. */
-function color(pct) {
-  if (pct >= 75) return 'var(--green, #4d7a63)';
-  if (pct >= 50) return 'var(--amber, #b8860b)';
-  return 'var(--red, #c0392b)';
+function tone(pct) {
+  if (pct >= 75) return 'green';
+  if (pct >= 50) return 'amber';
+  return 'red';
 }
 
 const PERIODS = [
-  ['all', 'All time'],
-  ['today', 'Today'],
-  ['yesterday', 'Yesterday'],
-  ['7d', 'Last 7 days'],
-  ['30d', 'Last 30 days'],
+  { id: 'all', label: 'All time' },
+  { id: 'today', label: 'Today' },
+  { id: 'yesterday', label: 'Yesterday' },
+  { id: '7d', label: 'Last 7 days' },
+  { id: '30d', label: 'Last 30 days' },
 ];
-
 export default function Scorecard({ user } = {}) {
   const isAdmin = user?.role === 'admin';
   const [res, setRes] = useState(null);
@@ -81,54 +89,26 @@ export default function Scorecard({ user } = {}) {
   const cov = res?.coverage || {};
 
   return (
-    <>
+    <div className="report scorecard">
       {/* Period selector — the old (all-time) data stays; this re-cuts it by date. */}
-      <div className="quick-tabs" style={{ marginBottom: 14 }}>
-        {PERIODS.map(([key, label]) => (
-          <button
-            key={key}
-            className={period === key ? 'quick-tab active' : 'quick-tab'}
-            onClick={() => setPeriod(key)}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      <SubTabs tabs={PERIODS} active={period} onSelect={setPeriod} />
 
-      <div className="summary-grid">
-        <div className="card">
-          <div className="num" style={{ color: color(o.avg) }}>{o.avg ?? '—'}</div>
-          <div className="label">Team average</div>
-        </div>
-        <div className="card">
-          <div className="num" style={{ color: 'var(--green, #4d7a63)' }}>
-            {o.bands?.best || 0}
-          </div>
-          <div className="label">Best calls (90+)</div>
-        </div>
-        <div className="card">
-          <div className="num" style={{ color: 'var(--red, #c0392b)' }}>{o.bands?.weak ?? 0}</div>
-          <div className="label">Weak calls (&lt;50)</div>
-        </div>
-        <div className="card">
-          <div className="num">{o.gradeable ?? 0}</div>
-          <div className="label">Calls scored</div>
-        </div>
-        <div className="card">
-          <div className="num">{cov.pct ?? 0}%</div>
-          {/* "gradeable", not "won": the default view is every call, and the denominator
-              is calls that HAVE audio — rang-but-never-answered rows are shown apart. */}
-          <div className="label">{cov.graded}/{cov.eligible} gradeable calls graded</div>
-        </div>
-      </div>
+      <StatGrid>
+        <StatCard label="Team average" value={o.avg ?? '—'} tone={tone(o.avg)} />
+        <StatCard label="Best calls (90+)" value={o.bands?.best || 0} tone="green" />
+        <StatCard label="Weak calls (<50)" value={o.bands?.weak ?? 0} tone="red" />
+        <StatCard label="Calls scored" value={o.gradeable ?? 0} />
+        {/* "gradeable", not "won": the default view is every call, and the denominator
+            is calls that HAVE audio — rang-but-never-answered rows are shown apart. */}
+        <StatCard
+          label={`${cov.graded}/${cov.eligible} gradeable calls graded`}
+          value={`${cov.pct ?? 0}%`}
+        />
+      </StatGrid>
 
-      {!isAdmin && (
-        <h2 style={{ margin: '4px 0 10px' }}>
-          My performance{user?.name ? ` — ${user.name}` : ''}
-        </h2>
-      )}
+      {!isAdmin && <PageHeader title={`My performance${user?.name ? ` — ${user.name}` : ''}`} />}
 
-      <div className="filters">
+      <FilterBar>
         {/* The team dropdown is an admin tool — a rep only ever sees their own numbers
             (the server scopes it), so showing a one-option picker would just confuse. */}
         {isAdmin && (
@@ -154,9 +134,10 @@ export default function Scorecard({ user } = {}) {
           </select>
         </label>
         <button onClick={load} disabled={loading}>
+          <Icon name="refresh" size={14} />
           {loading ? 'Loading…' : 'Refresh'}
         </button>
-      </div>
+      </FilterBar>
 
       {error && <div className="error">{error}</div>}
 
@@ -187,142 +168,134 @@ export default function Scorecard({ user } = {}) {
       )}
 
       {/* --- Per rep --- */}
-      <div className="card" style={{ padding: '16px 18px', marginTop: 12 }}>
-        <h2 style={{ marginTop: 0 }}>By salesperson</h2>
-        <table className="tasks">
-          <thead>
-            <tr>
-              <th>Salesperson</th>
-              <th style={{ textAlign: 'right' }}>{callsColLabel}</th>
-              {/* Dialled vs connected sit side by side so the drop between "calls made"
-                  and "calls graded" is visibly explained by unanswered rings. */}
-              <th style={{ textAlign: 'right' }}>Connected</th>
-              <th style={{ textAlign: 'right' }}>Graded</th>
-              <th style={{ textAlign: 'right' }}>Avg score</th>
-              <th style={{ textAlign: 'right', color: 'var(--green, #4d7a63)' }}>Best (90+)</th>
-              <th style={{ textAlign: 'right' }}>Good (70–89)</th>
-              <th style={{ textAlign: 'right', color: 'var(--amber, #b8860b)' }}>OK (50–69)</th>
-              <th style={{ textAlign: 'right', color: 'var(--red, #c0392b)' }}>Weak (&lt;50)</th>
-              <th>Spread</th>
-            </tr>
-          </thead>
-          <tbody>
-            {reps.map((r) => {
-              const best = r.bands.best || 0;
-              const good = r.bands.good || 0;
-              const ok = r.bands.ok || 0;
-              const weak = r.bands.weak || 0;
-              return (
-                <tr key={r.ownerEmail}>
-                  <td className="contact-name">{r.name}</td>
-                  <td style={{ textAlign: 'right', fontWeight: 600 }}>{r.totalCalls ?? r.calls}</td>
-                  <td style={{ textAlign: 'right', color: r.connectedCalls ? 'inherit' : 'var(--muted)' }}>
-                    {r.connectedCalls ?? '—'}
-                  </td>
-                  <td style={{ textAlign: 'right', color: r.calls ? 'inherit' : 'var(--muted)' }}>{r.calls}</td>
-                  <td style={{ textAlign: 'right', fontWeight: 700, color: color(r.avg) }}>{r.calls ? r.avg : '—'}</td>
-                  <td style={{ textAlign: 'right', fontWeight: 700, color: best ? 'var(--green, #4d7a63)' : 'var(--muted)' }}>{best}</td>
-                  <td style={{ textAlign: 'right', color: good ? 'inherit' : 'var(--muted)' }}>{good}</td>
-                  <td style={{ textAlign: 'right', color: ok ? 'var(--amber, #b8860b)' : 'var(--muted)' }}>{ok}</td>
-                  <td style={{ textAlign: 'right', fontWeight: weak ? 600 : 400, color: weak ? 'var(--red, #c0392b)' : 'var(--muted)' }}>{weak}</td>
-                  <td style={{ minWidth: 140 }}>
-                    <BandBar bands={r.bands} total={r.calls} />
-                  </td>
-                </tr>
-              );
-            })}
-            {reps.length === 0 && (
+      <Section title="By salesperson" flush>
+        {reps.length > 0 ? (
+          <DataTable>
+            <thead>
               <tr>
-                <td colSpan={10} className="subtle">No graded calls yet.</td>
+                <th>Salesperson</th>
+                <th className="num">{callsColLabel}</th>
+                {/* Dialled vs connected sit side by side so the drop between "calls made"
+                    and "calls graded" is visibly explained by unanswered rings. */}
+                <th className="num">Connected</th>
+                <th className="num">Graded</th>
+                <th className="num">Avg score</th>
+                <th className="num txt-green">Best (90+)</th>
+                <th className="num">Good (70–89)</th>
+                <th className="num txt-amber">OK (50–69)</th>
+                <th className="num txt-red">Weak (&lt;50)</th>
+                <th>Spread</th>
               </tr>
-            )}
-          </tbody>
-        </table>
-        <div className="subtle" style={{ marginTop: 8 }}>
+            </thead>
+            <tbody>
+              {reps.map((r) => {
+                const best = r.bands.best || 0;
+                const good = r.bands.good || 0;
+                const ok = r.bands.ok || 0;
+                const weak = r.bands.weak || 0;
+                return (
+                  <tr key={r.ownerEmail}>
+                    <td className="contact-name">{r.name}</td>
+                    <td className="num txt-semi">{r.totalCalls ?? r.calls}</td>
+                    <td className={r.connectedCalls ? 'num' : 'num txt-muted'}>
+                      {r.connectedCalls ?? '—'}
+                    </td>
+                    <td className={r.calls ? 'num' : 'num txt-muted'}>{r.calls}</td>
+                    <td className={`num txt-bold txt-${tone(r.avg)}`}>{r.calls ? r.avg : '—'}</td>
+                    <td className={`num txt-bold ${best ? 'txt-green' : 'txt-muted'}`}>{best}</td>
+                    <td className={good ? 'num' : 'num txt-muted'}>{good}</td>
+                    <td className={`num ${ok ? 'txt-amber' : 'txt-muted'}`}>{ok}</td>
+                    <td className={`num ${weak ? 'txt-semi txt-red' : 'txt-muted'}`}>{weak}</td>
+                    <td className="sc-spread">
+                      <BandBar bands={r.bands} total={r.calls} />
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </DataTable>
+        ) : (
+          <div className="sc-pad">
+            <EmptyState title="No graded calls yet" />
+          </div>
+        )}
+        <p className="subtle sc-footnote">
           Total calls = every call the rep made in the period. Graded = the ≥30s recorded calls
           that were transcribed and scored (the four band columns add up to this). Best = 90+ (a
           call worth showing a new joiner). "Avg score" is the mean out of 100 across that rep's
           graded calls. Dead calls (wrong number, call-me-back) are excluded — they measure luck,
           not skill.
-        </div>
-      </div>
+        </p>
+      </Section>
 
       {/* --- Weakest skills --- */}
-      <div className="card" style={{ padding: '16px 18px', marginTop: 12 }}>
-        <h2 style={{ marginTop: 0 }}>Where the team is weakest</h2>
-        <div className="subtle" style={{ marginBottom: 12 }}>
-          Every criterion scored as a % of its maximum, across all graded calls. The ones at the
-          top are where coaching moves the needle most.
-        </div>
+      <Section
+        title="Where the team is weakest"
+        meta="Every criterion scored as a % of its maximum, across all graded calls. The ones at the top are where coaching moves the needle most."
+      >
         {(res.byCriterion || []).map((c) => (
-          <div key={c.criterion} style={{ marginBottom: 8 }}>
-            <div className="row-between" style={{ marginBottom: 2 }}>
+          <div key={c.criterion} className="sc-crit">
+            <div className="row-between sc-crit-head">
               <span>{prettyCriterion(c.criterion)}</span>
-              <span className="rate-num" style={{ color: color(c.pct) }}>{c.pct}%</span>
+              <span className={`rate-num txt-${tone(c.pct)}`}>{c.pct}%</span>
             </div>
             <div className="rate-wrap">
               <div className="rate-bar">
-                <span style={{ width: `${c.pct}%`, background: color(c.pct) }} />
+                <span className={`fill-${tone(c.pct)}`} style={{ width: `${c.pct}%` }} />
               </div>
             </div>
           </div>
         ))}
-      </div>
+      </Section>
 
       {/* --- By call type --- */}
-      <div className="card" style={{ padding: '16px 18px', marginTop: 12 }}>
-        <h2 style={{ marginTop: 0 }}>By call type</h2>
-        <div className="mini-grid">
+      <Section title="By call type">
+        <StatGrid>
           {(res.byCallType || []).map((t) => (
-            <div className="panel-sm" key={t.type}>
-              <h3>{prettyCriterion(t.type)}</h3>
-              <div className="num" style={{ fontSize: '1.5rem', color: t.type === 'not_gradeable' ? 'var(--muted)' : color(t.avg) }}>
-                {t.type === 'not_gradeable' ? '—' : t.avg}
-              </div>
-              <div className="subtle">{t.calls} call{t.calls === 1 ? '' : 's'}</div>
-            </div>
+            <StatCard
+              key={t.type}
+              label={prettyCriterion(t.type)}
+              value={t.type === 'not_gradeable' ? '—' : t.avg}
+              tone={t.type === 'not_gradeable' ? undefined : tone(t.avg)}
+              hint={`${t.calls} call${t.calls === 1 ? '' : 's'}`}
+            />
           ))}
-        </div>
-        <div className="subtle" style={{ marginTop: 8 }}>
+        </StatGrid>
+        <p className="subtle">
           Usually first-calls score lowest and closings highest — a low first-call number means the
           gap is in how reps open and qualify, not how they close.
-        </div>
-      </div>
+        </p>
+      </Section>
 
       {/* --- Best / worst calls to review --- */}
-      <div className="mini-grid" style={{ marginTop: 12 }}>
-        <div className="card" style={{ padding: '16px 18px' }}>
-          <h2 style={{ marginTop: 0 }}>Show these to new joiners</h2>
+      <div className="sc-pair">
+        <Section title="Show these to new joiners">
           <CallList calls={res.topCalls} onOpen={setSelected} />
-        </div>
-        <div className="card" style={{ padding: '16px 18px' }}>
-          <h2 style={{ marginTop: 0 }}>Coach these</h2>
+        </Section>
+        <Section title="Coach these">
           <CallList calls={res.bottomCalls} onOpen={setSelected} />
-        </div>
+        </Section>
       </div>
 
       {selected && <CallDetail callId={selected} onClose={() => setSelected(null)} />}
-    </>
+    </div>
   );
 }
+
+const BANDS = ['best', 'good', 'ok', 'weak'];
 
 /** A stacked bar of the four score bands, for a rep's row. */
 function BandBar({ bands, total }) {
   if (!total) return <span className="subtle">—</span>;
-  const seg = [
-    ['best', 'var(--green, #4d7a63)'],
-    ['good', '#6b9b83'],
-    ['ok', 'var(--amber, #b8860b)'],
-    ['weak', 'var(--red, #c0392b)'],
-  ];
   return (
-    <div style={{ display: 'flex', height: 14, borderRadius: 4, overflow: 'hidden', background: 'var(--surface-inset)' }}>
-      {seg.map(([k, c]) =>
+    <div className="band-bar">
+      {BANDS.map((k) =>
         bands[k] ? (
           <div
             key={k}
+            className={`band-${k}`}
             title={`${k}: ${bands[k]}`}
-            style={{ width: `${(bands[k] / total) * 100}%`, background: c }}
+            style={{ width: `${(bands[k] / total) * 100}%` }}
           />
         ) : null
       )}
@@ -331,32 +304,18 @@ function BandBar({ bands, total }) {
 }
 
 function CallList({ calls, onOpen }) {
-  if (!calls || calls.length === 0) return <p className="subtle">Nothing here yet.</p>;
+  if (!calls || calls.length === 0) return <EmptyState title="Nothing here yet" />;
   return (
     <div>
       {calls.map((c) => (
-        <div
-          key={c.id}
-          className="clickable-row"
-          onClick={() => onOpen(c.id)}
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            gap: 10,
-            padding: '8px 0',
-            borderBottom: '1px solid var(--border)',
-            cursor: 'pointer',
-          }}
-        >
-          <div style={{ minWidth: 0 }}>
+        <div key={c.id} className="clickable-row sc-call" onClick={() => onOpen(c.id)}>
+          <div className="sc-call-main">
             <div className="contact-name">{c.lead}</div>
-            <div className="subtle" style={{ fontSize: '0.78rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            <div className="subtle sc-call-meta">
               {c.rep} · {prettyCriterion(c.callType || '')} · {c.minutes}m
             </div>
           </div>
-          <span className="score-pill" style={{ background: color(c.score), color: '#fff', alignSelf: 'center' }}>
-            {c.score}
-          </span>
+          <span className={`score-pill pill-${tone(c.score)}`}>{c.score}</span>
         </div>
       ))}
     </div>

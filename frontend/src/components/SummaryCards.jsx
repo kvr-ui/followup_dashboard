@@ -1,57 +1,56 @@
 import { priorityClass, statusClass } from '../utils';
+import StatCard, { StatGrid } from './ui/StatCard';
+import Section from './ui/Section';
 
-export default function SummaryCards({ summary, isAdmin, onSelectTab }) {
+export default function SummaryCards({ summary, isAdmin, activeTab, onSelectTab }) {
   const s = summary;
 
   const cards = [
-    { key: 'all', label: 'Total', num: s.total, cls: '' },
-    { key: 'overdue', label: 'Overdue', num: s.overdue, cls: 'overdue' },
-    { key: 'today', label: 'Due Today', num: s.today, cls: 'today' },
-    { key: 'week', label: 'Due This Week', num: s.week, cls: 'week', noTab: true },
+    { key: 'all', label: 'Total', num: s.total },
+    { key: 'overdue', label: 'Overdue', num: s.overdue, tone: 'red' },
+    { key: 'today', label: 'Due Today', num: s.today, tone: 'amber' },
+    { key: 'week', label: 'Due This Week', num: s.week, tone: 'accent', noTab: true },
   ];
 
   return (
     <>
-      <div className="summary-grid">
+      <StatGrid>
         {cards.map((c) => (
-          <div
+          <StatCard
             key={c.key}
-            className={`card ${c.cls} ${c.noTab ? '' : 'clickable'}`}
-            onClick={() => !c.noTab && onSelectTab(c.key)}
-          >
-            <div className="num">{c.num}</div>
-            <div className="label">{c.label}</div>
-          </div>
+            label={c.label}
+            value={c.num}
+            tone={c.tone}
+            active={!c.noTab && activeTab === c.key}
+            onClick={c.noTab ? undefined : () => onSelectTab(c.key)}
+          />
         ))}
-      </div>
+      </StatGrid>
 
-      <div className="mini-grid">
-        <div className="panel-sm">
-          <h3>By status</h3>
-          <div className="breakdown">
+      <div className="fu-breakdowns">
+        <Section title="By status">
+          <div className="fu-breakdown">
             {Object.entries(s.status).map(([k, v]) => (
               <span key={k} className={statusClass(k)}>
                 {k}: <b>{v}</b>
               </span>
             ))}
           </div>
-        </div>
+        </Section>
 
-        <div className="panel-sm">
-          <h3>By priority</h3>
-          <div className="breakdown">
+        <Section title="By priority">
+          <div className="fu-breakdown">
             {Object.entries(s.priority).map(([k, v]) => (
               <span key={k} className={priorityClass(k)}>
                 {k}: <b>{v}</b>
               </span>
             ))}
           </div>
-        </div>
+        </Section>
 
         {isAdmin && (
-          <div className="panel-sm">
-            <h3>By salesperson</h3>
-            <div className="breakdown">
+          <Section title="By salesperson">
+            <div className="fu-breakdown">
               {Object.entries(s.byOwner)
                 .sort((a, b) => b[1] - a[1])
                 .map(([k, v]) => (
@@ -60,7 +59,7 @@ export default function SummaryCards({ summary, isAdmin, onSelectTab }) {
                   </span>
                 ))}
             </div>
-          </div>
+          </Section>
         )}
       </div>
     </>

@@ -1,6 +1,7 @@
 import { formatDateTime } from '../utils';
 import { rupees, monthLabel } from '../money';
 import { Field, dash, value } from './Field';
+import Section from './ui/Section';
 
 // ---------------------------------------------------------------------------
 // Acquisition
@@ -76,10 +77,8 @@ export default function Acquisition({ acq }) {
   const sourceMedium = [utm.source, utm.medium].filter(Boolean).join(' · ');
 
   return (
-    <section className="drawer-section">
-      <span className="field-label">Acquisition</span>
-
-      <div className="fields acq-grid">
+    <Section title="Acquisition">
+      <div className="fields">
         <Field label="Source">
           {acq.source === 'meta' ? 'Meta form' : 'Web form'}
           {acq.formLabel && <span className="acq-basis">{acq.formLabel}</span>}
@@ -138,6 +137,6 @@ export default function Acquisition({ acq }) {
           <Field label="State">{value(qual.state)}</Field>
         </div>
       </div>
-    </section>
+    </Section>
   );
 }

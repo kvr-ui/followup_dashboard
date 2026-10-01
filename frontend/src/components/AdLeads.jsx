@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../api';
 import DateRangeBar from './DateRangeBar';
+import PageHeader from './ui/PageHeader';
+import FilterBar from './ui/FilterBar';
+import DataTable from './ui/DataTable';
+import StatCard, { StatGrid } from './ui/StatCard';
+import EmptyState from './ui/EmptyState';
+import Icon from './ui/Icon';
 import { openLead, rowPhoneKey } from '../route';
 import {
   LEAD_STATES,
@@ -148,52 +154,70 @@ export default function AdLeads() {
     setStatus(nextStatus);
   }
 
+  // A card reads as selected when the filters are exactly the combination it sets.
+  const isFocus = (l, r, st = 'all') =>
+    source === 'all' && form === 'all' && link === l && resolution === r && status === st;
+
   return (
     <>
-      <div className="mkt-head">
-        <h2>Ad Leads</h2>
-        <DateRangeBar range={range} onChange={setRange}>
-          <button onClick={() => load(range)} disabled={loading}>
-            {loading ? 'Loading…' : 'Refresh'}
-          </button>
-        </DateRangeBar>
-      </div>
+      <PageHeader
+        actions={
+          <DateRangeBar range={range} onChange={setRange}>
+            <button onClick={() => load(range)} disabled={loading}>
+              <Icon name="refresh" size={14} />
+              {loading ? 'Loading…' : 'Refresh'}
+            </button>
+          </DateRangeBar>
+        }
+      />
 
       {error && <div className="error">{error}</div>}
       {!leads && !error && <p className="subtle">Loading ad leads…</p>}
 
       {leads && (
         <>
-          <div className="summary-grid">
-            <div className="card clickable" onClick={() => focus('all', 'all')}>
-              <div className="num">{formatCount(counts.all)}</div>
-              <div className="label">Captured leads</div>
-            </div>
-            <div className="card clickable" onClick={() => focus('unlinked', 'all')}>
-              <div className="num">{formatCount(counts.unlinked)}</div>
-              <div className="label">Not linked to a follow-up</div>
-            </div>
-            <div className="card clickable" onClick={() => focus('all', 'all', 'won')}>
-              <div className="num">{formatCount(counts.won)}</div>
-              <div className="label">Closed with sale</div>
-            </div>
-            <div className="card clickable" onClick={() => focus('all', 'all', 'lost')}>
-              <div className="num">{formatCount(counts.lost)}</div>
-              <div className="label">Closed without sale</div>
-            </div>
-            <div className="card clickable" onClick={() => focus('all', 'untriaged')}>
-              <div className="num">{formatCount(counts.untriaged)}</div>
-              <div className="label">UTM resolved to nothing</div>
-            </div>
-            <div className="card clickable" onClick={() => focus('all', 'triaged')}>
-              <div className="num">{formatCount(counts.triaged)}</div>
-              <div className="label">Triaged: no Meta campaign</div>
-            </div>
-          </div>
+          <StatGrid>
+            <StatCard
+              label="Captured leads"
+              value={formatCount(counts.all)}
+              active={isFocus('all', 'all')}
+              onClick={() => focus('all', 'all')}
+            />
+            <StatCard
+              label="Not linked to a follow-up"
+              value={formatCount(counts.unlinked)}
+              active={isFocus('unlinked', 'all')}
+              onClick={() => focus('unlinked', 'all')}
+            />
+            <StatCard
+              label="Closed with sale"
+              value={formatCount(counts.won)}
+              active={isFocus('all', 'all', 'won')}
+              onClick={() => focus('all', 'all', 'won')}
+            />
+            <StatCard
+              label="Closed without sale"
+              value={formatCount(counts.lost)}
+              active={isFocus('all', 'all', 'lost')}
+              onClick={() => focus('all', 'all', 'lost')}
+            />
+            <StatCard
+              label="UTM resolved to nothing"
+              value={formatCount(counts.untriaged)}
+              active={isFocus('all', 'untriaged')}
+              onClick={() => focus('all', 'untriaged')}
+            />
+            <StatCard
+              label="Triaged: no Meta campaign"
+              value={formatCount(counts.triaged)}
+              active={isFocus('all', 'triaged')}
+              onClick={() => focus('all', 'triaged')}
+            />
+          </StatGrid>
 
-          <div className="mkt-filters">
+          <FilterBar>
             <label>
-              <span>Source</span>
+              Source
               <select value={source} onChange={(e) => setSource(e.target.value)}>
                 <option value="all">All ({counts.all})</option>
                 <option value="web">Web form ({counts.web})</option>
@@ -201,7 +225,7 @@ export default function AdLeads() {
               </select>
             </label>
             <label>
-              <span>Form</span>
+              Form
               <select value={form} onChange={(e) => setForm(e.target.value)}>
                 <option value="all">All</option>
                 {Object.entries(counts.forms).map(([f, n]) => (
@@ -212,7 +236,7 @@ export default function AdLeads() {
               </select>
             </label>
             <label>
-              <span>Follow-up</span>
+              Follow-up
               <select value={link} onChange={(e) => setLink(e.target.value)}>
                 <option value="all">All</option>
                 <option value="unlinked">Not linked</option>
@@ -220,7 +244,7 @@ export default function AdLeads() {
               </select>
             </label>
             <label>
-              <span>Campaign</span>
+              Campaign
               <select value={resolution} onChange={(e) => setResolution(e.target.value)}>
                 <option value="all">All</option>
                 <option value="resolved">Resolved to a campaign</option>
@@ -229,7 +253,7 @@ export default function AdLeads() {
               </select>
             </label>
             <label>
-              <span>Status</span>
+              Status
               <select value={status} onChange={(e) => setStatus(e.target.value)}>
                 <option value="all">All</option>
                 {LEAD_STATES.map((s) => (
@@ -239,14 +263,16 @@ export default function AdLeads() {
                 ))}
               </select>
             </label>
-          </div>
+          </FilterBar>
 
-          <div className="toolbar">
-            <p id="status">
-              Showing {formatCount(rows.length)} of {formatCount(counts.all)} lead(s) ·{' '}
-              {formatCount(counts.web)} web, {formatCount(counts.meta)} Meta
-            </p>
-          </div>
+          <PageHeader
+            meta={
+              <span id="status">
+                Showing {formatCount(rows.length)} of {formatCount(counts.all)} lead(s) ·{' '}
+                {formatCount(counts.web)} web, {formatCount(counts.meta)} Meta
+              </span>
+            }
+          />
 
           {meta && meta.truncated && (
             <p className="hint">
@@ -257,28 +283,26 @@ export default function AdLeads() {
           )}
 
           {rows.length === 0 ? (
-            <p className="subtle">No leads match the current filters.</p>
+            <EmptyState title="No leads match the current filters" />
           ) : (
-            <div className="mkt-scroll">
-              <table className="tasks mkt-table">
-                <thead>
-                  <tr>
-                    <th>Contact</th>
-                    <th>Captured</th>
-                    <th>Source</th>
-                    <th>UTM</th>
-                    <th>Campaign</th>
-                    <th>Status</th>
-                    <th>Follow-up</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((lead) => (
-                    <LeadRow key={`${lead.source}-${lead.id}`} lead={lead} />
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <DataTable className="mkt-wide">
+              <thead>
+                <tr>
+                  <th>Contact</th>
+                  <th>Captured</th>
+                  <th>Source</th>
+                  <th>UTM</th>
+                  <th>Campaign</th>
+                  <th>Status</th>
+                  <th>Follow-up</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((lead) => (
+                  <LeadRow key={`${lead.source}-${lead.id}`} lead={lead} />
+                ))}
+              </tbody>
+            </DataTable>
           )}
         </>
       )}

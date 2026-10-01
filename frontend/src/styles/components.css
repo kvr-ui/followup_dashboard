@@ -157,6 +157,12 @@ table.data-table tbody tr:last-child td {
 table.data-table tbody tr:hover td {
   background: var(--surface-2);
 }
+table.data-table tfoot td {
+  background: var(--surface-2);
+  border-top: 1px solid var(--border-strong);
+  border-bottom: none;
+  font-weight: 600;
+}
 table.data-table tr.clickable-row {
   cursor: pointer;
 }
@@ -222,6 +228,9 @@ table.data-table th.num {
 }
 .stat-card.tone-accent .stat-value {
   color: var(--accent);
+}
+.stat-card.tone-muted .stat-value {
+  color: var(--muted);
 }
 
 /* ---------- Empty state ---------- */

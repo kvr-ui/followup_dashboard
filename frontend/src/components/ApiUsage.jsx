@@ -1,5 +1,10 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
+import PageHeader from './ui/PageHeader';
+import Section from './ui/Section';
+import DataTable from './ui/DataTable';
+import StatCard, { StatGrid } from './ui/StatCard';
+import Icon from './ui/Icon';
 
 // What the AI providers have cost us, and what is left on each account.
 //
@@ -43,10 +48,10 @@ function fmtDate(iso) {
   });
 }
 
-function barColor(percentUsed) {
-  if (percentUsed >= 90) return 'var(--red)';
-  if (percentUsed >= 70) return 'var(--amber)';
-  return 'var(--green)';
+function barTone(percentUsed) {
+  if (percentUsed >= 90) return 'red';
+  if (percentUsed >= 70) return 'amber';
+  return 'green';
 }
 
 /** The headline number for a provider — tokens for Sarvam, audio time for ElevenLabs. */
@@ -63,31 +68,33 @@ function Balance({ provider }) {
   // by an admin (an API-key permission, or an allowance they have to type in), so
   // this is a hint rather than an error.
   if (!balance?.available) {
-    return <div className="hint" style={{ marginBottom: '1rem' }}>{balance?.reason}</div>;
+    return <div className="hint usage-reason">{balance?.reason}</div>;
   }
 
   const isTokens = balance.unit === 'tokens';
   const pct = balance.percentUsed ?? 0;
+  const tone = barTone(pct);
 
   return (
     <div className="usage-balance">
       <div>
-        <div className="num" style={{ color: barColor(pct) }}>
-          {fmtCompact(balance.remaining)}
-        </div>
-        <div className="label">
+        <div className={`usage-figure usage-${tone}`}>{fmtCompact(balance.remaining)}</div>
+        <div className="usage-label">
           {isTokens ? 'Tokens remaining' : 'Characters remaining'}
         </div>
       </div>
 
-      <div className="usage-balance-meter">
-        <div className="rate-wrap" style={{ minWidth: 0 }}>
-          <div className="rate-bar">
-            <span style={{ width: `${Math.min(100, pct)}%`, background: barColor(pct) }} />
+      <div>
+        <div className="usage-meter">
+          <div className="usage-track">
+            <span
+              className={`usage-fill usage-fill-${tone}`}
+              style={{ width: `${Math.min(100, pct)}%` }}
+            />
           </div>
-          <span className="rate-num">{pct}%</span>
+          <span className="usage-pct">{pct}%</span>
         </div>
-        <div className="subtle" style={{ marginTop: '0.4rem' }}>
+        <div className="subtle usage-detail">
           {fmtNum(balance.used)} of {fmtNum(balance.limit)} used
           {balance.tier ? ` · ${balance.tier} plan` : ''}
           {balance.resetsAt ? ` · resets ${fmtDate(balance.resetsAt)}` : ''}
@@ -105,47 +112,29 @@ function ProviderPanel({ provider }) {
   const isTokens = provider.unit === 'tokens';
 
   return (
-    <div className="panel">
-      <div className="row-between" style={{ marginBottom: '1rem' }}>
-        <div>
-          <h2 style={{ margin: 0 }}>{provider.label}</h2>
-          <div className="subtle">
-            {provider.purpose} · {provider.model}
-          </div>
-        </div>
+    <Section
+      title={provider.label}
+      meta={`${provider.purpose} · ${provider.model}`}
+      actions={
         <span className={provider.configured ? 'badge badge-normal' : 'badge badge-low'}>
           {provider.configured ? 'Connected' : 'No API key'}
         </span>
-      </div>
-
+      }
+    >
       <Balance provider={provider} />
 
-      <div className="summary-grid">
-        <div className="card">
-          <div className="num">{spendOf(provider, totals.today)}</div>
-          <div className="label">Today</div>
-        </div>
-        <div className="card">
-          <div className="num">{spendOf(provider, totals.last7)}</div>
-          <div className="label">Last 7 days</div>
-        </div>
-        <div className="card">
-          <div className="num">{spendOf(provider, totals.last30)}</div>
-          <div className="label">Last 30 days</div>
-        </div>
-        <div className="card">
-          <div className="num">{spendOf(provider, totals.allTime)}</div>
-          <div className="label">Since metering began</div>
-        </div>
-        <div className="card">
-          <div className="num">{fmtNum(totals.allTime.requests)}</div>
-          <div className="label">
-            Requests{totals.allTime.failures ? ` · ${totals.allTime.failures} failed` : ''}
-          </div>
-        </div>
-      </div>
+      <StatGrid>
+        <StatCard label="Today" value={spendOf(provider, totals.today)} />
+        <StatCard label="Last 7 days" value={spendOf(provider, totals.last7)} />
+        <StatCard label="Last 30 days" value={spendOf(provider, totals.last30)} />
+        <StatCard label="Since metering began" value={spendOf(provider, totals.allTime)} />
+        <StatCard
+          label={`Requests${totals.allTime.failures ? ` · ${totals.allTime.failures} failed` : ''}`}
+          value={fmtNum(totals.allTime.requests)}
+        />
+      </StatGrid>
 
-      <p className="subtle" style={{ marginTop: '-0.4rem', marginBottom: '1rem' }}>
+      <p className="subtle usage-note">
         {/* Only the two pipeline providers have a "work done to date" figure to
             quote. The agent has none — nobody asked it a question before it
             existed — so it simply skips the sentence. */}
@@ -160,20 +149,20 @@ function ProviderPanel({ provider }) {
         billed too, which is why they are counted here.
       </p>
 
-      <table className="tasks">
+      <DataTable>
         <thead>
           <tr>
             <th>Day</th>
-            <th>Requests</th>
-            <th>Failed</th>
+            <th className="num">Requests</th>
+            <th className="num">Failed</th>
             {isTokens ? (
               <>
-                <th>Input tokens</th>
-                <th>Output tokens</th>
-                <th>Total tokens</th>
+                <th className="num">Input tokens</th>
+                <th className="num">Output tokens</th>
+                <th className="num">Total tokens</th>
               </>
             ) : (
-              <th>Audio transcribed</th>
+              <th className="num">Audio transcribed</th>
             )}
           </tr>
         </thead>
@@ -181,16 +170,16 @@ function ProviderPanel({ provider }) {
           {[...daily].reverse().map((d) => (
             <tr key={d.day}>
               <td>{d.day}</td>
-              <td>{fmtNum(d.requests)}</td>
-              <td className={d.failures ? 'cell-overdue' : ''}>{d.failures || 0}</td>
+              <td className="num">{fmtNum(d.requests)}</td>
+              <td className={d.failures ? 'num cell-overdue' : 'num'}>{d.failures || 0}</td>
               {isTokens ? (
                 <>
-                  <td>{fmtNum(d.promptTokens)}</td>
-                  <td>{fmtNum(d.completionTokens)}</td>
-                  <td>{fmtNum(d.totalTokens)}</td>
+                  <td className="num">{fmtNum(d.promptTokens)}</td>
+                  <td className="num">{fmtNum(d.completionTokens)}</td>
+                  <td className="num">{fmtNum(d.totalTokens)}</td>
                 </>
               ) : (
-                <td>{fmtDuration(d.audioSeconds)}</td>
+                <td className="num">{fmtDuration(d.audioSeconds)}</td>
               )}
             </tr>
           ))}
@@ -202,8 +191,8 @@ function ProviderPanel({ provider }) {
             </tr>
           )}
         </tbody>
-      </table>
-    </div>
+      </DataTable>
+    </Section>
   );
 }
 
@@ -235,20 +224,23 @@ export default function ApiUsage() {
 
   return (
     <>
-      <div className="toolbar">
-        <p id="status">AI provider usage and remaining balance</p>
-        <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center' }}>
-          <select value={days} onChange={(e) => setDays(Number(e.target.value))}>
-            <option value={7}>Last 7 days</option>
-            <option value={30}>Last 30 days</option>
-            <option value={90}>Last 90 days</option>
-          </select>
-          {/* refresh=1 bypasses the 5-minute balance cache on the server. */}
-          <button onClick={() => load(days, true)} disabled={loading}>
-            {loading ? 'Refreshing…' : 'Refresh'}
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        meta={<span id="status">AI provider usage and remaining balance</span>}
+        actions={
+          <>
+            <select value={days} onChange={(e) => setDays(Number(e.target.value))}>
+              <option value={7}>Last 7 days</option>
+              <option value={30}>Last 30 days</option>
+              <option value={90}>Last 90 days</option>
+            </select>
+            {/* refresh=1 bypasses the 5-minute balance cache on the server. */}
+            <button onClick={() => load(days, true)} disabled={loading}>
+              <Icon name="refresh" size={14} />
+              {loading ? 'Refreshing…' : 'Refresh'}
+            </button>
+          </>
+        }
+      />
 
       <ProviderPanel provider={data.providers.sarvam} />
       <ProviderPanel provider={data.providers.elevenlabs} />

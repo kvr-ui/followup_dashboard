@@ -1,10 +1,17 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../api';
 import CopyButton from './CopyButton';
+import PageHeader from './ui/PageHeader';
+import FilterBar from './ui/FilterBar';
+import DataTable from './ui/DataTable';
+import StatCard, { StatGrid } from './ui/StatCard';
+import EmptyState from './ui/EmptyState';
+import Icon from './ui/Icon';
 import { openLead } from '../route';
 import { LEAD_STATES, LEAD_STATUS, formatCount, formatDay, relativeTime } from '../adStats';
 import { parseDueDate, startOfToday } from '../taskStats';
 import { statusClass } from '../utils';
+import '../styles/views/deals.css';
 
 // The Leads tab — every person the dashboard knows about, one row each, whatever
 // tab they first turned up in. A click opens the full lead page.
@@ -40,7 +47,7 @@ function FollowUp({ value }) {
   if (!due) return <span className="subtle">—</span>;
   const overdue = due < startOfToday();
   return (
-    <span style={overdue ? { color: 'var(--red)', fontWeight: 600 } : undefined}>
+    <span className={overdue ? 'deals-overdue' : undefined}>
       {formatDay(value)}
       {overdue && <div className="subtle">overdue</div>}
     </span>
@@ -110,39 +117,38 @@ export default function Leads({ isAdmin }) {
 
   return (
     <>
-      <div className="summary-grid">
-        <div className="card clickable" onClick={() => focusState('')}>
-          <div className="num">{facets ? formatCount(facets.total) : '—'}</div>
-          <div className="label">{isAdmin ? 'All leads' : 'Your leads + unassigned'}</div>
-        </div>
+      <StatGrid>
+        <StatCard
+          label={isAdmin ? 'All leads' : 'Your leads + unassigned'}
+          value={facets ? formatCount(facets.total) : '—'}
+          onClick={() => focusState('')}
+        />
         {LEAD_STATES.map((s) => (
-          <div
+          <StatCard
             key={s}
-            className={filters.status === s ? 'card clickable week' : 'card clickable'}
+            label={LEAD_STATUS[s].label}
+            value={facets ? formatCount(facets.byState[s]) : '—'}
             title={LEAD_STATUS[s].hint}
+            active={filters.status === s}
             onClick={() => focusState(s)}
-          >
-            <div className="num">{facets ? formatCount(facets.byState[s]) : '—'}</div>
-            <div className="label">{LEAD_STATUS[s].label}</div>
-          </div>
+          />
         ))}
-      </div>
+      </StatGrid>
 
-      <div className="summary-grid">
+      <StatGrid>
         {STAGES.map((s) => (
-          <div
+          <StatCard
             key={s}
-            className={filters.stage === s ? 'card clickable week' : 'card clickable'}
+            label={STAGE[s].label}
+            value={facets?.byStage ? formatCount(facets.byStage[s]) : '—'}
             title={STAGE[s].hint}
+            active={filters.stage === s}
             onClick={() => focusStage(s)}
-          >
-            <div className="num">{facets?.byStage ? formatCount(facets.byStage[s]) : '—'}</div>
-            <div className="label">{STAGE[s].label}</div>
-          </div>
+          />
         ))}
-      </div>
+      </StatGrid>
 
-      <div className="filters">
+      <FilterBar>
         <label>
           Search
           <input
@@ -224,20 +230,29 @@ export default function Leads({ isAdmin }) {
         >
           Clear
         </button>
-        <button onClick={load} disabled={loading}>
-          {loading ? 'Loading…' : 'Refresh'}
-        </button>
-      </div>
+      </FilterBar>
 
       {error && <div className="error">{error}</div>}
 
-      <p id="status">
-        {res ? `${formatCount(total)} lead${total === 1 ? '' : 's'} match` : 'Loading…'}
-        {total > PAGE_SIZE && ` — page ${page} of ${pages}`}
-      </p>
+      <PageHeader
+        meta={
+          <span id="status">
+            {res ? `${formatCount(total)} lead${total === 1 ? '' : 's'} match` : 'Loading…'}
+            {total > PAGE_SIZE && ` — page ${page} of ${pages}`}
+          </span>
+        }
+        actions={
+          <button onClick={load} disabled={loading}>
+            <Icon name="refresh" size={14} />
+            {loading ? 'Loading…' : 'Refresh'}
+          </button>
+        }
+      />
 
-      <div className="card" style={{ padding: '16px 18px' }}>
-        <table className="tasks">
+      {res && !rows.length ? (
+        <EmptyState title="No leads match the current filters" />
+      ) : (
+        <DataTable>
           <thead>
             <tr>
               <th>Lead</th>
@@ -254,7 +269,7 @@ export default function Leads({ isAdmin }) {
           <tbody>
             {rows.map((r) => (
               <tr key={r.phoneKey} className="clickable-row" onClick={() => openLead(r.phoneKey)}>
-                <td style={{ fontWeight: 500 }}>
+                <td className="deals-lead">
                   <a
                     href={`#/lead/${r.phoneKey}`}
                     onClick={(e) => {
@@ -267,7 +282,7 @@ export default function Leads({ isAdmin }) {
                   </a>
                 </td>
                 <td onClick={(e) => e.stopPropagation()}>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  <span className="deals-phone">
                     {r.phone || r.phoneKey}
                     <CopyButton text={r.phone || r.phoneKey} />
                   </span>
@@ -307,12 +322,11 @@ export default function Leads({ isAdmin }) {
               </tr>
             ))}
           </tbody>
-        </table>
-        {res && !rows.length && <p className="subtle">No leads match the current filters.</p>}
-      </div>
+        </DataTable>
+      )}
 
       {pages > 1 && (
-        <div className="toolbar">
+        <div className="deals-pager">
           <button onClick={() => setPage((p) => p - 1)} disabled={page <= 1 || loading}>
             ← Prev
           </button>

@@ -6,7 +6,7 @@ import './styles/tokens.css';
 import './styles/base.css';
 import './styles/shell.css';
 import './styles/components.css';
-import './styles/views/legacy.css';
+import './styles/views/shared.css';
 import './styles/views/login.css';
 import './styles/views/drawer.css';
 import './styles/views/calls.css';

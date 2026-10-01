@@ -1,6 +1,7 @@
 import { formatDateTime } from '../utils';
 import { ENGAGEMENT, clampPct, engagementClass, formatWatch, watchBasisNote } from '../vslStats';
 import { Field, dash, value } from './Field';
+import Section from './ui/Section';
 
 // ---------------------------------------------------------------------------
 // VSL watch time
@@ -19,10 +20,8 @@ export default function VslWatch({ vsl }) {
   const note = watchBasisNote(watch.basis);
 
   return (
-    <section className="drawer-section">
-      <span className="field-label">VSL watch time</span>
-
-      <div className="fields acq-grid">
+    <Section title="VSL watch time">
+      <div className="fields">
         <Field label="Minutes watched">
           <span className="vsl-minutes">{formatWatch(watch.seconds, watch.percentage)}</span>
         </Field>
@@ -72,6 +71,6 @@ export default function VslWatch({ vsl }) {
       </div>
 
       {note && <span className="acq-basis">{note}</span>}
-    </section>
+    </Section>
   );
 }

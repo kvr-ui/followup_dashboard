@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { getContact, priorityClass, statusClass } from '../utils';
+import Section from './ui/Section';
 
 const STATUS_OPTIONS = ['Not Started', 'In Progress', 'Completed'];
 
@@ -129,15 +130,14 @@ export default function TaskActions({ task, zohoSync = true, onChanged }) {
       )}
 
       {/* Status */}
-      <section className="drawer-section">
-        <span className="field-label">Latest follow-up</span>
+      <Section title="Latest follow-up">
         <div className="lp-task-subject">{body.Subject || '—'}</div>
-        <div className="breakdown" style={{ marginTop: '0.4rem' }}>
+        <div className="breakdown lp-task-badges">
           <span className={statusClass(body.Status)}>{body.Status || '—'}</span>
           {body.Priority && <span className={priorityClass(body.Priority)}>{body.Priority}</span>}
           {body.Due_Date && <span className="subtle">due {body.Due_Date}</span>}
         </div>
-        <div className="status-actions" style={{ marginTop: '0.75rem' }}>
+        <div className="status-actions">
           <select
             value={body.Status || ''}
             disabled={busy}
@@ -158,11 +158,10 @@ export default function TaskActions({ task, zohoSync = true, onChanged }) {
             </button>
           )}
         </div>
-      </section>
+      </Section>
 
       {/* Note */}
-      <section className="drawer-section">
-        <span className="field-label">Add a note</span>
+      <Section title="Add a note">
         <form className="note-form" onSubmit={submitNote}>
           <textarea
             rows={3}
@@ -174,22 +173,14 @@ export default function TaskActions({ task, zohoSync = true, onChanged }) {
             Add note
           </button>
         </form>
-      </section>
+      </Section>
 
       {/* WhatsApp (WATI) */}
       {waConfigured && (
-        <section className="drawer-section">
-          <span className="field-label">Send WhatsApp</span>
-          {!contact.phone && (
-            <div className="hint" style={{ marginTop: '0.5rem' }}>
-              This lead has no phone number.
-            </div>
-          )}
+        <Section title="Send WhatsApp">
+          {!contact.phone && <div className="hint wa-msg">This lead has no phone number.</div>}
           {waMsg && (
-            <div
-              className={waMsg.startsWith('Failed') ? 'error' : 'notice'}
-              style={{ marginTop: '0.5rem', marginBottom: 0 }}
-            >
+            <div className={waMsg.startsWith('Failed') ? 'error wa-msg' : 'notice wa-msg'}>
               {waMsg}
             </div>
           )}
@@ -219,7 +210,7 @@ export default function TaskActions({ task, zohoSync = true, onChanged }) {
               {waBusy ? 'Sending…' : 'Send WhatsApp'}
             </button>
           </div>
-        </section>
+        </Section>
       )}
     </>
   );

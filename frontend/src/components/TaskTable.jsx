@@ -1,6 +1,7 @@
 import { formatDateTime, priorityClass, statusClass, getContact } from '../utils';
 import { classifyDue } from '../taskStats';
 import CopyButton from './CopyButton';
+import DataTable from './ui/DataTable';
 import { formatWatch } from '../vslStats';
 import { openLead, toPhoneKey } from '../route';
 
@@ -37,10 +38,11 @@ function TaskRow({ task, receivedAt, category, categorySource, leadSource, vslMi
       <td>
         {category ? (
           <span
-            className="badge badge-normal"
             // A category read out of the subject line is a guess. Say so, quietly —
             // don't let it pass as something the rep actually recorded in Bigin.
-            style={categorySource === 'subject' ? { opacity: 0.7, fontStyle: 'italic' } : undefined}
+            className={
+              categorySource === 'subject' ? 'badge badge-normal badge-inferred' : 'badge badge-normal'
+            }
             title={
               categorySource === 'bigin'
                 ? 'Set in Bigin'
@@ -101,7 +103,7 @@ function TaskRow({ task, receivedAt, category, categorySource, leadSource, vslMi
 
 export default function TaskTable({ tasks }) {
   return (
-    <table className="tasks">
+    <DataTable>
       <thead>
         <tr>
           <th>Task</th>
@@ -142,6 +144,6 @@ export default function TaskTable({ tasks }) {
           )
         )}
       </tbody>
-    </table>
+    </DataTable>
   );
 }

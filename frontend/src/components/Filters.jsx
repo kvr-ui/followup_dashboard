@@ -1,11 +1,13 @@
 import { DEFAULT_FILTERS, TASK_CATEGORIES } from '../taskStats';
+import FilterBar from './ui/FilterBar';
+import SubTabs from './ui/SubTabs';
 
 const TABS = [
-  { k: 'all', label: 'All' },
-  { k: 'overdue', label: 'Overdue' },
-  { k: 'today', label: 'Today' },
-  { k: 'upcoming', label: 'Upcoming' },
-  { k: 'completed', label: 'Completed' },
+  { id: 'all', label: 'All' },
+  { id: 'overdue', label: 'Overdue' },
+  { id: 'today', label: 'Today' },
+  { id: 'upcoming', label: 'Upcoming' },
+  { id: 'completed', label: 'Completed' },
 ];
 
 export default function Filters({ filters, setFilters, owners, isAdmin }) {
@@ -13,19 +15,9 @@ export default function Filters({ filters, setFilters, owners, isAdmin }) {
 
   return (
     <>
-      <div className="quick-tabs">
-        {TABS.map((t) => (
-          <button
-            key={t.k}
-            className={`quick-tab ${filters.tab === t.k ? 'active' : ''}`}
-            onClick={() => set('tab', t.k)}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+      <SubTabs tabs={TABS} active={filters.tab} onSelect={(id) => set('tab', id)} />
 
-      <div className="filters">
+      <FilterBar>
         <label>
           Search contact
           <input
@@ -124,7 +116,7 @@ export default function Filters({ filters, setFilters, owners, isAdmin }) {
         <button className="link-danger" onClick={() => setFilters({ ...DEFAULT_FILTERS })}>
           Clear
         </button>
-      </div>
+      </FilterBar>
     </>
   );
 }

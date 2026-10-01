@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
+import Section from './ui/Section';
+import DataTable from './ui/DataTable';
+import '../styles/views/reports.css';
 
 const EMPTY = { name: '', username: '', password: '', role: 'sales', ownerEmail: '' };
 
@@ -57,12 +60,11 @@ export default function AdminUsers() {
 
   return (
     <div className="admin-users">
-      <section className="panel">
-        <h2>Create user</h2>
+      <Section title="Create user">
         {error && <div className="error">{error}</div>}
         {notice && <div className="notice">{notice}</div>}
 
-        <form className="user-form" onSubmit={handleCreate}>
+        <form className="admin-user-form" onSubmit={handleCreate}>
           <label>
             Full name
             <input value={form.name} onChange={(e) => update('name', e.target.value)} required />
@@ -106,11 +108,10 @@ export default function AdminUsers() {
             {busy ? 'Creating…' : 'Create user'}
           </button>
         </form>
-      </section>
+      </Section>
 
-      <section className="panel">
-        <h2>Users ({users.length})</h2>
-        <table className="tasks">
+      <Section title={`Users (${users.length})`} flush>
+        <DataTable>
           <thead>
             <tr>
               <th>Name</th>
@@ -141,8 +142,8 @@ export default function AdminUsers() {
               </tr>
             ))}
           </tbody>
-        </table>
-      </section>
+        </DataTable>
+      </Section>
     </div>
   );
 }

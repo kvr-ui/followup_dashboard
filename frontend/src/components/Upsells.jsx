@@ -2,8 +2,15 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../api';
 import CopyButton from './CopyButton';
 import LeadLink from './LeadLink';
+import PageHeader from './ui/PageHeader';
+import FilterBar from './ui/FilterBar';
+import DataTable from './ui/DataTable';
+import StatCard, { StatGrid } from './ui/StatCard';
+import EmptyState from './ui/EmptyState';
+import Icon from './ui/Icon';
 import { rowPhoneKey } from '../route';
 import { inr, upsoldFrom, upsoldTo } from '../upsell';
+import '../styles/views/deals.css';
 
 /**
  * Every lead who was upsold — regardless of whether they've finished paying.
@@ -66,42 +73,27 @@ export default function Upsells({ isAdmin }) {
 
   return (
     <>
-      <div className="summary-grid">
-        <div className="card">
-          <div className="num">{res?.count ?? '—'}</div>
-          <div className="label">Leads upsold</div>
-        </div>
-        <div className="card week">
-          <div className="num">{res?.upsellRate ?? 0}%</div>
-          <div className="label">Of {res?.wonCount ?? 0} won deals</div>
-        </div>
-        <div className="card">
-          <div className="num" style={{ color: 'var(--green, #27ae60)' }}>
-            {inr(res?.totalValue)}
-          </div>
-          <div className="label">Value of upsold deals</div>
-        </div>
-        <div className="card">
-          <div
-            className="num"
-            style={{ color: res?.totalUplift > 0 ? 'var(--green, #27ae60)' : 'inherit' }}
-          >
-            {inr(res?.totalUplift)}
-          </div>
-          <div className="label">Extra revenue booked</div>
-        </div>
-        <div className="card">
-          <div
-            className="num"
-            style={{ color: noUplift ? 'var(--red, #c0392b)' : 'inherit' }}
-          >
-            {noUplift}
-          </div>
-          <div className="label">Upsells earning nothing</div>
-        </div>
-      </div>
+      <StatGrid>
+        <StatCard label="Leads upsold" value={res?.count ?? '—'} />
+        <StatCard
+          label={`Of ${res?.wonCount ?? 0} won deals`}
+          value={`${res?.upsellRate ?? 0}%`}
+          tone="accent"
+        />
+        <StatCard label="Value of upsold deals" value={inr(res?.totalValue)} tone="green" />
+        <StatCard
+          label="Extra revenue booked"
+          value={inr(res?.totalUplift)}
+          tone={res?.totalUplift > 0 ? 'green' : undefined}
+        />
+        <StatCard
+          label="Upsells earning nothing"
+          value={noUplift}
+          tone={noUplift ? 'red' : undefined}
+        />
+      </StatGrid>
 
-      <div className="filters">
+      <FilterBar>
         {isAdmin && (
           <label>
             Salesperson
@@ -124,23 +116,39 @@ export default function Upsells({ isAdmin }) {
             onChange={(e) => setSearch(e.target.value)}
           />
         </label>
-        <button onClick={load} disabled={loading}>
-          {loading ? 'Loading…' : 'Refresh'}
-        </button>
-      </div>
+      </FilterBar>
 
       {error && <div className="error">{error}</div>}
 
+      <PageHeader
+        meta={
+          <span id="status">
+            {shown.length} upsold lead{shown.length === 1 ? '' : 's'}
+          </span>
+        }
+        actions={
+          <button onClick={load} disabled={loading}>
+            <Icon name="refresh" size={14} />
+            {loading ? 'Loading…' : 'Refresh'}
+          </button>
+        }
+      />
+
       {noUplift > 0 && (
-        <p id="status" style={{ color: 'var(--red, #c0392b)' }}>
+        <p className="error">
           {noUplift} upsell{noUplift === 1 ? '' : 's'} booked no extra revenue — the deal
           is still priced like the original course. Check the Amount and the products in
           Bigin.
         </p>
       )}
 
-      <div className="card" style={{ padding: '16px 18px' }}>
-        <table className="tasks">
+      {shown.length === 0 && !loading ? (
+        <EmptyState title={rows.length === 0 ? 'No upsells yet' : 'No leads match your search'}>
+          {rows.length === 0 &&
+            'A lead appears here once a won deal has the Up-Scale field set in Bigin.'}
+        </EmptyState>
+      ) : (
+        <DataTable>
           <thead>
             <tr>
               <th>Lead</th>
@@ -148,10 +156,10 @@ export default function Upsells({ isAdmin }) {
               <th>Upsold</th>
               {isAdmin && <th>Owner</th>}
               <th>Closed</th>
-              <th style={{ textAlign: 'right' }}>Deal value</th>
-              <th style={{ textAlign: 'right' }}>Typical</th>
-              <th style={{ textAlign: 'right' }}>Uplift</th>
-              <th style={{ textAlign: 'right' }}>Payment</th>
+              <th className="num">Deal value</th>
+              <th className="num">Typical</th>
+              <th className="num">Uplift</th>
+              <th className="num">Payment</th>
             </tr>
           </thead>
           <tbody>
@@ -161,14 +169,14 @@ export default function Upsells({ isAdmin }) {
               const dead = r.uplift !== null && r.uplift <= 0;
               return (
                 <tr key={r.id}>
-                  <td style={{ fontWeight: 500 }}>
+                  <td className="deals-lead">
                     <LeadLink phoneKey={rowPhoneKey(r, r.contactPhone)}>
                       {r.contactName || r.dealName || '—'}
                     </LeadLink>
                   </td>
                   <td>
                     {r.contactPhone ? (
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                      <span className="deals-phone">
                         {r.contactPhone}
                         <CopyButton text={r.contactPhone} />
                       </span>
@@ -176,28 +184,18 @@ export default function Upsells({ isAdmin }) {
                       <span className="subtle">—</span>
                     )}
                   </td>
-                  <td title={r.upScale} style={{ whiteSpace: 'nowrap' }}>
+                  <td title={r.upScale} className="deals-nowrap">
                     {from && <span className="subtle">{from} </span>}
-                    <span style={{ color: 'var(--green, #27ae60)', fontWeight: 600 }}>
-                      ↑ {to}
-                    </span>
+                    <span className="deals-up">↑ {to}</span>
                   </td>
                   {isAdmin && <td className="subtle">{r.ownerName || r.ownerEmail || '—'}</td>}
                   <td className="subtle">{r.closingDate || '—'}</td>
-                  <td style={{ textAlign: 'right' }}>{inr(r.amount)}</td>
-                  <td style={{ textAlign: 'right' }} className="subtle">
-                    {r.typical == null ? '—' : inr(r.typical)}
-                  </td>
+                  <td className="num">{inr(r.amount)}</td>
+                  <td className="num subtle">{r.typical == null ? '—' : inr(r.typical)}</td>
                   <td
-                    style={{
-                      textAlign: 'right',
-                      fontWeight: 600,
-                      color: r.uplift === null
-                        ? 'inherit'
-                        : dead
-                          ? 'var(--red, #c0392b)'
-                          : 'var(--green, #27ae60)',
-                    }}
+                    className={
+                      r.uplift === null ? 'num deals-strong' : dead ? 'num deals-loss' : 'num deals-gain'
+                    }
                     title={
                       r.uplift === null
                         ? 'No baseline: this course has never been sold without an upsell.'
@@ -206,11 +204,9 @@ export default function Upsells({ isAdmin }) {
                   >
                     {r.uplift === null ? '—' : dead ? `${inr(r.uplift)} ⚠` : `+${inr(r.uplift)}`}
                   </td>
-                  <td style={{ textAlign: 'right' }}>
+                  <td className="num">
                     {r.pending > 0 ? (
-                      <span style={{ color: 'var(--red, #c0392b)' }}>
-                        {inr(r.pending)} due
-                      </span>
+                      <span className="deals-due">{inr(r.pending)} due</span>
                     ) : (
                       <span className="subtle">Paid</span>
                     )}
@@ -218,26 +214,17 @@ export default function Upsells({ isAdmin }) {
                 </tr>
               );
             })}
-            {shown.length === 0 && !loading && (
-              <tr>
-                <td colSpan={isAdmin ? 9 : 8} className="subtle">
-                  {rows.length === 0
-                    ? 'No upsells yet. A lead appears here once a won deal has the Up-Scale field set in Bigin.'
-                    : 'No leads match your search.'}
-                </td>
-              </tr>
-            )}
           </tbody>
-        </table>
+        </DataTable>
+      )}
 
-        <div className="subtle" style={{ marginTop: 12, fontSize: '0.75rem' }}>
-          <strong>Uplift</strong> is the deal value minus what that course normally sells
-          for (the median won deal for the same product, company-wide). Bigin doesn&apos;t
-          store the pre-upsell price, so this is the closest honest measure of what the
-          upsell earned — a <strong>₹0 uplift means the deal is still priced like the
-          original course</strong>, so the upsell brought in no money on paper.
-        </div>
-      </div>
+      <p className="subtle deals-note">
+        <strong>Uplift</strong> is the deal value minus what that course normally sells
+        for (the median won deal for the same product, company-wide). Bigin doesn&apos;t
+        store the pre-upsell price, so this is the closest honest measure of what the
+        upsell earned — a <strong>₹0 uplift means the deal is still priced like the
+        original course</strong>, so the upsell brought in no money on paper.
+      </p>
     </>
   );
 }

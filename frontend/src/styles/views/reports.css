@@ -1,0 +1,139 @@
+/* ============================================================
+   Reports (Analytics, Scorecard) and Setup (Users)
+   ============================================================ */
+
+/* One green/amber/red score scale, used as text and as bar fills.
+   Scoped under .report so it outranks the table header colour. */
+.report .txt-green {
+  color: var(--green);
+}
+.report .txt-amber {
+  color: var(--amber);
+}
+.report .txt-red {
+  color: var(--red);
+}
+.report .txt-muted {
+  color: var(--muted);
+}
+.report .txt-semi {
+  font-weight: 600;
+}
+.report .txt-bold {
+  font-weight: 700;
+}
+
+.rate-bar > span.fill-green {
+  background: var(--green);
+}
+.rate-bar > span.fill-amber {
+  background: var(--amber);
+}
+.rate-bar > span.fill-red {
+  background: var(--red);
+}
+
+/* ---------- Scorecard ---------- */
+.scorecard .section-body .stat-grid {
+  margin-bottom: var(--space-3);
+}
+.sc-spread {
+  min-width: 140px;
+}
+.sc-pad {
+  padding: var(--space-4);
+}
+.sc-footnote {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--border);
+}
+
+.sc-crit {
+  margin-bottom: var(--space-2);
+}
+.sc-crit-head {
+  margin-bottom: 2px;
+}
+
+/* Stacked bar of a rep's four score bands. */
+.band-bar {
+  display: flex;
+  height: 14px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--surface-inset);
+}
+.band-best {
+  background: var(--green);
+}
+.band-good {
+  background: var(--green);
+  opacity: 0.55;
+}
+.band-ok {
+  background: var(--amber);
+}
+.band-weak {
+  background: var(--red);
+}
+
+.sc-pair {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 0 var(--space-4);
+}
+
+.sc-call {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--border);
+}
+.sc-call:last-child {
+  border-bottom: none;
+}
+.sc-call-main {
+  min-width: 0;
+}
+.sc-call-meta {
+  font-size: 0.78rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sc-call .score-pill {
+  align-self: center;
+  color: var(--surface);
+}
+.sc-call .score-pill.pill-green {
+  background: var(--green);
+}
+.sc-call .score-pill.pill-amber {
+  background: var(--amber);
+}
+.sc-call .score-pill.pill-red {
+  background: var(--red);
+}
+
+/* ---------- Users ---------- */
+.admin-user-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-4);
+  align-items: end;
+}
+.admin-user-form button {
+  height: 40px;
+}
+
+/* ---------- Crash fallback (ErrorBoundary) ---------- */
+.crash-wrap {
+  max-width: 520px;
+  margin: var(--space-5) auto;
+  padding: 0 var(--space-4);
+}
+.crash-wrap .empty-body p {
+  margin: 0 0 var(--space-3);
+}

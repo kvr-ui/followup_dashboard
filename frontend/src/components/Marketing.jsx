@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api';
 import DateRangeBar from './DateRangeBar';
+import PageHeader from './ui/PageHeader';
+import Section from './ui/Section';
+import DataTable from './ui/DataTable';
+import StatCard, { StatGrid } from './ui/StatCard';
+import EmptyState from './ui/EmptyState';
+import Icon from './ui/Icon';
 import {
   RESOLVED_BY,
   defaultRange,
@@ -171,179 +177,163 @@ export default function Marketing() {
   const lastRun = runs[0];
   const running = Boolean(history && history.running);
 
+  const arrow = (key) => (sortKey === key ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '');
+
   return (
     <>
-      <div className="mkt-head">
-        <h2>Marketing</h2>
-        <DateRangeBar range={range} onChange={setRange}>
-          <button onClick={() => load(range)} disabled={loading}>
-            {loading ? 'Loading…' : 'Refresh'}
-          </button>
-        </DateRangeBar>
-      </div>
+      <PageHeader
+        actions={
+          <DateRangeBar range={range} onChange={setRange}>
+            <button onClick={() => load(range)} disabled={loading}>
+              <Icon name="refresh" size={14} />
+              {loading ? 'Loading…' : 'Refresh'}
+            </button>
+          </DateRangeBar>
+        }
+      />
 
       {error && <div className="error">{error}</div>}
       {!data && !error && <p className="subtle">Loading marketing data…</p>}
 
       {data && (
         <>
-          <div className="summary-grid">
-            <div className="card">
-              <div className="num mkt-num">{formatRupees(s.spend)}</div>
-              <div className="label">Spend</div>
-            </div>
-            <div className="card">
-              <div className="num mkt-num">{formatCount(s.leads)}</div>
-              <div className="label">Leads</div>
-            </div>
-            <div className="card">
-              <div className="num mkt-num">{formatRupees(s.cpl)}</div>
-              <div className="label">Cost per lead</div>
-            </div>
-            <div className="card">
-              <div className="num mkt-num">{formatPct(s.ctr)}</div>
-              <div className="label">Click-through rate</div>
-            </div>
-            <div className="card">
-              <div className="num mkt-num">{formatCount(s.impressions)}</div>
-              <div className="label">Impressions</div>
-            </div>
-            <div className="card">
-              <div className="num mkt-num">{formatCount(s.clicks)}</div>
-              <div className="label">Clicks</div>
-            </div>
+          <div className="mkt-kpis">
+            <StatGrid>
+              <StatCard label="Spend" value={formatRupees(s.spend)} />
+              <StatCard label="Leads" value={formatCount(s.leads)} />
+              <StatCard label="Cost per lead" value={formatRupees(s.cpl)} />
+              <StatCard label="Click-through rate" value={formatPct(s.ctr)} />
+              <StatCard label="Impressions" value={formatCount(s.impressions)} />
+              <StatCard label="Clicks" value={formatCount(s.clicks)} />
+            </StatGrid>
           </div>
 
-          <p className="subtle mkt-note">
+          <p className="subtle mkt-note mkt-lead-note">
             {formatDay(range.from)} – {formatDay(range.to)} · {formatCount(s.insightRows)}{' '}
             campaign-level insight row(s). Leads are Meta&apos;s own <code>lead</code> result,
             which is already deduplicated across form and pixel.
           </p>
 
           {/* ---------------- Campaign performance ---------------- */}
-          <div className="panel">
-            <div className="row-between mkt-panel-head">
-              <h2>Campaign performance</h2>
-              <span className="subtle">{campaignRows.length} campaign(s) with spend in range</span>
-            </div>
-
+          <Section
+            title="Campaign performance"
+            meta={`${campaignRows.length} campaign(s) with spend in range`}
+            flush={campaignRows.length > 0}
+          >
             {campaignRows.length === 0 ? (
-              <p className="subtle">No campaign spend in this range. Try a wider window, or sync.</p>
+              <EmptyState title="No campaign spend in this range">
+                Try a wider window, or sync.
+              </EmptyState>
             ) : (
-              <div className="mkt-scroll">
-                <table className="tasks mkt-table">
-                  <thead>
-                    <tr>
+              <DataTable className="mkt-wide">
+                <thead>
+                  <tr>
+                    <th
+                      className="mkt-sortable"
+                      onClick={() => toggleSort('name')}
+                      title="Sort by campaign name"
+                    >
+                      Campaign{arrow('name')}
+                    </th>
+                    <th>Status</th>
+                    {COLUMNS.map((c) => (
                       <th
-                        className="mkt-sortable"
-                        onClick={() => toggleSort('name')}
-                        title="Sort by campaign name"
+                        key={c.key}
+                        className="mkt-sortable num"
+                        onClick={() => toggleSort(c.key)}
+                        title={`Sort by ${c.label}`}
                       >
-                        Campaign{sortKey === 'name' ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
+                        {c.label}
+                        {arrow(c.key)}
                       </th>
-                      <th>Status</th>
-                      {COLUMNS.map((c) => (
-                        <th
-                          key={c.key}
-                          className="mkt-sortable mkt-right"
-                          onClick={() => toggleSort(c.key)}
-                          title={`Sort by ${c.label}`}
-                        >
-                          {c.label}
-                          {sortKey === c.key ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {campaignRows.map((r) => (
-                      <tr key={r.campaignId}>
-                        <td>
-                          <div className="who">{r.name || r.campaignId}</div>
-                          <div className="subtle">
-                            {r.known ? r.objective || '—' : 'not in the mirror — archived at Meta'}
-                          </div>
-                        </td>
-                        <td>
-                          <span className="badge badge-normal">
-                            {r.effectiveStatus || r.status || '—'}
-                          </span>
-                        </td>
-                        {COLUMNS.map((c) => (
-                          <td key={c.key} className="mkt-right mkt-num">
-                            {c.render(r)}
-                          </td>
-                        ))}
-                      </tr>
                     ))}
-                  </tbody>
-                  <tfoot>
-                    <tr>
-                      <td colSpan={2}>
-                        <b>All campaigns</b>
+                  </tr>
+                </thead>
+                <tbody>
+                  {campaignRows.map((r) => (
+                    <tr key={r.campaignId}>
+                      <td>
+                        <div className="who">{r.name || r.campaignId}</div>
+                        <div className="subtle">
+                          {r.known ? r.objective || '—' : 'not in the mirror — archived at Meta'}
+                        </div>
+                      </td>
+                      <td>
+                        <span className="badge badge-normal">
+                          {r.effectiveStatus || r.status || '—'}
+                        </span>
                       </td>
                       {COLUMNS.map((c) => (
-                        <td key={c.key} className="mkt-right mkt-num">
-                          {/* Budgets do not add up to anything meaningful across
-                              campaigns on different schedules, so the footer
-                              leaves that column blank rather than inventing a sum. */}
-                          {c.key === 'dailyBudget' ? '' : c.render(campaignTotals)}
+                        <td key={c.key} className="num">
+                          {c.render(r)}
                         </td>
                       ))}
                     </tr>
-                  </tfoot>
-                </table>
-              </div>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <td colSpan={2}>
+                      <b>All campaigns</b>
+                    </td>
+                    {COLUMNS.map((c) => (
+                      <td key={c.key} className="num">
+                        {/* Budgets do not add up to anything meaningful across
+                            campaigns on different schedules, so the footer
+                            leaves that column blank rather than inventing a sum. */}
+                        {c.key === 'dailyBudget' ? '' : c.render(campaignTotals)}
+                      </td>
+                    ))}
+                  </tr>
+                </tfoot>
+              </DataTable>
             )}
             <p className="subtle mkt-note">
               Spend, CPC and CPL are rupees; Budget / day is Meta&apos;s paise figure converted for
               display. CTR, CPC and CPL are recomputed from the totals, never averaged.
             </p>
-          </div>
+          </Section>
 
           {/* ---------------- UTM breakdown ---------------- */}
-          <div className="panel">
-            <div className="row-between mkt-panel-head">
-              <h2>Where the leads came from</h2>
-              <span className="subtle">
-                {formatCount(breakdown.total)} lead(s) captured in range
-                {data.leadsTruncated ? ' (list capped at 1,000)' : ''}
-              </span>
-            </div>
-
+          <Section
+            title="Where the leads came from"
+            meta={`${formatCount(breakdown.total)} lead(s) captured in range${
+              data.leadsTruncated ? ' (list capped at 1,000)' : ''
+            }`}
+          >
             {breakdown.total === 0 ? (
-              <p className="subtle">No leads captured in this range.</p>
+              <EmptyState title="No leads captured in this range" />
             ) : (
               <div className="mkt-split">
                 <div>
-                  <h3 className="mkt-subhead">By source / medium</h3>
-                  <table className="tasks mkt-table">
+                  <h4 className="mkt-subhead">By source / medium</h4>
+                  <DataTable>
                     <thead>
                       <tr>
                         <th>Source / medium</th>
-                        <th className="mkt-right">Leads</th>
+                        <th className="num">Leads</th>
                       </tr>
                     </thead>
                     <tbody>
                       {breakdown.bySource.map((r) => (
                         <tr key={r.label}>
                           <td>{r.label}</td>
-                          <td className="mkt-right mkt-num">{formatCount(r.leads)}</td>
+                          <td className="num">{formatCount(r.leads)}</td>
                         </tr>
                       ))}
                     </tbody>
-                  </table>
+                  </DataTable>
                 </div>
 
                 <div>
-                  <h3 className="mkt-subhead">By campaign · spend and cost per captured lead</h3>
-                  <table className="tasks mkt-table">
+                  <h4 className="mkt-subhead">By campaign · spend and cost per captured lead</h4>
+                  <DataTable>
                     <thead>
                       <tr>
                         <th>Campaign</th>
-                        <th className="mkt-right">Leads</th>
-                        <th className="mkt-right">Spend</th>
-                        <th className="mkt-right">CPL</th>
+                        <th className="num">Leads</th>
+                        <th className="num">Spend</th>
+                        <th className="num">CPL</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -360,13 +350,13 @@ export default function Marketing() {
                               </span>
                             ))}
                           </td>
-                          <td className="mkt-right mkt-num">{formatCount(r.leads)}</td>
-                          <td className="mkt-right mkt-num">{formatRupees(r.spend)}</td>
-                          <td className="mkt-right mkt-num">{formatRupees(r.cpl)}</td>
+                          <td className="num">{formatCount(r.leads)}</td>
+                          <td className="num">{formatRupees(r.spend)}</td>
+                          <td className="num">{formatRupees(r.cpl)}</td>
                         </tr>
                       ))}
                     </tbody>
-                  </table>
+                  </DataTable>
                   <p className="subtle mkt-note">
                     This CPL is campaign spend over the leads WE captured, which is a different
                     question from the campaign table&apos;s CPL of spend over Meta&apos;s reported
@@ -376,18 +366,15 @@ export default function Marketing() {
                 </div>
               </div>
             )}
-          </div>
+          </Section>
 
           {/* ---------------- Reconciliation ---------------- */}
-          <div className="panel">
-            <div className="row-between mkt-panel-head">
-              <h2>Spend reconciliation</h2>
-              <span className="subtle">
-                {formatCount(rec.accountRows)} account row(s) · {formatCount(rec.campaignRows)}{' '}
-                campaign row(s)
-              </span>
-            </div>
-
+          <Section
+            title="Spend reconciliation"
+            meta={`${formatCount(rec.accountRows)} account row(s) · ${formatCount(
+              rec.campaignRows
+            )} campaign row(s)`}
+          >
             {!rec.comparable ? (
               <p className="hint">
                 No account-level rows in this range, so there is nothing to compare against. Run a
@@ -397,17 +384,17 @@ export default function Marketing() {
               <dl className="mkt-recon">
                 <div>
                   <dt>Meta account total</dt>
-                  <dd className="mkt-num">
+                  <dd>
                     <b>{formatRupees(rec.accountSpend)}</b>
                   </dd>
                 </div>
                 <div>
                   <dt>Sum of campaigns</dt>
-                  <dd className="mkt-num">{formatRupees(rec.campaignSpend)}</dd>
+                  <dd>{formatRupees(rec.campaignSpend)}</dd>
                 </div>
                 <div className={rec.difference === 0 ? '' : 'mkt-recon-gap'}>
                   <dt>Difference</dt>
-                  <dd className="mkt-num">
+                  <dd>
                     {rec.difference > 0 ? '+' : ''}
                     {formatRupees(rec.difference)}
                   </dd>
@@ -420,17 +407,18 @@ export default function Marketing() {
               tied to a campaign only shows in the account total. A large or growing gap usually
               means a sync did not finish.
             </p>
-          </div>
+          </Section>
 
           {/* ---------------- Sync ---------------- */}
-          <div className="panel">
-            <div className="row-between mkt-panel-head">
-              <h2>Sync</h2>
+          <Section
+            title="Sync"
+            actions={
               <button onClick={syncNow} disabled={syncBusy || running}>
+                <Icon name="refresh" size={14} />
                 {running ? 'Syncing…' : syncBusy ? 'Starting…' : 'Sync now'}
               </button>
-            </div>
-
+            }
+          >
             {history && !history.configured && (
               <p className="hint">
                 Meta is not configured on the server (META_ACCESS_TOKEN / META_AD_ACCOUNT_ID), so
@@ -441,7 +429,7 @@ export default function Marketing() {
             {syncMsg && <div className="notice">{syncMsg}</div>}
 
             {lastRun && (
-              <p className="subtle mkt-note">
+              <p className="subtle mkt-note mkt-last-run">
                 Last run {relativeTime(lastRun.finishedAt || lastRun.startedAt)} · {lastRun.resource}{' '}
                 · <span className={STATUS_CLASS[lastRun.status] || 'badge badge-normal'}>
                   {lastRun.status}
@@ -450,41 +438,39 @@ export default function Marketing() {
             )}
 
             {runs.length === 0 ? (
-              <p className="subtle">No sync runs recorded yet.</p>
+              <EmptyState title="No sync runs recorded yet" />
             ) : (
-              <div className="mkt-scroll">
-                <table className="tasks mkt-table">
-                  <thead>
-                    <tr>
-                      <th>Resource</th>
-                      <th>Status</th>
-                      <th className="mkt-right">Records</th>
-                      <th>Started</th>
-                      <th>Finished</th>
+              <DataTable>
+                <thead>
+                  <tr>
+                    <th>Resource</th>
+                    <th>Status</th>
+                    <th className="num">Records</th>
+                    <th>Started</th>
+                    <th>Finished</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {runs.map((r) => (
+                    <tr key={r.id}>
+                      <td>{r.resource}</td>
+                      <td>
+                        <span className={STATUS_CLASS[r.status] || 'badge badge-normal'}>
+                          {r.status}
+                        </span>
+                        {r.error && <div className="subtle">{r.error}</div>}
+                      </td>
+                      <td className="num">{formatCount(r.recordsUpserted)}</td>
+                      <td className="subtle">{new Date(r.startedAt).toLocaleString()}</td>
+                      <td className="subtle">
+                        {r.finishedAt ? new Date(r.finishedAt).toLocaleString() : '—'}
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {runs.map((r) => (
-                      <tr key={r.id}>
-                        <td>{r.resource}</td>
-                        <td>
-                          <span className={STATUS_CLASS[r.status] || 'badge badge-normal'}>
-                            {r.status}
-                          </span>
-                          {r.error && <div className="subtle">{r.error}</div>}
-                        </td>
-                        <td className="mkt-right mkt-num">{formatCount(r.recordsUpserted)}</td>
-                        <td className="subtle">{new Date(r.startedAt).toLocaleString()}</td>
-                        <td className="subtle">
-                          {r.finishedAt ? new Date(r.finishedAt).toLocaleString() : '—'}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                  ))}
+                </tbody>
+              </DataTable>
             )}
-          </div>
+          </Section>
         </>
       )}
     </>

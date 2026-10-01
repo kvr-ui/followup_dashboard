@@ -1,0 +1,97 @@
+/* ---------- Leads, Instalments, Upsells, Products ---------- */
+
+.deals-lead {
+  font-weight: 500;
+}
+.deals-phone {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.deals-nowrap {
+  white-space: nowrap;
+}
+.deals-strong {
+  font-weight: 600;
+}
+.deals-overdue {
+  color: var(--red);
+  font-weight: 600;
+}
+
+/* Money cells: green for money in, red for money owed or lost. */
+.deals-up,
+.deals-gain {
+  color: var(--green);
+  font-weight: 600;
+}
+.deals-paid {
+  color: var(--green);
+}
+.deals-loss {
+  color: var(--red);
+  font-weight: 600;
+}
+.deals-due {
+  color: var(--red);
+}
+
+.deals-upsell-pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--green);
+  background: var(--green-soft);
+}
+.deals-age {
+  margin-left: 6px;
+  font-size: 0.72rem;
+}
+.deals-age.stale {
+  color: var(--red);
+  font-weight: 600;
+}
+
+/* Products: revenue share bar, relative to the best seller. */
+table.data-table th.deals-rank-col {
+  width: 40px;
+}
+table.data-table th.deals-share-col {
+  width: 38%;
+}
+.deals-share {
+  display: block;
+  height: 14px;
+  border-radius: 4px;
+  background: var(--surface-inset);
+  overflow: hidden;
+}
+.deals-share-fill {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  opacity: 0.55;
+}
+.deals-share-fill.top {
+  background: var(--green);
+  opacity: 1;
+}
+.deals-share-fill.bottom {
+  background: var(--red);
+  opacity: 1;
+}
+
+.deals-note {
+  margin-top: var(--space-3);
+  font-size: 0.75rem;
+}
+
+.deals-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: var(--space-3);
+}

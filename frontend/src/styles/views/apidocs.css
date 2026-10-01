@@ -9,17 +9,6 @@
   max-width: 1000px;
 }
 
-.docs-head h2 {
-  font-family: var(--serif);
-  font-size: 1.35rem;
-  margin-bottom: 4px;
-}
-
-.docs-head p {
-  margin: 0;
-  max-width: 70ch;
-}
-
 /* ---- "Start here": base URL, header, live token ---- */
 
 .docs-start {
@@ -89,10 +78,10 @@
 
 /* ---- Search + group nav ---- */
 
-.docs-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+/* The flex gap already spaces the blocks. */
+.docs .filter-bar,
+.docs .sub-tabs {
+  margin-bottom: 0;
 }
 
 .docs-search {
@@ -105,37 +94,8 @@
   background: var(--surface);
 }
 
-.docs-nav {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.docs-nav-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 11px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--ink-2);
-  font-size: 0.8rem;
-  cursor: pointer;
-}
-
-.docs-nav-item:hover {
-  background: var(--surface-inset);
-}
-
-.docs-nav-item.active {
-  background: var(--accent-soft);
-  border-color: var(--accent);
-  color: var(--accent-ink);
-  font-weight: 600;
-}
-
 .docs-nav-count {
+  margin-left: var(--space-1);
   font-size: 0.7rem;
   color: var(--muted);
 }
@@ -313,7 +273,7 @@
 .docs-tab.active {
   background: var(--ink);
   border-color: var(--ink);
-  color: #fff;
+  color: var(--surface);
 }
 
 .docs-code {
@@ -322,7 +282,7 @@
   font-size: 0.75rem;
   line-height: 1.6;
   background: var(--ink);
-  color: #e8eaf0;
+  color: var(--surface-inset);
   border-radius: var(--radius-sm);
   padding: 12px 14px;
   overflow-x: auto;

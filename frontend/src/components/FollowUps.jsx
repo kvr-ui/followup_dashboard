@@ -1,3 +1,4 @@
+import '../styles/views/followups.css';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import TaskTable from './TaskTable';
 import SummaryCards from './SummaryCards';
@@ -63,6 +64,7 @@ export default function FollowUps({ isAdmin }) {
       <SummaryCards
         summary={summary}
         isAdmin={isAdmin}
+        activeTab={filters.tab}
         onSelectTab={(tab) => setFilters((f) => ({ ...f, tab }))}
       />
 

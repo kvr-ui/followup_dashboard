@@ -29,7 +29,10 @@ export default function Login({ onLogin }) {
     <div className="login-wrap">
       <form className="login-card" onSubmit={handleSubmit}>
         <img className="login-logo" src="/logo.png" alt="FOCAS" />
-        <p className="subtle">Sign in to continue</p>
+        <div className="login-head">
+          <h1>Sign in</h1>
+          <p className="subtle">FOCAS Sales CRM</p>
+        </div>
 
         {error && <div className="error">{error}</div>}
 

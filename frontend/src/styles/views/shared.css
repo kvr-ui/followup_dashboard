@@ -1,76 +1,6 @@
-/* ---------- Summary cards ---------- */
-.summary-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 0.9rem;
-  margin-bottom: 1.1rem;
-}
+/* Shared bits every view uses: badges, messages, table row states, contact
+   cells. The layout components live in components.css. */
 
-.card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 1.1rem 1.25rem;
-  box-shadow: var(--shadow-sm);
-}
-.card.clickable {
-  cursor: pointer;
-  transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
-}
-.card.clickable:hover {
-  border-color: var(--border-strong);
-  box-shadow: var(--shadow);
-  transform: translateY(-1px);
-}
-
-.card .num {
-  font-family: var(--serif);
-  font-size: 2rem;
-  font-weight: 500;
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
-  color: var(--ink);
-}
-.card .label {
-  font-size: 0.76rem;
-  font-weight: 500;
-  color: var(--muted);
-  margin-top: 0.45rem;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-.card.overdue .num {
-  color: var(--red);
-}
-.card.today .num {
-  color: var(--amber);
-}
-.card.week .num {
-  color: var(--accent);
-}
-
-/* ---------- Breakdown panels ---------- */
-.mini-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 0.9rem;
-  margin-bottom: 1.4rem;
-}
-.panel-sm {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 1.1rem 1.25rem;
-  box-shadow: var(--shadow-sm);
-}
-.panel-sm h3 {
-  font-size: 0.72rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--muted);
-  font-weight: 600;
-  margin-bottom: 0.75rem;
-}
 .breakdown {
   display: flex;
   flex-wrap: wrap;
@@ -87,6 +17,7 @@
   font-size: 0.74rem;
   font-weight: 600;
   border: 1px solid transparent;
+  white-space: nowrap;
 }
 .badge-high {
   background: var(--red-soft);
@@ -148,101 +79,10 @@
   background: var(--green-soft);
   color: var(--green);
 }
-
-/* ---------- Quick tabs ---------- */
-.quick-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-  margin-bottom: 0.85rem;
-}
-.quick-tab {
-  background: var(--surface);
-  color: var(--ink-2);
-  border: 1px solid var(--border-strong);
-  padding: 0.4rem 0.9rem;
-  border-radius: 999px;
-  font-size: 0.82rem;
-}
-.quick-tab:hover {
-  border-color: var(--muted);
-  background: var(--surface);
-}
-.quick-tab.active {
-  background: var(--ink);
-  color: #fff;
-  border-color: var(--ink);
-}
-
-/* ---------- Filter bar ---------- */
-.filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.85rem;
-  align-items: end;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  padding: 1.1rem 1.25rem;
-  border-radius: var(--radius);
-  margin-bottom: 1.1rem;
-  box-shadow: var(--shadow-sm);
-}
-.filters label {
-  gap: 0.3rem;
-}
-.filters .link-danger {
-  align-self: end;
-}
-
-.toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 0.85rem;
-}
 #status {
   color: var(--ink-2);
   font-size: 0.86rem;
   margin: 0;
-}
-
-/* ---------- Table ---------- */
-table.tasks {
-  width: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  overflow: hidden;
-  box-shadow: var(--shadow-sm);
-}
-table.tasks th,
-table.tasks td {
-  text-align: left;
-  padding: 0.8rem 1.1rem;
-  font-size: 0.88rem;
-  vertical-align: top;
-  border-bottom: 1px solid var(--border);
-}
-table.tasks thead th {
-  background: var(--surface-2);
-  color: var(--muted);
-  font-weight: 600;
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  position: sticky;
-  top: 0;
-}
-table.tasks tbody tr:last-child td {
-  border-bottom: none;
-}
-table.tasks tbody tr {
-  transition: background 0.12s;
-}
-table.tasks tbody tr:hover {
-  background: var(--surface-2);
 }
 .clickable-row {
   cursor: pointer;
@@ -276,6 +116,7 @@ table.tasks tbody tr:hover {
   font-size: 0.68rem;
   font-weight: 500;
   line-height: 1.5;
+  white-space: nowrap;
 }
 .copy-btn:hover {
   background: var(--surface-2);
@@ -284,18 +125,18 @@ table.tasks tbody tr:hover {
 .copy-btn.copied {
   background: var(--green-soft);
   color: var(--green);
-  border-color: #cbddd0;
+  border-color: var(--green-soft);
 }
 
 /* Row states */
 tr.row-overdue td {
-  background: #f9f0ef;
+  background: color-mix(in srgb, var(--red-soft) 55%, var(--surface));
 }
 tr.row-overdue:hover td {
-  background: #f4e8e6;
+  background: var(--red-soft);
 }
 tr.row-today td {
-  background: #f6f1e7;
+  background: color-mix(in srgb, var(--amber-soft) 60%, var(--surface));
 }
 .tag-overdue {
   display: inline-block;
@@ -354,32 +195,6 @@ tr.row-today td {
   font-variant-numeric: tabular-nums;
 }
 
-/* ---------- Panels (analytics / users) ---------- */
-.panel {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 1.4rem 1.5rem;
-  margin-bottom: 1.4rem;
-  box-shadow: var(--shadow-sm);
-}
-.panel h2 {
-  font-family: var(--serif);
-  font-size: 1.15rem;
-  font-weight: 600;
-  margin-bottom: 1.1rem;
-}
-
-.user-form {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 1rem;
-  align-items: end;
-}
-.user-form button {
-  height: 40px;
-}
-
 .error {
   background: var(--red-soft);
   color: var(--red);
@@ -435,10 +250,10 @@ tr.row-today td {
 .source-meta {
   background: var(--accent-soft);
   color: var(--accent-ink);
-  border-color: #c7d1e4;
+  border-color: var(--accent-soft);
 }
 .source-web {
   background: var(--green-soft);
   color: var(--green);
-  border-color: #cadfd2;
+  border-color: var(--green-soft);
 }

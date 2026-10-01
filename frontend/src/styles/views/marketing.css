@@ -1,66 +1,26 @@
 /* ============================================================
-   Marketing + Ad Leads tabs (issue #13) — `.mkt-` prefix
-   ------------------------------------------------------------
-   Appended as one block; nothing above this line is modified.
-   Everything here leans on the existing design tokens and on the
-   established .card / .panel / table.tasks conventions, so these
-   two admin tabs read as part of the same dashboard rather than
-   as the retired CRM bolted back on.
+   Marketing module: Marketing, Sources, Ad Leads, VSL Tracking and
+   AI Usage. Tables, cards and filters come from the UI kit; only what
+   is particular to these views lives here.
    ============================================================ */
 
-/* ---------- Tab header + date range selector ---------- */
-.mkt-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 0.9rem;
-  margin-bottom: 1.1rem;
-}
-.mkt-head h2 {
-  font-family: var(--serif);
-  font-size: 1.3rem;
-  font-weight: 600;
-}
-
+/* ---------- Date range selector ---------- */
+/* The presets are the kit's segmented .tabs group. One button reads as active
+   only when both ends of the range still match it — nudge a date by hand and
+   the highlight drops. */
 .mkt-rangebar {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 0.6rem;
+  gap: var(--space-2);
 }
-
-/* Segmented presets. One button reads as active only when both ends of the
-   range still match it — nudge a date by hand and the highlight drops. */
-.mkt-presets {
-  display: inline-flex;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 2px;
+.mkt-rangebar .tabs {
+  margin-bottom: 0;
 }
-.mkt-preset {
-  border: none;
-  background: transparent;
-  color: var(--ink-2);
-  font-size: 0.78rem;
-  padding: 0.35rem 0.7rem;
-  border-radius: 6px;
-}
-.mkt-preset:hover {
-  background: var(--surface);
-  border-color: transparent;
-}
-.mkt-preset-on,
-.mkt-preset-on:hover {
-  background: var(--accent);
-  color: #fff;
-}
-
 .mkt-dates {
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: var(--space-2);
 }
 .mkt-dates input {
   padding: 0.35rem 0.5rem;
@@ -68,65 +28,52 @@
 }
 
 /* ---------- Figures ---------- */
-/* Every money / count / percentage cell lines up on the decimal point. */
-.mkt-num {
-  font-variant-numeric: tabular-nums;
-}
 /* A rupee total with Indian grouping is a long string — "₹2,11,681.84" at the
-   card's default 2rem overflows a 160px card, so KPI figures step down. */
-.card .num.mkt-num {
-  font-size: 1.45rem;
-}
-.mkt-right {
-  text-align: right;
+   stat card's default size overflows a narrow card, so KPI figures step down. */
+.mkt-kpis .stat-value {
+  font-size: 1.4rem;
 }
 
 .mkt-note {
-  margin: 0.6rem 0 0;
+  margin: var(--space-3) 0 0;
   line-height: 1.5;
   max-width: 78ch;
 }
 .mkt-note code {
   background: var(--surface-inset);
   padding: 0.05rem 0.3rem;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font-size: 0.92em;
 }
+/* The caption right under the KPI row belongs to it, not to the next section. */
+.mkt-lead-note {
+  margin: calc(-1 * var(--space-2)) 0 var(--space-4);
+}
+.mkt-last-run {
+  margin: 0 0 var(--space-3);
+}
+/* In a flush section the note sits under the table, so it brings its own padding. */
+.section-card.flush .mkt-note {
+  max-width: none;
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--border);
+}
 
-/* ---------- Panels ---------- */
-.mkt-panel-head {
-  margin-bottom: 1rem;
-}
-.mkt-panel-head h2 {
-  margin-bottom: 0;
-}
 .mkt-subhead {
   font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--muted);
   font-weight: 600;
-  margin-bottom: 0.6rem;
+  margin-bottom: var(--space-2);
 }
 
-/* Wide tables scroll sideways inside the panel instead of stretching the page. */
-.mkt-scroll {
-  overflow-x: auto;
-}
-.mkt-scroll table {
+/* ---------- Tables ---------- */
+/* Wide tables scroll sideways inside their card instead of squeezing columns. */
+table.data-table.mkt-wide {
   min-width: 900px;
 }
-.mkt-table th,
-.mkt-table td {
-  padding: 0.6rem 0.85rem;
-  font-size: 0.84rem;
-}
-.mkt-table tfoot td {
-  background: var(--surface-2);
-  border-top: 1px solid var(--border-strong);
-  font-weight: 600;
-}
-
 /* Sortable headers: the whole cell is the target, and the arrow marks the
    column currently ordering the table. */
 .mkt-sortable {
@@ -134,13 +81,13 @@
   user-select: none;
 }
 .mkt-sortable:hover {
-  color: var(--ink-2);
+  color: var(--ink);
 }
 
 .mkt-split {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
-  gap: 1.4rem;
+  gap: var(--space-5);
   align-items: start;
 }
 
@@ -168,15 +115,15 @@
   margin: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: var(--space-2);
   max-width: 420px;
 }
 .mkt-recon > div {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 1rem;
-  padding-bottom: 0.5rem;
+  gap: var(--space-4);
+  padding-bottom: var(--space-2);
   border-bottom: 1px solid var(--border);
 }
 .mkt-recon > div:last-child {
@@ -190,6 +137,7 @@
 .mkt-recon dd {
   margin: 0;
   font-size: 0.95rem;
+  font-variant-numeric: tabular-nums;
 }
 /* A non-zero gap is not an error — see the note under the panel — but it is
    worth the eye landing on it. */
@@ -199,30 +147,6 @@
 }
 
 /* ---------- Ad Leads ---------- */
-.mkt-filters {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 0.9rem;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 1rem 1.1rem;
-  margin-bottom: 1.1rem;
-  box-shadow: var(--shadow-sm);
-}
-.mkt-filters label {
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-}
-.mkt-filters label > span {
-  font-size: 0.7rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--muted);
-}
-
 /* The UTM tag set, as a compact key/value stack rather than five columns. */
 .mkt-utm {
   font-size: 0.78rem;
@@ -250,62 +174,126 @@
   }
 }
 
-/* ---------- API usage (AI provider spend + balance) ---------- */
+/* ---------- AI usage (provider spend + balance) ---------- */
 /* The balance headline sits beside its meter, so the number a manager scans for
    ("how much is left") and the bar that gives it context read as one unit. */
 .usage-balance {
   display: grid;
   grid-template-columns: minmax(140px, auto) 1fr;
-  gap: 1.4rem;
+  gap: var(--space-5);
   align-items: center;
-  padding: 1rem 1.25rem;
-  margin-bottom: 1.1rem;
+  padding: var(--space-4) var(--space-5);
+  margin-bottom: var(--space-4);
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--radius);
 }
-.usage-balance .num {
-  font-family: var(--serif);
-  font-size: 2rem;
-  font-weight: 500;
+.usage-figure {
+  font-size: 1.8rem;
+  font-weight: 600;
   line-height: 1;
   font-variant-numeric: tabular-nums;
 }
-.usage-balance .label {
-  font-size: 0.76rem;
+.usage-label {
+  font-size: 0.74rem;
   font-weight: 500;
   color: var(--muted);
-  margin-top: 0.45rem;
+  margin-top: var(--space-2);
   text-transform: uppercase;
   letter-spacing: 0.03em;
+}
+.usage-meter {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.usage-track {
+  flex: 1;
+  height: 7px;
+  background: var(--surface-inset);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.usage-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.4s ease;
+}
+.usage-pct {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+.usage-detail {
+  margin-top: var(--space-2);
+}
+/* Remaining balance and its meter turn amber at 70% used and red at 90%. */
+.usage-green {
+  color: var(--green);
+}
+.usage-amber {
+  color: var(--amber);
+}
+.usage-red {
+  color: var(--red);
+}
+.usage-fill-green {
+  background: var(--green);
+}
+.usage-fill-amber {
+  background: var(--amber);
+}
+.usage-fill-red {
+  background: var(--red);
+}
+.usage-reason {
+  margin-bottom: var(--space-4);
+}
+.usage-note {
+  margin: calc(-1 * var(--space-2)) 0 var(--space-4);
 }
 
 @media (max-width: 700px) {
   .usage-balance {
     grid-template-columns: 1fr;
-    gap: 0.9rem;
+    gap: var(--space-3);
   }
 }
 
-/* ---------------------------------------------------------------------------
-   Sources tab
-   ---------------------------------------------------------------------------
-   Reuses the Marketing tab's panel, table and range-bar classes wholesale — the
-   two are siblings and must not drift apart visually. Only what is genuinely new
-   lives here: the revenue bar, the merged-spelling caption, and the block that
-   explains a table it cannot draw. */
-
+/* ---------- Sources ---------- */
+/* Only what Sources adds on top of the shared pieces above: the revenue bar,
+   the merged-spelling caption, and the block that explains a table it cannot
+   draw. */
+.src-share-col {
+  width: 22%;
+}
 .src-bar {
   display: block;
   background: var(--surface-inset);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   height: 14px;
   overflow: hidden;
 }
-
 .src-bar-fill {
   display: block;
   height: 100%;
+  background: var(--green);
+  opacity: 0.6;
+}
+.src-bar-paid {
+  background: var(--accent);
+}
+/* The best channel leads the table at full strength. */
+.src-top .src-name {
+  font-weight: 600;
+}
+.src-top .src-bar-fill {
+  opacity: 1;
+}
+.src-strong {
+  font-weight: 600;
 }
 
 /* The raw values a canonical source name stands in for. Small and quiet: it is
@@ -326,8 +314,8 @@
   vertical-align: middle;
 }
 
-.src-divider {
-  padding-top: 14px !important;
+table.data-table td.src-divider {
+  padding-top: var(--space-4);
   font-size: 0.72rem;
   border-top: 1px solid var(--border);
 }
@@ -341,17 +329,15 @@
    look the same. */
 .src-blocked {
   border: 1px solid var(--border);
-  border-left: 3px solid var(--amber, #e0a30c);
-  border-radius: 6px;
-  padding: 14px 16px;
+  border-left: 3px solid var(--amber);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3) var(--space-4);
   background: var(--surface-inset);
 }
-
 .src-blocked strong {
   display: block;
   margin-bottom: 6px;
 }
-
 .src-blocked p {
   margin: 6px 0 0;
   font-size: 0.82rem;
