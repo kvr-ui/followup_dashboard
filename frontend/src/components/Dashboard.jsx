@@ -75,10 +75,6 @@ export default function Dashboard({ user, onLogout }) {
             'leads',
             // Monthly MQL -> SQL -> Closed counts, scoped the same way as leads.
             'funnel',
-            // The ask-the-data assistant. Open to reps as well (see the sales
-            // list below): every tool it can call is owner-scoped server-side,
-            // and the ones that cannot be scoped are admin-gated by name.
-            'agent',
             'analytics',
             'calls',
             'scorecard',
@@ -113,7 +109,7 @@ export default function Dashboard({ user, onLogout }) {
           // The API reference is open to reps too: it documents the endpoints, it does not
           // serve their data, and every admin-only entry is labelled as such (and would
           // answer 403 anyway). Hiding the docs would not have hidden anything.
-          ['tasks', 'leads', 'funnel', 'agent', 'calls', 'scorecard', 'installments', 'upsells', 'vsl', 'apidocs'],
+          ['tasks', 'leads', 'funnel', 'calls', 'scorecard', 'installments', 'upsells', 'vsl', 'apidocs'],
     [isAdmin]
   );
 
@@ -173,12 +169,6 @@ export default function Dashboard({ user, onLogout }) {
               onClick={() => selectTab('funnel')}
             >
               Funnel
-            </button>
-            <button
-              className={view === 'agent' ? 'tab active' : 'tab'}
-              onClick={() => selectTab('agent')}
-            >
-              Ask
             </button>
             {isAdmin && (
               <button
@@ -313,8 +303,6 @@ export default function Dashboard({ user, onLogout }) {
           <Leads isAdmin={isAdmin} />
         ) : view === 'funnel' ? (
           <Funnel isAdmin={isAdmin} />
-        ) : view === 'agent' ? (
-          <Agent user={user} />
         ) : view === 'installments' ? (
           <Installments isAdmin={isAdmin} />
         ) : view === 'upsells' ? (
@@ -344,6 +332,10 @@ export default function Dashboard({ user, onLogout }) {
         )}
       </main>
       </div>
+      {/* The ask-the-data assistant floats over every view, for reps too: every
+          tool it can call is owner-scoped server-side, and the ones that cannot
+          be scoped are admin-gated by name. */}
+      <Agent user={user} />
     </>
   );
 }

@@ -1,4 +1,5 @@
-// The "Ask" tab — a chat box over the dashboard's own data.
+// The assistant — a floating bottom-right chat over the dashboard's own data,
+// reachable from every view.
 //
 // The thread lives here and in localStorage, and the whole of it is posted back
 // on every turn: the server keeps no session, so a refresh loses nothing and two
@@ -8,9 +9,8 @@
 // Every answer ships with the list of tools that produced it, and for a
 // hand-written aggregation the exact pipeline that ran — owner filter included.
 // A number on a sales dashboard that nobody can check is a number nobody will
-// act on, and this is how it gets checked. It is collapsed by default and one
-// click from open, which is the right ratio for something you need rarely and
-// absolutely when you need it.
+// act on, and this is how it gets checked. It is collapsed by default and shown
+// to admins only — reps get the clean answer in the small support-style box.
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api';
@@ -84,7 +84,7 @@ function TraceRow({ step }) {
   );
 }
 
-function Message({ msg }) {
+function Message({ msg, canTrace }) {
   const [showTrace, setShowTrace] = useState(false);
 
   if (msg.role === 'user') {
@@ -101,13 +101,9 @@ function Message({ msg }) {
   return (
     <div className="agent-msg assistant">
       <div className="agent-bubble">
-        {msg.error ? (
-          <p className="error">{msg.content}</p>
-        ) : (
-          renderMarkdown(msg.content)
-        )}
+        {msg.error ? <p className="error">{msg.content}</p> : renderMarkdown(msg.content)}
 
-        {steps.length > 0 && (
+        {canTrace && steps.length > 0 && (
           <div className="agent-trace">
             <button
               type="button"
@@ -132,21 +128,49 @@ function Message({ msg }) {
   );
 }
 
+// A friendly robot head — inline so the app still has no icon library.
+function BotIcon({ size = 26 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M12 2.5v2.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      <circle cx="12" cy="2.3" r="1.2" fill="currentColor" />
+      <rect x="4" y="6" width="16" height="13" rx="4" stroke="currentColor" strokeWidth="1.6" />
+      <circle cx="9" cy="12" r="1.6" fill="currentColor" />
+      <circle cx="15" cy="12" r="1.6" fill="currentColor" />
+      <path
+        d="M9.5 15.6c1.4 1 3.6 1 5 0"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+      <path d="M2 11v4M22 11v4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 export default function Agent({ user }) {
   const isAdmin = user?.role === 'admin';
   const [thread, setThread] = useState(loadThread);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState(null);
+  const [open, setOpen] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const [unread, setUnread] = useState(false);
 
   const scrollRef = useRef(null);
   const inputRef = useRef(null);
+  // send() resolves after the user may have closed the panel; a ref reads the
+  // current value instead of the one captured when the question went out.
+  const openRef = useRef(open);
+  openRef.current = open;
 
   const starters = useMemo(() => (isAdmin ? ADMIN_STARTERS : REP_STARTERS), [isAdmin]);
 
-  // Is the assistant even usable? Asked once, so an unconfigured server says so
-  // up front instead of after someone has typed a question.
+  // Is the assistant even usable? Asked on first open, so an unconfigured server
+  // says so before someone has typed a question — without a request on every page load.
   useEffect(() => {
+    if (!open || status) return undefined;
     let cancelled = false;
     api('/api/agent/status')
       .then((r) => {
@@ -158,7 +182,19 @@ export default function Agent({ user }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [open, status]);
+
+  // Opening clears the unread dot and puts the cursor in the composer; Esc closes.
+  useEffect(() => {
+    if (!open) return undefined;
+    setUnread(false);
+    inputRef.current?.focus();
+    const onEsc = (e) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    window.addEventListener('keydown', onEsc);
+    return () => window.removeEventListener('keydown', onEsc);
+  }, [open]);
 
   useEffect(() => {
     try {
@@ -172,7 +208,7 @@ export default function Agent({ user }) {
   useEffect(() => {
     const el = scrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [thread, busy]);
+  }, [thread, busy, open]);
 
   const send = useCallback(
     async (text) => {
@@ -209,6 +245,7 @@ export default function Agent({ user }) {
           { role: 'assistant', content: err.message, error: true, trace: [] },
         ]);
       } finally {
+        if (!openRef.current) setUnread(true);
         setBusy(false);
         inputRef.current?.focus();
       }
@@ -232,83 +269,139 @@ export default function Agent({ user }) {
   const unconfigured = status && status.configured === false;
 
   return (
-    <div className="agent-wrap">
-      <div className="agent-head">
-        <div>
-          <h2>Ask</h2>
-          <p className="subtle">
-            Questions about your{isAdmin ? '' : ' own'} leads, calls, deals
-            {isAdmin ? ', ad spend' : ''} and follow-ups. It reads the data — it never changes
-            anything.
-          </p>
-        </div>
-        {thread.length > 0 && (
-          <button type="button" onClick={clear} disabled={busy}>
-            New conversation
-          </button>
-        )}
-      </div>
+    <>
+      <button
+        type="button"
+        className={open ? 'agent-launcher open' : 'agent-launcher'}
+        onClick={() => setOpen((v) => !v)}
+        aria-label={open ? 'Close assistant' : 'Open assistant'}
+        aria-expanded={open}
+        title="Ask the assistant"
+      >
+        {open ? <span className="agent-launcher-x">×</span> : <BotIcon />}
+        {unread && !open && <span className="agent-unread" />}
+      </button>
 
-      {unconfigured && (
-        <div className="panel agent-unconfigured">
-          <p className="error">The assistant is not switched on for this server.</p>
-          <p className="subtle">
-            Set <code>OPENAI_API_KEY</code> in the backend environment and restart. Everything
-            else on the dashboard works without it.
-          </p>
+      {open && (
+        <div
+          className={expanded ? 'agent-panel expanded' : 'agent-panel'}
+          role="dialog"
+          aria-label="Assistant chat"
+        >
+          <div className="agent-head">
+            <div className="agent-avatar">
+              <BotIcon size={20} />
+            </div>
+            <div className="agent-title">
+              <h2>Focas Assistant</h2>
+              <p className="subtle">
+                Ask about your{isAdmin ? '' : ' own'} leads, calls, deals
+                {isAdmin ? ', ad spend' : ''} and follow-ups. Read-only.
+              </p>
+            </div>
+            <div className="agent-head-actions">
+              {thread.length > 0 && (
+                <button
+                  type="button"
+                  className="agent-icon-btn"
+                  onClick={clear}
+                  disabled={busy}
+                  title="New conversation"
+                  aria-label="New conversation"
+                >
+                  ↺
+                </button>
+              )}
+              <button
+                type="button"
+                className="agent-icon-btn agent-expand-btn"
+                onClick={() => setExpanded((v) => !v)}
+                title={expanded ? 'Shrink' : 'Expand'}
+                aria-label={expanded ? 'Shrink' : 'Expand'}
+              >
+                {expanded ? '⤡' : '⤢'}
+              </button>
+              <button
+                type="button"
+                className="agent-icon-btn"
+                onClick={() => setOpen(false)}
+                title="Close"
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+          </div>
+
+          <div className="agent-body">
+            {unconfigured && (
+              <div className="panel agent-unconfigured">
+                <p className="error">The assistant is not switched on for this server.</p>
+                <p className="subtle">
+                  Set <code>OPENAI_API_KEY</code> in the backend environment and restart. Everything
+                  else on the dashboard works without it.
+                </p>
+              </div>
+            )}
+
+            <div className="agent-thread" ref={scrollRef}>
+              {thread.length === 0 && !unconfigured && (
+                <div className="agent-empty">
+                  <p className="subtle">Ask anything about the data. For example:</p>
+                  <div className="agent-starters">
+                    {starters.map((s) => (
+                      <button
+                        type="button"
+                        className="agent-starter"
+                        key={s}
+                        onClick={() => send(s)}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {thread.map((msg, i) => (
+                <Message msg={msg} canTrace={isAdmin} key={i} />
+              ))}
+
+              {busy && (
+                <div className="agent-msg assistant">
+                  <div className="agent-bubble agent-thinking">
+                    <span className="agent-dot" />
+                    <span className="agent-dot" />
+                    <span className="agent-dot" />
+                    <span className="subtle">Looking it up…</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <form
+              className="agent-composer"
+              onSubmit={(e) => {
+                e.preventDefault();
+                send(input);
+              }}
+            >
+              <textarea
+                ref={inputRef}
+                rows={2}
+                value={input}
+                placeholder={unconfigured ? 'Unavailable' : 'Ask about your data…'}
+                disabled={busy || unconfigured}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={onKeyDown}
+              />
+              <button type="submit" disabled={busy || unconfigured || !input.trim()}>
+                {busy ? 'Asking…' : 'Send'}
+              </button>
+            </form>
+          </div>
         </div>
       )}
-
-      <div className="agent-thread" ref={scrollRef}>
-        {thread.length === 0 && !unconfigured && (
-          <div className="agent-empty">
-            <p className="subtle">Ask anything about the data. For example:</p>
-            <div className="agent-starters">
-              {starters.map((s) => (
-                <button type="button" className="agent-starter" key={s} onClick={() => send(s)}>
-                  {s}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {thread.map((msg, i) => (
-          <Message msg={msg} key={i} />
-        ))}
-
-        {busy && (
-          <div className="agent-msg assistant">
-            <div className="agent-bubble agent-thinking">
-              <span className="agent-dot" />
-              <span className="agent-dot" />
-              <span className="agent-dot" />
-              <span className="subtle">Looking it up…</span>
-            </div>
-          </div>
-        )}
-      </div>
-
-      <form
-        className="agent-composer"
-        onSubmit={(e) => {
-          e.preventDefault();
-          send(input);
-        }}
-      >
-        <textarea
-          ref={inputRef}
-          rows={2}
-          value={input}
-          placeholder={unconfigured ? 'Unavailable' : 'Ask about your data…'}
-          disabled={busy || unconfigured}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={onKeyDown}
-        />
-        <button type="submit" disabled={busy || unconfigured || !input.trim()}>
-          {busy ? 'Asking…' : 'Ask'}
-        </button>
-      </form>
-    </div>
+    </>
   );
 }

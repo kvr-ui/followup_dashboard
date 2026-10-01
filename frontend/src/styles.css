@@ -1990,36 +1990,165 @@ tr.row-today td {
 /* ---------------------------------------------------------------------------
    Ask — the data assistant
    ---------------------------------------------------------------------------
-   A chat column that fills the viewport below the header, so the composer stays
-   put and only the transcript scrolls. Everything is built from the same tokens
-   as the rest of the app; there is no chat library here and no new colours.
+   A floating launcher in the bottom-right corner that opens a small chat
+   panel over whatever view is open. Everything is built from the same tokens as
+   the rest of the app; there is no chat library here and no new colours.
 */
 
-.agent-wrap {
+.agent-launcher {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 200;
+  width: 56px;
+  height: 56px;
+  padding: 0;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  color: #fff;
+  box-shadow: 0 6px 20px rgba(30, 40, 60, 0.25);
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+.agent-launcher:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+  transform: scale(1.06);
+}
+.agent-launcher-x {
+  font-size: 1.7rem;
+  line-height: 1;
+}
+.agent-unread {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--red);
+  border: 2px solid var(--surface);
+}
+
+.agent-panel {
+  position: fixed;
+  right: 20px;
+  bottom: 88px;
+  z-index: 200;
+  width: 380px;
+  height: 560px;
+  max-height: calc(100vh - 110px);
   display: flex;
   flex-direction: column;
-  /* Header + main padding. Keeps the composer on screen instead of pushing it
-     below the fold once a conversation gets long. */
-  height: calc(100vh - 190px);
-  min-height: 420px;
+  background: var(--bg, var(--surface));
+  border: 1px solid var(--border-strong);
+  border-radius: 14px;
+  box-shadow: 0 16px 48px rgba(30, 40, 60, 0.28);
+  overflow: hidden;
+  animation: agent-pop 0.16s ease-out;
+}
+.agent-panel.expanded {
+  width: min(620px, calc(100vw - 40px));
+  height: calc(100vh - 110px);
+}
+@keyframes agent-pop {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .agent-panel {
+    animation: none;
+  }
 }
 
 .agent-head {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 0.9rem;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.7rem 0.8rem;
+  background: var(--accent);
+  color: #fff;
+}
+.agent-avatar {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.18);
+}
+.agent-title {
+  flex: 1;
+  min-width: 0;
 }
 .agent-head h2 {
   font-family: var(--serif);
-  font-size: 1.15rem;
+  font-size: 0.98rem;
   font-weight: 600;
-  margin-bottom: 0.15rem;
+  margin: 0;
+  color: #fff;
 }
-.agent-head p {
-  font-size: 0.82rem;
-  max-width: 60ch;
+.agent-head p,
+.agent-head .subtle {
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.8);
+  margin: 0;
+}
+.agent-head-actions {
+  display: flex;
+  gap: 0.2rem;
+}
+.agent-icon-btn {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: #fff;
+  font-size: 1.05rem;
+  border-radius: 6px;
+}
+.agent-icon-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.agent-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 0.7rem 0.8rem 0.8rem;
+}
+
+@media (max-width: 640px) {
+  .agent-panel,
+  .agent-panel.expanded {
+    inset: 0;
+    width: auto;
+    height: auto;
+    max-height: none;
+    border-radius: 0;
+  }
+  .agent-expand-btn {
+    display: none;
+  }
+  .agent-launcher.open {
+    display: none;
+  }
 }
 
 .agent-unconfigured {
@@ -2079,7 +2208,7 @@ tr.row-today td {
 }
 
 .agent-bubble {
-  max-width: 78ch;
+  max-width: min(78ch, 88%);
   padding: 0.75rem 1rem;
   border-radius: var(--radius);
   font-size: 0.88rem;
