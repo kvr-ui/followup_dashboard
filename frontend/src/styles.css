@@ -1,5 +1,5 @@
 /* ============================================================
-   Followup Dashboard — warm, minimal design system
+   Sales Dashboard — warm, minimal design system
    ============================================================ */
 
 :root {
@@ -185,6 +185,15 @@ header h1 {
   font-size: 1.3rem;
   font-weight: 600;
   color: var(--ink);
+}
+header h1.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+header h1.brand img {
+  height: 1.9rem;
+  border-radius: 4px;
 }
 
 .tabs {
@@ -711,6 +720,11 @@ tr.row-today td {
   display: flex;
   flex-direction: column;
   gap: 0.85rem;
+}
+.login-logo {
+  height: 3rem;
+  align-self: flex-start;
+  border-radius: 6px;
 }
 .login-card h1 {
   font-family: var(--serif);
