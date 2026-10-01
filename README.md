@@ -59,7 +59,6 @@ A local MongoDB (`mongod`) is required; `MONGO_URI` in `.env` defaults to
 ## Production deployment (Docker)
 
 ```bash
-export GITHUB_PACKAGES_TOKEN=ghp_xxx   # see "GitHub Packages token" below
 docker compose build
 cp backend/.env.example backend/.env   # fill in real values — see below
 docker compose up -d
@@ -73,25 +72,12 @@ evening-IST tasks land in the wrong bucket), and reads runtime config from
 `backend/.env` via `env_file`. Front it with a TLS-terminating reverse proxy
 (nginx/Caddy/Traefik) — the container itself only serves plain HTTP.
 
-### GitHub Packages token (build-time only)
+### Meta Marketing API connector
 
-The backend depends on `@santhosh785/meta-ads` (the Meta Marketing API connector,
-also used by the now-retired `focas-crm`), published to **GitHub Packages**, not
-npmjs.org. `backend/.npmrc` points the `@santhosh785` scope there and resolves the
-token from `GITHUB_PACKAGES_TOKEN` at install time.
-
-- **Local `npm install`/`npm ci`:** `export GITHUB_PACKAGES_TOKEN=<PAT with read:packages scope>`
-  before running.
-- **Docker build:** supplied as a **build secret**, not a build ARG/ENV — see the
-  `RUN --mount=type=secret` step in `Dockerfile`. This keeps the token out of every
-  image layer and the build history. `docker-compose.yml`'s `secrets:` block
-  sources it from the `GITHUB_PACKAGES_TOKEN` environment variable in the shell
-  running `docker compose build` — export it there, it is never written to a file
-  in this repo.
-
-Get a token with `read:packages` scope from whoever administers the
-`@santhosh785` GitHub org/account. Without it, both `npm ci` and `docker compose
-build` fail resolving `@santhosh785/meta-ads`.
+The Meta connector lives in the repo at `backend/modules/ads/meta/` (ported from the
+former `@santhosh785/meta-ads` package). It's plain CommonJS with no runtime
+dependencies, so no registry token is needed to build. Its tests run with
+`cd backend && npm test`.
 
 ## Environment variables
 
@@ -106,7 +92,6 @@ Full reference with inline comments: `backend/.env.example`. Summary by area:
 | **Public lead ingest** (new — see below) | `CORS_ORIGINS`, `WEB_LEAD_RATE_MAX`, `LEAD_INGEST_TOKEN` |
 | **VSL watch time** (new — see below) | `VSL_MONGO_URI`, `VSL_MONGO_DB`, `VSL_WATCH_TTL_MS`, `VSL_TASK_INDEX_TTL_MS`, `VSL_PHONE_CC` |
 | **Ask assistant** (new — see below) | `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_REASONING_EFFORT`, `OPENAI_MAX_OUTPUT_TOKENS`, `AGENT_MAX_ROUNDS`, `AGENT_RATE_MAX`, `BIGIN_COQL_ENABLED` |
-| Build-time only | `GITHUB_PACKAGES_TOKEN` (see above — not a runtime var, not in `backend/.env`) |
 
 ### VSL watch time reads a second, read-only cluster
 
