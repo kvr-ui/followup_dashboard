@@ -92,6 +92,7 @@ Full reference with inline comments: `backend/.env.example`. Summary by area:
 | **Public lead ingest** (new — see below) | `CORS_ORIGINS`, `WEB_LEAD_RATE_MAX`, `LEAD_INGEST_TOKEN` |
 | **VSL watch time** (new — see below) | `VSL_MONGO_URI`, `VSL_MONGO_DB`, `VSL_WATCH_TTL_MS`, `VSL_TASK_INDEX_TTL_MS`, `VSL_PHONE_CC` |
 | **Ask assistant** (new — see below) | `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_REASONING_EFFORT`, `OPENAI_MAX_OUTPUT_TOKENS`, `AGENT_MAX_ROUNDS`, `AGENT_RATE_MAX`, `BIGIN_COQL_ENABLED` |
+| Google sign-in (optional) | `GOOGLE_CLIENT_ID`, `GOOGLE_ALLOWED_DOMAIN` |
 
 ### VSL watch time reads a second, read-only cluster
 
@@ -202,6 +203,25 @@ node modules/agent/scripts/testChatLoop.js     # the tool-calling loop, model st
 `ZohoBigin.coql.READ` scope. Re-authorise with it and set the flag to give the
 agent one-query CRM access; until then it uses per-module search/get/fields calls,
 which the current scopes allow.
+
+## Google sign-in setup
+
+1. Open the Google Cloud console and create or pick a project under the FOCAS Google Workspace organisation.
+2. APIs & Services -> OAuth consent screen: set User type to **Internal** and App name to **FOCAS Sales CRM**. Fill in the support and developer contact emails and save.
+3. APIs & Services -> Credentials -> Create credentials -> **OAuth client ID** -> Application type **Web application**.
+4. Under **Authorized JavaScript origins** add all four:
+   - `https://beta.focasedu.online`
+   - `https://followup.focasedu.online`
+   - `http://localhost:5173` (Vite dev server)
+   - `http://localhost:7007` (Docker / backend-served build)
+5. Leave **Authorized redirect URIs** empty. The ID-token flow needs no redirect URIs.
+6. Copy the Client ID. Set `GOOGLE_CLIENT_ID=<that client id>` and `GOOGLE_ALLOWED_DOMAIN=<workspace domain>` in the environment of both the beta and prod apps (on the servers these are Coolify app environment variables, one app per branch), and in local `backend/.env` for development. Then redeploy/restart so the new values are read.
+
+Notes:
+
+- The client ID is public; there is no client secret to configure.
+- Leaving `GOOGLE_CLIENT_ID` empty disables Google sign-in and hides the button.
+- Google sign-in only works for users who already exist: each user must have a login email set (Admin -> Users) that matches their Google account email. Anyone without a matching user is rejected.
 
 ## More documentation
 
