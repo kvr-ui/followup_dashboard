@@ -11,6 +11,7 @@ function publicUser(u) {
     username: u.username,
     role: u.role,
     ownerEmail: u.ownerEmail,
+    email: u.email,
   };
 }
 
