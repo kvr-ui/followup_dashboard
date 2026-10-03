@@ -43,9 +43,28 @@
   letter-spacing: 0;
   font-size: 0.82rem;
 }
-.login-card button {
+.login-card > button {
   width: 100%;
   margin-top: var(--space-1);
   padding: 0.65rem;
   font-size: 0.92rem;
+}
+.login-divider {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--muted);
+  font-size: 0.8rem;
+  text-align: center;
+}
+.login-divider::before,
+.login-divider::after {
+  content: '';
+  flex: 1;
+  border-top: 1px solid var(--border);
+}
+.login-google {
+  display: flex;
+  justify-content: center;
+  min-height: 44px;
 }
