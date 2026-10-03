@@ -1,6 +1,6 @@
 const express = require('express');
 
-const { createUser, listUsers, deleteUser } = require('../controllers/userController');
+const { createUser, updateUser, listUsers, deleteUser } = require('../controllers/userController');
 const { authenticate, requireAdmin } = require('../middleware/auth');
 
 const router = express.Router();
@@ -10,6 +10,7 @@ router.use(authenticate, requireAdmin);
 
 router.get('/', listUsers);
 router.post('/', createUser);
+router.patch('/:id', updateUser);
 router.delete('/:id', deleteUser);
 
 module.exports = router;

@@ -127,6 +127,24 @@
 .admin-user-form button {
   height: 40px;
 }
+.link-accent {
+  background: transparent;
+  border: none;
+  color: var(--accent);
+  padding: 0.3rem 0.5rem;
+  font-size: 0.82rem;
+}
+.link-accent:hover {
+  background: var(--accent-soft);
+}
+.email-edit {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+.email-edit input {
+  min-width: 200px;
+}
 
 /* ---------- Crash fallback (ErrorBoundary) ---------- */
 .crash-wrap {

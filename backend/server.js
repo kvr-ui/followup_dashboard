@@ -3,6 +3,8 @@ require('dotenv').config();
 const app = require('./app');
 const connectDB = require('./config/db');
 const seedAdmin = require('./config/seed');
+const { backfillUserEmails } = require('./config/seed');
+const User = require('./models/User');
 const Task = require('./models/Task');
 const SyncState = require('./models/SyncState');
 const Call = require('./modules/calls/models/Call');
@@ -33,6 +35,11 @@ const PORT = process.env.PORT || 3000;
 
 connectDB()
   .then(seedAdmin)
+  // createIndexes, not syncIndexes: the users collection is shared with prod
+  // (same DB for beta and prod), so only ADD the sparse unique email index and
+  // never drop anything. Built before the backfill so uniqueness is enforced.
+  .then(() => User.createIndexes())
+  .then(backfillUserEmails) // email = ownerEmail (or ADMIN_EMAIL) for users without one
   .then(() => Task.syncIndexes()) // build the contact-id index (autoIndex is off in prod)
   .then(() => SyncState.syncIndexes()) // unique per-job cursor
   .then(() => Call.syncIndexes()) // incl. deal.id — the journeys join depends on it
