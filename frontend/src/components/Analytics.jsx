@@ -1,10 +1,16 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
+import Section from './ui/Section';
+import DataTable from './ui/DataTable';
+import EmptyState from './ui/EmptyState';
+import StatCard, { StatGrid } from './ui/StatCard';
+import Icon from './ui/Icon';
+import '../styles/views/reports.css';
 
-function rateColor(rate) {
-  if (rate >= 70) return '#4d7a63';
-  if (rate >= 40) return '#9a7a45';
-  return '#a5615a';
+function rateTone(rate) {
+  if (rate >= 70) return 'green';
+  if (rate >= 40) return 'amber';
+  return 'red';
 }
 
 export default function Analytics() {
@@ -30,93 +36,73 @@ export default function Analytics() {
   const { totals, users } = data;
 
   return (
-    <>
-      <div className="summary-grid">
-        <div className="card">
-          <div className="num">{totals.salespeople}</div>
-          <div className="label">Salespeople</div>
-        </div>
-        <div className="card">
-          <div className="num">{totals.total}</div>
-          <div className="label">Total follow-ups</div>
-        </div>
-        <div className="card">
-          <div className="num" style={{ color: '#12b76a' }}>
-            {totals.completed}
-          </div>
-          <div className="label">Completed</div>
-        </div>
-        <div className="card overdue">
-          <div className="num">{totals.overdue}</div>
-          <div className="label">Overdue</div>
-        </div>
-        <div className="card">
-          <div className="num">{totals.completionRate}%</div>
-          <div className="label">Overall completion</div>
-        </div>
-      </div>
+    <div className="report">
+      <StatGrid>
+        <StatCard label="Salespeople" value={totals.salespeople} />
+        <StatCard label="Total follow-ups" value={totals.total} />
+        <StatCard label="Completed" value={totals.completed} tone="green" />
+        <StatCard label="Overdue" value={totals.overdue} tone="red" />
+        <StatCard label="Overall completion" value={`${totals.completionRate}%`} />
+      </StatGrid>
 
-      <div className="panel">
-        <div className="row-between" style={{ marginBottom: '0.75rem' }}>
-          <h2 style={{ margin: 0 }}>Performance by salesperson</h2>
-          <button onClick={load}>Refresh</button>
-        </div>
-
-        <table className="tasks">
-          <thead>
-            <tr>
-              <th>Salesperson</th>
-              <th>Total</th>
-              <th>Completed</th>
-              <th>In Progress</th>
-              <th>Overdue</th>
-              <th>Due Today</th>
-              <th>Completion rate</th>
-              <th>Notes</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.map((u) => (
-              <tr key={u.email}>
-                <td>
-                  <div className="who">{u.name || u.email}</div>
-                  <div className="subtle">
-                    {u.username ? `@${u.username}` : 'no account'}
-                  </div>
-                </td>
-                <td>{u.total}</td>
-                <td>{u.completed}</td>
-                <td>{u.inProgress}</td>
-                <td className={u.overdue ? 'cell-overdue' : ''}>{u.overdue}</td>
-                <td>{u.dueToday}</td>
-                <td>
-                  <div className="rate-wrap">
-                    <div className="rate-bar">
-                      <span
-                        style={{
-                          width: `${u.completionRate}%`,
-                          background: rateColor(u.completionRate),
-                        }}
-                      />
-                    </div>
-                    <span className="rate-num">{u.completionRate}%</span>
-                  </div>
-                </td>
-                <td>{u.notes}</td>
-                <td>{u.actions}</td>
-              </tr>
-            ))}
-            {users.length === 0 && (
+      <Section
+        title="Performance by salesperson"
+        flush={users.length > 0}
+        actions={
+          <button onClick={load}>
+            <Icon name="refresh" size={14} />
+            Refresh
+          </button>
+        }
+      >
+        {users.length > 0 ? (
+          <DataTable>
+            <thead>
               <tr>
-                <td colSpan={9} className="subtle">
-                  No data yet.
-                </td>
+                <th>Salesperson</th>
+                <th className="num">Total</th>
+                <th className="num">Completed</th>
+                <th className="num">In Progress</th>
+                <th className="num">Overdue</th>
+                <th className="num">Due Today</th>
+                <th>Completion rate</th>
+                <th className="num">Notes</th>
+                <th className="num">Actions</th>
               </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </>
+            </thead>
+            <tbody>
+              {users.map((u) => (
+                <tr key={u.email}>
+                  <td>
+                    <div className="who">{u.name || u.email}</div>
+                    <div className="subtle">{u.username ? `@${u.username}` : 'no account'}</div>
+                  </td>
+                  <td className="num">{u.total}</td>
+                  <td className="num">{u.completed}</td>
+                  <td className="num">{u.inProgress}</td>
+                  <td className={u.overdue ? 'num cell-overdue' : 'num'}>{u.overdue}</td>
+                  <td className="num">{u.dueToday}</td>
+                  <td>
+                    <div className="rate-wrap">
+                      <div className="rate-bar">
+                        <span
+                          className={`fill-${rateTone(u.completionRate)}`}
+                          style={{ width: `${u.completionRate}%` }}
+                        />
+                      </div>
+                      <span className="rate-num">{u.completionRate}%</span>
+                    </div>
+                  </td>
+                  <td className="num">{u.notes}</td>
+                  <td className="num">{u.actions}</td>
+                </tr>
+              ))}
+            </tbody>
+          </DataTable>
+        ) : (
+          <EmptyState title="No data yet" />
+        )}
+      </Section>
+    </div>
   );
 }

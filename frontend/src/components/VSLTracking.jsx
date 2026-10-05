@@ -2,8 +2,15 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../api';
 import DateRangeBar from './DateRangeBar';
 import CopyButton from './CopyButton';
+import PageHeader from './ui/PageHeader';
+import FilterBar from './ui/FilterBar';
+import DataTable from './ui/DataTable';
+import StatCard, { StatGrid } from './ui/StatCard';
+import EmptyState from './ui/EmptyState';
+import Icon from './ui/Icon';
 import { defaultRange, formatCount, sortRows } from '../adStats';
 import { formatDateTime } from '../utils';
+import { openLead, rowPhoneKey } from '../route';
 import {
   ENGAGEMENT,
   ENGAGEMENT_FILTERS,
@@ -37,7 +44,7 @@ const PAGE_LIMIT = 1000;
 
 const dash = <span className="subtle">—</span>;
 
-export default function VSLTracking({ isAdmin, onOpenTask }) {
+export default function VSLTracking({ isAdmin }) {
   const [range, setRange] = useState(defaultRange);
   const [res, setRes] = useState(null);
   const [error, setError] = useState('');
@@ -138,16 +145,22 @@ export default function VSLTracking({ isAdmin, onOpenTask }) {
 
   const sortArrow = (key) => (sort.key === key ? (sort.dir === 'desc' ? ' ▾' : ' ▴') : '');
 
+  // A card reads as selected when the filters are exactly the combination it sets.
+  const isFocus = (e, l = 'all') =>
+    engagement === e && link === l && source === 'all' && !search;
+
   return (
     <>
-      <div className="mkt-head">
-        <h2>VSL Tracking</h2>
-        <DateRangeBar range={range} onChange={setRange}>
-          <button onClick={() => load(range)} disabled={loading}>
-            {loading ? 'Loading…' : 'Refresh'}
-          </button>
-        </DateRangeBar>
-      </div>
+      <PageHeader
+        actions={
+          <DateRangeBar range={range} onChange={setRange}>
+            <button onClick={() => load(range)} disabled={loading}>
+              <Icon name="refresh" size={14} />
+              {loading ? 'Loading…' : 'Refresh'}
+            </button>
+          </DateRangeBar>
+        }
+      />
 
       {error && <div className="error">{error}</div>}
 
@@ -165,38 +178,48 @@ export default function VSLTracking({ isAdmin, onOpenTask }) {
 
       {res && res.configured !== false && (
         <>
-          <div className="summary-grid">
-            <div className="card clickable" onClick={() => focus('sent')}>
-              <div className="num">{formatCount(totals.sent || 0)}</div>
-              <div className="label">Links sent</div>
-            </div>
-            <div className="card clickable" onClick={() => focus('opened')}>
-              <div className="num">{formatCount(totals.opened || 0)}</div>
-              <div className="label">Opened the page</div>
-            </div>
-            <div className="card clickable" onClick={() => focus('played')}>
-              <div className="num">{formatCount(totals.played || 0)}</div>
-              <div className="label">Pressed play</div>
-            </div>
-            <div className="card clickable" onClick={() => focus('watched')}>
-              <div className="num">{formatCount(totals.watched || 0)}</div>
-              <div className="label">Watched (10%+)</div>
-            </div>
-            <div className="card">
-              <div className="num">{formatCount(Math.round(totals.minutesTotal || 0))}</div>
-              <div className="label">Total minutes watched</div>
-            </div>
+          <StatGrid>
+            <StatCard
+              label="Links sent"
+              value={formatCount(totals.sent || 0)}
+              active={isFocus('sent')}
+              onClick={() => focus('sent')}
+            />
+            <StatCard
+              label="Opened the page"
+              value={formatCount(totals.opened || 0)}
+              active={isFocus('opened')}
+              onClick={() => focus('opened')}
+            />
+            <StatCard
+              label="Pressed play"
+              value={formatCount(totals.played || 0)}
+              active={isFocus('played')}
+              onClick={() => focus('played')}
+            />
+            <StatCard
+              label="Watched (10%+)"
+              value={formatCount(totals.watched || 0)}
+              active={isFocus('watched')}
+              onClick={() => focus('watched')}
+            />
+            <StatCard
+              label="Total minutes watched"
+              value={formatCount(Math.round(totals.minutesTotal || 0))}
+            />
             {isAdmin && (
-              <div className="card clickable" onClick={() => focus('all', 'unlinked')}>
-                <div className="num">{formatCount(totals.notInDashboard || 0)}</div>
-                <div className="label">Not in the dashboard</div>
-              </div>
+              <StatCard
+                label="Not in the dashboard"
+                value={formatCount(totals.notInDashboard || 0)}
+                active={isFocus('all', 'unlinked')}
+                onClick={() => focus('all', 'unlinked')}
+              />
             )}
-          </div>
+          </StatGrid>
 
-          <div className="mkt-filters">
+          <FilterBar>
             <label>
-              <span>Engagement</span>
+              Engagement
               <select value={engagement} onChange={(e) => setEngagement(e.target.value)}>
                 <option value="all">All</option>
                 {ENGAGEMENT_STATES.map((s) => (
@@ -208,7 +231,7 @@ export default function VSLTracking({ isAdmin, onOpenTask }) {
             </label>
 
             <label>
-              <span>Lead source</span>
+              Lead source
               <select value={source} onChange={(e) => setSource(e.target.value)}>
                 <option value="all">All</option>
                 {sources.map((s) => (
@@ -221,7 +244,7 @@ export default function VSLTracking({ isAdmin, onOpenTask }) {
 
             {isAdmin && (
               <label>
-                <span>Follow-up</span>
+                Follow-up
                 <select value={link} onChange={(e) => setLink(e.target.value)}>
                   <option value="all">All</option>
                   <option value="linked">In the dashboard</option>
@@ -232,7 +255,7 @@ export default function VSLTracking({ isAdmin, onOpenTask }) {
 
             {isAdmin && owners.length > 0 && (
               <label>
-                <span>Owner</span>
+                Owner
                 <select value={owner} onChange={(e) => setOwner(e.target.value)}>
                   <option value="">Everyone</option>
                   {owners.map((o) => (
@@ -245,7 +268,7 @@ export default function VSLTracking({ isAdmin, onOpenTask }) {
             )}
 
             <label>
-              <span>Search</span>
+              Search
               <input
                 type="search"
                 value={search}
@@ -253,14 +276,16 @@ export default function VSLTracking({ isAdmin, onOpenTask }) {
                 onChange={(e) => setSearch(e.target.value)}
               />
             </label>
-          </div>
+          </FilterBar>
 
-          <div className="toolbar">
-            <p id="status">
-              Showing {rows.length} of {flat.length} VSL lead(s) ·{' '}
-              {Math.round(totals.minutesTotal || 0)} minutes watched in total
-            </p>
-          </div>
+          <PageHeader
+            meta={
+              <span id="status">
+                Showing {rows.length} of {flat.length} VSL lead(s) ·{' '}
+                {Math.round(totals.minutesTotal || 0)} minutes watched in total
+              </span>
+            }
+          />
 
           {res.truncated && (
             <p className="hint">
@@ -279,32 +304,30 @@ export default function VSLTracking({ isAdmin, onOpenTask }) {
           )}
 
           {rows.length === 0 ? (
-            <p className="subtle">No VSL leads match the current filters.</p>
+            <EmptyState title="No VSL leads match the current filters" />
           ) : (
-            <div className="mkt-scroll">
-              <table className="tasks mkt-table">
-                <thead>
-                  <tr>
-                    <th>Lead</th>
-                    <th>Mobile</th>
-                    <th>Lead source</th>
-                    <th className="clickable-row" onClick={() => toggleSort('watchSeconds')}>
-                      Minutes watched{sortArrow('watchSeconds')}
-                    </th>
-                    <th>Engagement</th>
-                    <th className="clickable-row" onClick={() => toggleSort('lastActivityAt')}>
-                      Last activity{sortArrow('lastActivityAt')}
-                    </th>
-                    <th>Follow-up</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((lead) => (
-                    <Row key={lead.leadId} lead={lead} onOpenTask={onOpenTask} />
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <DataTable className="mkt-wide">
+              <thead>
+                <tr>
+                  <th>Lead</th>
+                  <th>Mobile</th>
+                  <th>Lead source</th>
+                  <th className="mkt-sortable" onClick={() => toggleSort('watchSeconds')}>
+                    Minutes watched{sortArrow('watchSeconds')}
+                  </th>
+                  <th>Engagement</th>
+                  <th className="mkt-sortable" onClick={() => toggleSort('lastActivityAt')}>
+                    Last activity{sortArrow('lastActivityAt')}
+                  </th>
+                  <th>Follow-up</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((lead) => (
+                  <Row key={lead.leadId} lead={lead} />
+                ))}
+              </tbody>
+            </DataTable>
           )}
         </>
       )}
@@ -312,8 +335,14 @@ export default function VSLTracking({ isAdmin, onOpenTask }) {
   );
 }
 
-function Row({ lead, onOpenTask }) {
+function Row({ lead }) {
   const watch = lead.watch || {};
+  // The row opens the lead page. A lead with no usable phone has nowhere to go.
+  const leadKey = rowPhoneKey(lead, lead.phone);
+  const open = (e) => {
+    e.stopPropagation();
+    openLead(leadKey);
+  };
   const src = lead.leadSource || {};
   const contact = lead.dashboard?.contactName;
   // Both names are shown when they differ: the VSL takes whatever the lead typed
@@ -322,7 +351,7 @@ function Row({ lead, onOpenTask }) {
   const secondary = contact && lead.name && contact !== lead.name ? lead.name : null;
 
   return (
-    <tr>
+    <tr className={leadKey ? 'clickable-row' : undefined} onClick={leadKey ? open : undefined}>
       <td>
         <div className="contact-name">{contact || lead.name || '—'}</div>
         {secondary && <div className="subtle">VSL: {secondary}</div>}
@@ -330,7 +359,7 @@ function Row({ lead, onOpenTask }) {
       <td>
         {lead.phone ? (
           <span className="phone-row">
-            <a className="phone-link" href={`tel:${lead.phone}`}>
+            <a className="phone-link" href={`tel:${lead.phone}`} onClick={(e) => e.stopPropagation()}>
               {lead.phone}
             </a>
             <CopyButton text={lead.phone} title="Copy phone number" />
@@ -382,8 +411,8 @@ function Row({ lead, onOpenTask }) {
       </td>
       <td className="subtle">{lead.lastActivityAt ? formatDateTime(lead.lastActivityAt) : '—'}</td>
       <td>
-        {lead.dashboard ? (
-          <button className="mkt-open" onClick={() => onOpenTask?.(lead.dashboard.taskId)}>
+        {lead.dashboard && leadKey ? (
+          <button className="mkt-open" onClick={open}>
             {lead.dashboard.ownerName || 'Open follow-up'}
           </button>
         ) : (

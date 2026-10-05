@@ -29,7 +29,10 @@ export async function api(path, { method = 'GET', body, headers = {} } = {}) {
 
   const json = await res.json().catch(() => ({}));
   if (!res.ok) {
-    throw new Error(json.message || `Request failed (${res.status})`);
+    const err = new Error(json.message || `Request failed (${res.status})`);
+    // Callers that treat a 403 or 404 differently from a failure read this.
+    err.status = res.status;
+    throw err;
   }
   return json;
 }

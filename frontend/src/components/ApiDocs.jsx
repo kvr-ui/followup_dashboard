@@ -1,5 +1,9 @@
 import { useMemo, useState } from 'react';
 import CopyButton from './CopyButton';
+import PageHeader from './ui/PageHeader';
+import FilterBar from './ui/FilterBar';
+import SubTabs from './ui/SubTabs';
+import EmptyState from './ui/EmptyState';
 import { api, getToken } from '../api';
 import {
   BASE_HINT,
@@ -42,14 +46,7 @@ export default function ApiDocs({ user }) {
 
   return (
     <div className="docs">
-      <div className="docs-head">
-        <div>
-          <h2>API reference</h2>
-          <p className="subtle">
-            Every endpoint behind this dashboard. {BASE_HINT}
-          </p>
-        </div>
-      </div>
+      <PageHeader meta={<>Every endpoint behind this dashboard. {BASE_HINT}</>} />
 
       {/* ---- Where to fetch from, and with what ---- */}
       <div className="docs-start">
@@ -95,7 +92,7 @@ export default function ApiDocs({ user }) {
         </p>
       </div>
 
-      <div className="docs-toolbar">
+      <FilterBar>
         <input
           className="docs-search"
           placeholder="Search endpoints — try 'grades', 'sync', 'lead'…"
@@ -107,25 +104,25 @@ export default function ApiDocs({ user }) {
             Clear
           </button>
         )}
-      </div>
+      </FilterBar>
 
       {!query.trim() && (
-        <nav className="docs-nav">
-          {GROUPS.map((g) => (
-            <button
-              key={g.id}
-              type="button"
-              className={g.id === active ? 'docs-nav-item active' : 'docs-nav-item'}
-              onClick={() => setActive(g.id)}
-            >
-              {g.title}
-              <span className="docs-nav-count">{g.endpoints.length}</span>
-            </button>
-          ))}
-        </nav>
+        <SubTabs
+          tabs={GROUPS.map((g) => ({
+            id: g.id,
+            label: (
+              <>
+                {g.title}
+                <span className="docs-nav-count">{g.endpoints.length}</span>
+              </>
+            ),
+          }))}
+          active={active}
+          onSelect={setActive}
+        />
       )}
 
-      {visible.length === 0 && <p className="subtle">No endpoint matches “{query}”.</p>}
+      {visible.length === 0 && <EmptyState title={`No endpoint matches “${query}”`} />}
 
       {visible.map((group) => (
         <section key={group.id} className="docs-group">

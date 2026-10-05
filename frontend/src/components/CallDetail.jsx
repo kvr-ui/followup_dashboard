@@ -1,17 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
-import { api, getToken } from '../api';
+import { api } from '../api';
 import { formatDateTime } from '../utils';
-
-function ts(sec) {
-  const s = Math.round(sec || 0);
-  return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
-}
+import { ts, useRecordingUrl } from './callParts';
+import DataTable from './ui/DataTable';
+import Section from './ui/Section';
 
 export default function CallDetail({ callId, onClose }) {
   const [call, setCall] = useState(null);
   const [error, setError] = useState('');
-  const [audioUrl, setAudioUrl] = useState(null);
-  const [loadingAudio, setLoadingAudio] = useState(false);
   const audioRef = useRef(null);
 
   useEffect(() => {
@@ -25,39 +21,10 @@ export default function CallDetail({ callId, onClose }) {
     return () => { cancelled = true; };
   }, [callId]);
 
-  // The recording route needs an auth header, so <audio src> can't fetch it
-  // directly — pull it as a blob and hand the player an object URL.
-  // Wait for the call to load and only fetch when it actually has a recording,
-  // otherwise we fire a guaranteed 404 on every call that has no audio.
-  useEffect(() => {
-    if (!call) return;
-    if (!call.hasRecording) {
-      setAudioUrl(null);
-      setLoadingAudio(false);
-      return;
-    }
-    let revoked = null;
-    let cancelled = false;
-    setLoadingAudio(true);
-    fetch(`/api/calls/${callId}/recording`, {
-      headers: { Authorization: `Bearer ${getToken()}` },
-    })
-      .then((r) => (r.ok ? r.blob() : Promise.reject(new Error('Recording unavailable'))))
-      .then((blob) => {
-        const url = URL.createObjectURL(blob);
-        // If we switched calls while the blob was downloading, drop it — don't hand a
-        // stale recording to the player.
-        if (cancelled) return URL.revokeObjectURL(url);
-        revoked = url;
-        setAudioUrl(url);
-      })
-      .catch(() => { if (!cancelled) setAudioUrl(null); })
-      .finally(() => { if (!cancelled) setLoadingAudio(false); });
-    return () => {
-      cancelled = true;
-      if (revoked) URL.revokeObjectURL(revoked);
-    };
-  }, [call, callId]);
+  const { url: audioUrl, loading: loadingAudio } = useRecordingUrl(
+    callId,
+    Boolean(call && call.hasRecording)
+  );
 
   function seek(seconds) {
     if (audioRef.current) {
@@ -207,10 +174,10 @@ const prettyCriterion = (k) =>
   k.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 
 /** Green ≥75, amber 50–74, red below — for the overall score. */
-function scoreColor(pct) {
-  if (pct >= 75) return 'var(--green, #4d7a63)';
-  if (pct >= 50) return 'var(--amber, #b8860b)';
-  return 'var(--red, #c0392b)';
+function scoreTone(pct) {
+  if (pct >= 75) return 'score-green';
+  if (pct >= 50) return 'score-amber';
+  return 'score-red';
 }
 
 /**
@@ -224,27 +191,23 @@ function GradeReport({ grade }) {
   const callType = breakdown.callType;
 
   return (
-    <div>
+    <div className="grade-report">
       <div className="grade-box">
-        <div className="grade-score" style={{ color: scoreColor(grade.score) }}>
-          {grade.score}
-        </div>
+        <div className={`grade-score ${scoreTone(grade.score)}`}>{grade.score}</div>
         <div>
           {callType && (
-            <span className="badge badge-normal" style={{ marginBottom: 6 }}>
-              {prettyCriterion(callType)}
-            </span>
+            <span className="badge badge-normal grade-type">{prettyCriterion(callType)}</span>
           )}
           <p className="desc">{grade.summary}</p>
         </div>
       </div>
 
       {Object.keys(scores).length > 0 && (
-        <table className="tasks" style={{ marginTop: 12 }}>
+        <DataTable>
           <thead>
             <tr>
               <th>Criterion</th>
-              <th style={{ textAlign: 'right' }}>Score</th>
+              <th className="num">Score</th>
               <th>Why</th>
             </tr>
           </thead>
@@ -257,51 +220,42 @@ function GradeReport({ grade }) {
               return (
                 <tr key={k}>
                   <td>{prettyCriterion(k)}</td>
-                  <td
-                    style={{
-                      textAlign: 'right',
-                      fontWeight: 600,
-                      whiteSpace: 'nowrap',
-                      color: pct == null ? 'inherit' : scoreColor(pct),
-                    }}
-                  >
+                  <td className={`num criterion-score ${pct == null ? '' : scoreTone(pct)}`.trim()}>
                     {val}
-                    {max ? <span className="subtle" style={{ fontWeight: 400 }}> / {max}</span> : null}
+                    {max ? <span className="subtle criterion-max"> / {max}</span> : null}
                   </td>
                   <td className="subtle">{why}</td>
                 </tr>
               );
             })}
           </tbody>
-        </table>
+        </DataTable>
       )}
 
       {(grade.strengths?.length > 0 || grade.improvements?.length > 0) && (
-        <div className="mini-grid" style={{ marginTop: 12 }}>
+        <div className="grade-notes">
           {grade.strengths?.length > 0 && (
-            <div className="panel-sm">
-              <h3 style={{ color: 'var(--green, #4d7a63)' }}>What went well</h3>
-              <ul style={{ margin: '4px 0 0 16px', padding: 0 }}>
+            <Section title="What went well" className="grade-strengths">
+              <ul>
                 {grade.strengths.map((s, i) => (
-                  <li key={i} style={{ fontSize: '0.85rem', marginBottom: 4 }}>{s}</li>
+                  <li key={i}>{s}</li>
                 ))}
               </ul>
-            </div>
+            </Section>
           )}
           {grade.improvements?.length > 0 && (
-            <div className="panel-sm">
-              <h3 style={{ color: 'var(--amber, #b8860b)' }}>To improve</h3>
-              <ul style={{ margin: '4px 0 0 16px', padding: 0 }}>
+            <Section title="To improve" className="grade-improvements">
+              <ul>
                 {grade.improvements.map((s, i) => (
-                  <li key={i} style={{ fontSize: '0.85rem', marginBottom: 4 }}>{s}</li>
+                  <li key={i}>{s}</li>
                 ))}
               </ul>
-            </div>
+            </Section>
           )}
         </div>
       )}
 
-      <div className="subtle" style={{ marginTop: 10, fontSize: '0.75rem' }}>
+      <div className="subtle grade-footnote">
         AI-graded against the FOCAS rubric. A judgment for coaching, not a verdict —
         the “why” quotes the call so you can check it.
       </div>

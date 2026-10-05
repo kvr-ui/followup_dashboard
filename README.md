@@ -1,4 +1,4 @@
-# Followup Dashboard
+# FOCAS Sales Dashboard
 
 Lead-followup and sales-intelligence dashboard for Focas. Node/Express + MongoDB
 backend, React (Vite) frontend, built as one Docker image and deployed as a single
@@ -59,7 +59,6 @@ A local MongoDB (`mongod`) is required; `MONGO_URI` in `.env` defaults to
 ## Production deployment (Docker)
 
 ```bash
-export GITHUB_PACKAGES_TOKEN=ghp_xxx   # see "GitHub Packages token" below
 docker compose build
 cp backend/.env.example backend/.env   # fill in real values — see below
 docker compose up -d
@@ -73,25 +72,12 @@ evening-IST tasks land in the wrong bucket), and reads runtime config from
 `backend/.env` via `env_file`. Front it with a TLS-terminating reverse proxy
 (nginx/Caddy/Traefik) — the container itself only serves plain HTTP.
 
-### GitHub Packages token (build-time only)
+### Meta Marketing API connector
 
-The backend depends on `@santhosh785/meta-ads` (the Meta Marketing API connector,
-also used by the now-retired `focas-crm`), published to **GitHub Packages**, not
-npmjs.org. `backend/.npmrc` points the `@santhosh785` scope there and resolves the
-token from `GITHUB_PACKAGES_TOKEN` at install time.
-
-- **Local `npm install`/`npm ci`:** `export GITHUB_PACKAGES_TOKEN=<PAT with read:packages scope>`
-  before running.
-- **Docker build:** supplied as a **build secret**, not a build ARG/ENV — see the
-  `RUN --mount=type=secret` step in `Dockerfile`. This keeps the token out of every
-  image layer and the build history. `docker-compose.yml`'s `secrets:` block
-  sources it from the `GITHUB_PACKAGES_TOKEN` environment variable in the shell
-  running `docker compose build` — export it there, it is never written to a file
-  in this repo.
-
-Get a token with `read:packages` scope from whoever administers the
-`@santhosh785` GitHub org/account. Without it, both `npm ci` and `docker compose
-build` fail resolving `@santhosh785/meta-ads`.
+The Meta connector lives in the repo at `backend/modules/ads/meta/` (ported from the
+former `@santhosh785/meta-ads` package). It's plain CommonJS with no runtime
+dependencies, so no registry token is needed to build. Its tests run with
+`cd backend && npm test`.
 
 ## Environment variables
 
@@ -106,7 +92,7 @@ Full reference with inline comments: `backend/.env.example`. Summary by area:
 | **Public lead ingest** (new — see below) | `CORS_ORIGINS`, `WEB_LEAD_RATE_MAX`, `LEAD_INGEST_TOKEN` |
 | **VSL watch time** (new — see below) | `VSL_MONGO_URI`, `VSL_MONGO_DB`, `VSL_WATCH_TTL_MS`, `VSL_TASK_INDEX_TTL_MS`, `VSL_PHONE_CC` |
 | **Ask assistant** (new — see below) | `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_REASONING_EFFORT`, `OPENAI_MAX_OUTPUT_TOKENS`, `AGENT_MAX_ROUNDS`, `AGENT_RATE_MAX`, `BIGIN_COQL_ENABLED` |
-| Build-time only | `GITHUB_PACKAGES_TOKEN` (see above — not a runtime var, not in `backend/.env`) |
+| Google sign-in (optional) | `GOOGLE_CLIENT_ID`, `GOOGLE_ALLOWED_DOMAIN` |
 
 ### VSL watch time reads a second, read-only cluster
 
@@ -217,6 +203,25 @@ node modules/agent/scripts/testChatLoop.js     # the tool-calling loop, model st
 `ZohoBigin.coql.READ` scope. Re-authorise with it and set the flag to give the
 agent one-query CRM access; until then it uses per-module search/get/fields calls,
 which the current scopes allow.
+
+## Google sign-in setup
+
+1. Open the Google Cloud console and create or pick a project under the FOCAS Google Workspace organisation.
+2. APIs & Services -> OAuth consent screen: set User type to **Internal** and App name to **FOCAS Sales CRM**. Fill in the support and developer contact emails and save.
+3. APIs & Services -> Credentials -> Create credentials -> **OAuth client ID** -> Application type **Web application**.
+4. Under **Authorized JavaScript origins** add all four:
+   - `https://beta.focasedu.online`
+   - `https://followup.focasedu.online`
+   - `http://localhost:5173` (Vite dev server)
+   - `http://localhost:7007` (Docker / backend-served build)
+5. Leave **Authorized redirect URIs** empty. The ID-token flow needs no redirect URIs.
+6. Copy the Client ID. Set `GOOGLE_CLIENT_ID=<that client id>` and `GOOGLE_ALLOWED_DOMAIN=<workspace domain>` in the environment of both the beta and prod apps (on the servers these are Coolify app environment variables, one app per branch), and in local `backend/.env` for development. Then redeploy/restart so the new values are read.
+
+Notes:
+
+- The client ID is public; there is no client secret to configure.
+- Leaving `GOOGLE_CLIENT_ID` empty disables Google sign-in and hides the button.
+- Google sign-in only works for users who already exist: each user must have a login email set (Admin -> Users) that matches their Google account email. Anyone without a matching user is rejected.
 
 ## More documentation
 

@@ -3,6 +3,8 @@ require('dotenv').config();
 const app = require('./app');
 const connectDB = require('./config/db');
 const seedAdmin = require('./config/seed');
+const { backfillUserEmails } = require('./config/seed');
+const User = require('./models/User');
 const Task = require('./models/Task');
 const SyncState = require('./models/SyncState');
 const Call = require('./modules/calls/models/Call');
@@ -12,6 +14,7 @@ const callJobs = require('./modules/calls/services/scheduler');
 const taskJobs = require('./services/taskSync');
 const adJobs = require('./modules/ads/services/scheduler');
 const { warmTaskCache } = require('./controllers/taskController');
+const { warmLeadListCache } = require('./modules/leads/services/leadList');
 const { warm: warmJourneyCache } = require('./modules/calls/services/journeyCache');
 
 // The Meta ads mirror, listed only so their indexes get built at boot like
@@ -32,6 +35,11 @@ const PORT = process.env.PORT || 3000;
 
 connectDB()
   .then(seedAdmin)
+  // createIndexes, not syncIndexes: the users collection is shared with prod
+  // (same DB for beta and prod), so only ADD the sparse unique email index and
+  // never drop anything. Built before the backfill so uniqueness is enforced.
+  .then(() => User.createIndexes())
+  .then(backfillUserEmails) // email = ownerEmail (or ADMIN_EMAIL) for users without one
   .then(() => Task.syncIndexes()) // build the contact-id index (autoIndex is off in prod)
   .then(() => SyncState.syncIndexes()) // unique per-job cursor
   .then(() => Call.syncIndexes()) // incl. deal.id — the journeys join depends on it
@@ -49,6 +57,9 @@ connectDB()
       // warming it here means a user never waits for it. Outside start() above,
       // so it still happens when the polls are switched off.
       warmTaskCache().catch((e) => console.warn('task cache warm failed:', e.message));
+      // Shares the task cache's in-flight read (getCachedTasks dedupes), so this
+      // costs the Deal / Call / form reads only.
+      warmLeadListCache().catch((e) => console.warn('lead list cache warm failed:', e.message));
       warmJourneyCache().catch((e) => console.warn('journey cache warm failed:', e.message));
 
       // The cost-per-lead cache is the ads module's equivalent of the two warms

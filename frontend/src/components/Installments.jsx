@@ -1,7 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../api';
 import CopyButton from './CopyButton';
+import LeadLink from './LeadLink';
+import PageHeader from './ui/PageHeader';
+import FilterBar from './ui/FilterBar';
+import DataTable from './ui/DataTable';
+import StatCard, { StatGrid } from './ui/StatCard';
+import EmptyState from './ui/EmptyState';
+import Icon from './ui/Icon';
+import { rowPhoneKey } from '../route';
 import { inr, upsoldTo } from '../upsell';
+import '../styles/views/deals.css';
 
 /** Days since the deal closed — how long the balance has been outstanding. */
 function daysSince(closingDate) {
@@ -83,32 +92,15 @@ export default function Installments({ isAdmin }) {
 
   return (
     <>
-      <div className="summary-grid">
-        <div className="card">
-          <div className="num">{res?.count ?? '—'}</div>
-          <div className="label">Leads still paying</div>
-        </div>
-        <div className="card week">
-          <div className="num" style={{ color: 'var(--red, #c0392b)' }}>{inr(totalPending)}</div>
-          <div className="label">Pending to collect</div>
-        </div>
-        <div className="card">
-          <div className="num" style={{ color: 'var(--green, #27ae60)' }}>{inr(totalPaid)}</div>
-          <div className="label">Already paid</div>
-        </div>
-        <div className="card">
-          <div className="num">{collected}%</div>
-          <div className="label">Of these deals collected</div>
-        </div>
-        <div className="card">
-          <div className="num" style={{ color: 'var(--green, #27ae60)' }}>
-            {res?.upsold ?? '—'}
-          </div>
-          <div className="label">Upsold, still paying</div>
-        </div>
-      </div>
+      <StatGrid>
+        <StatCard label="Leads still paying" value={res?.count ?? '—'} />
+        <StatCard label="Pending to collect" value={inr(totalPending)} tone="red" />
+        <StatCard label="Already paid" value={inr(totalPaid)} tone="green" />
+        <StatCard label="Of these deals collected" value={`${collected}%`} />
+        <StatCard label="Upsold, still paying" value={res?.upsold ?? '—'} tone="green" />
+      </StatGrid>
 
-      <div className="filters">
+      <FilterBar>
         {isAdmin && (
           <label>
             Salesperson
@@ -139,20 +131,32 @@ export default function Installments({ isAdmin }) {
             onChange={(e) => setSearch(e.target.value)}
           />
         </label>
-        <button onClick={load} disabled={loading}>
-          {loading ? 'Loading…' : 'Refresh'}
-        </button>
-      </div>
+      </FilterBar>
 
       {error && <div className="error">{error}</div>}
 
-      <p id="status">
-        {shown.length} lead{shown.length === 1 ? '' : 's'} with a pending balance —{' '}
-        {inr(shown.reduce((a, r) => a + r.pending, 0))} shown of {inr(totalPending)} total
-      </p>
+      <PageHeader
+        meta={
+          <span id="status">
+            {shown.length} lead{shown.length === 1 ? '' : 's'} with a pending balance —{' '}
+            {inr(shown.reduce((a, r) => a + r.pending, 0))} shown of {inr(totalPending)} total
+          </span>
+        }
+        actions={
+          <button onClick={load} disabled={loading}>
+            <Icon name="refresh" size={14} />
+            {loading ? 'Loading…' : 'Refresh'}
+          </button>
+        }
+      />
 
-      <div className="card" style={{ padding: '16px 18px' }}>
-        <table className="tasks">
+      {shown.length === 0 && !loading ? (
+        <EmptyState title={rows.length === 0 ? 'No pending instalments' : 'No leads match your search'}>
+          {rows.length === 0 &&
+            'A lead appears here once a won deal has an Installment balance set in Bigin.'}
+        </EmptyState>
+      ) : (
+        <DataTable>
           <thead>
             <tr>
               <th>Lead</th>
@@ -161,9 +165,9 @@ export default function Installments({ isAdmin }) {
               <th>Upsell</th>
               {isAdmin && <th>Owner</th>}
               <th>Closed</th>
-              <th style={{ textAlign: 'right' }}>Deal value</th>
-              <th style={{ textAlign: 'right' }}>Paid</th>
-              <th style={{ textAlign: 'right' }}>Pending</th>
+              <th className="num">Deal value</th>
+              <th className="num">Paid</th>
+              <th className="num">Pending</th>
             </tr>
           </thead>
           <tbody>
@@ -173,10 +177,14 @@ export default function Installments({ isAdmin }) {
               const stale = age !== null && age >= 60;
               return (
                 <tr key={r.id}>
-                  <td style={{ fontWeight: 500 }}>{r.contactName || r.dealName || '—'}</td>
+                  <td className="deals-lead">
+                    <LeadLink phoneKey={rowPhoneKey(r, r.contactPhone)}>
+                      {r.contactName || r.dealName || '—'}
+                    </LeadLink>
+                  </td>
                   <td>
                     {r.contactPhone ? (
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                      <span className="deals-phone">
                         {r.contactPhone}
                         <CopyButton text={r.contactPhone} />
                       </span>
@@ -187,19 +195,7 @@ export default function Installments({ isAdmin }) {
                   <td className="subtle">{r.products.join(', ') || r.dealName || '—'}</td>
                   <td>
                     {r.upScale ? (
-                      <span
-                        title={r.upScale}
-                        style={{
-                          display: 'inline-block',
-                          padding: '2px 8px',
-                          borderRadius: 10,
-                          fontSize: '0.72rem',
-                          fontWeight: 600,
-                          whiteSpace: 'nowrap',
-                          color: 'var(--green, #27ae60)',
-                          background: 'var(--surface-inset)',
-                        }}
-                      >
+                      <span title={r.upScale} className="deals-upsell-pill">
                         ↑ {upsoldTo(r.upScale)}
                       </span>
                     ) : (
@@ -210,55 +206,25 @@ export default function Installments({ isAdmin }) {
                   <td className="subtle">
                     {r.closingDate || '—'}
                     {age !== null && (
-                      <span
-                        style={{
-                          marginLeft: 6,
-                          fontSize: '0.72rem',
-                          color: stale ? 'var(--red, #c0392b)' : 'inherit',
-                          fontWeight: stale ? 600 : 400,
-                        }}
-                      >
-                        ({age}d)
-                      </span>
+                      <span className={stale ? 'deals-age stale' : 'deals-age'}>({age}d)</span>
                     )}
                   </td>
-                  <td style={{ textAlign: 'right' }} className="subtle">
-                    {inr(r.amount)}
-                  </td>
-                  <td style={{ textAlign: 'right', color: 'var(--green, #27ae60)' }}>
-                    {inr(r.paid)}
-                  </td>
-                  <td
-                    style={{
-                      textAlign: 'right',
-                      fontWeight: 600,
-                      color: 'var(--red, #c0392b)',
-                    }}
-                  >
-                    {inr(r.pending)}
-                  </td>
+                  <td className="num subtle">{inr(r.amount)}</td>
+                  <td className="num deals-paid">{inr(r.paid)}</td>
+                  <td className="num deals-loss">{inr(r.pending)}</td>
                 </tr>
               );
             })}
-            {shown.length === 0 && !loading && (
-              <tr>
-                <td colSpan={isAdmin ? 9 : 8} className="subtle">
-                  {rows.length === 0
-                    ? 'No pending instalments. A lead appears here once a won deal has an Installment balance set in Bigin.'
-                    : 'No leads match your search.'}
-                </td>
-              </tr>
-            )}
           </tbody>
-        </table>
+        </DataTable>
+      )}
 
-        <div className="subtle" style={{ marginTop: 12, fontSize: '0.75rem' }}>
-          Pending is Bigin&apos;s <strong>Installment</strong> field — the balance the lead
-          still owes on a won deal. Collect the money and set it to 0 in Bigin; the lead
-          drops off this list automatically. Won deals with no balance recorded never
-          appear here.
-        </div>
-      </div>
+      <p className="subtle deals-note">
+        Pending is Bigin&apos;s <strong>Installment</strong> field — the balance the lead
+        still owes on a won deal. Collect the money and set it to 0 in Bigin; the lead
+        drops off this list automatically. Won deals with no balance recorded never
+        appear here.
+      </p>
     </>
   );
 }

@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../api';
 import DateRangeBar from './DateRangeBar';
+import PageHeader from './ui/PageHeader';
+import FilterBar from './ui/FilterBar';
+import DataTable from './ui/DataTable';
+import StatCard, { StatGrid } from './ui/StatCard';
+import EmptyState from './ui/EmptyState';
+import Icon from './ui/Icon';
+import { openLead, rowPhoneKey } from '../route';
 import {
   LEAD_STATES,
   LEAD_STATUS,
@@ -53,9 +60,24 @@ const STATUS_FILTERS = {
   ...Object.fromEntries(LEAD_STATES.map((s) => [s, (l) => statusState(l) === s])),
 };
 
+// The `source` tag each website form sends, via focas-lead-server or the
+// site's own trackLead copy. Listed up front so a form shows in the filter even
+// before its first lead lands; any other tag is listed under its raw value.
+const FORM_LABELS = {
+  'counseling-form': 'Student Registration',
+  'workout-batch': 'Workout Batch',
+  'foundation-school': 'Foundation School',
+  counselling: 'Counselling',
+  'manual-class': 'Manual Class',
+  rti: 'RTI',
+  'audit-crash': 'Audit Crash',
+};
+
+const formLabel = (form) => FORM_LABELS[form] || form;
+
 const dash = (value) => (value == null || value === '' ? '—' : value);
 
-export default function AdLeads({ onOpenTask }) {
+export default function AdLeads() {
   const [range, setRange] = useState(defaultRange);
   const [leads, setLeads] = useState(null);
   const [meta, setMeta] = useState(null);
@@ -63,6 +85,7 @@ export default function AdLeads({ onOpenTask }) {
   const [loading, setLoading] = useState(false);
 
   const [source, setSource] = useState('all');
+  const [form, setForm] = useState('all');
   const [link, setLink] = useState('all');
   const [resolution, setResolution] = useState('all');
   const [status, setStatus] = useState('all');
@@ -100,74 +123,101 @@ export default function AdLeads({ onOpenTask }) {
       pipeline: byState('pipeline'),
       followup: byState('followup'),
       none: byState('none'),
+      forms: all.reduce(
+        (acc, l) => {
+          if (l.source === 'web' && l.form) acc[l.form] = (acc[l.form] || 0) + 1;
+          return acc;
+        },
+        Object.fromEntries(Object.keys(FORM_LABELS).map((f) => [f, 0])),
+      ),
     };
   }, [leads]);
 
   const rows = useMemo(() => {
     let out = leads || [];
     if (source !== 'all') out = out.filter((l) => l.source === source);
+    if (form !== 'all') out = out.filter((l) => l.source === 'web' && l.form === form);
     out = out.filter(LINK_FILTERS[link]);
     out = out.filter(RESOLUTION_FILTERS[resolution]);
     out = out.filter(STATUS_FILTERS[status]);
     return out;
-  }, [leads, source, link, resolution, status]);
+  }, [leads, source, form, link, resolution, status]);
 
   // Every card is a shortcut into one combination of the three filters, so it
   // sets all of them — clicking "Closed with sale" while "Not linked" is still
   // selected would otherwise hand back an empty table.
   function focus(nextLink, nextResolution, nextStatus = 'all') {
     setSource('all');
+    setForm('all');
     setLink(nextLink);
     setResolution(nextResolution);
     setStatus(nextStatus);
   }
 
+  // A card reads as selected when the filters are exactly the combination it sets.
+  const isFocus = (l, r, st = 'all') =>
+    source === 'all' && form === 'all' && link === l && resolution === r && status === st;
+
   return (
     <>
-      <div className="mkt-head">
-        <h2>Ad Leads</h2>
-        <DateRangeBar range={range} onChange={setRange}>
-          <button onClick={() => load(range)} disabled={loading}>
-            {loading ? 'Loading…' : 'Refresh'}
-          </button>
-        </DateRangeBar>
-      </div>
+      <PageHeader
+        actions={
+          <DateRangeBar range={range} onChange={setRange}>
+            <button onClick={() => load(range)} disabled={loading}>
+              <Icon name="refresh" size={14} />
+              {loading ? 'Loading…' : 'Refresh'}
+            </button>
+          </DateRangeBar>
+        }
+      />
 
       {error && <div className="error">{error}</div>}
       {!leads && !error && <p className="subtle">Loading ad leads…</p>}
 
       {leads && (
         <>
-          <div className="summary-grid">
-            <div className="card clickable" onClick={() => focus('all', 'all')}>
-              <div className="num">{formatCount(counts.all)}</div>
-              <div className="label">Captured leads</div>
-            </div>
-            <div className="card clickable" onClick={() => focus('unlinked', 'all')}>
-              <div className="num">{formatCount(counts.unlinked)}</div>
-              <div className="label">Not linked to a follow-up</div>
-            </div>
-            <div className="card clickable" onClick={() => focus('all', 'all', 'won')}>
-              <div className="num">{formatCount(counts.won)}</div>
-              <div className="label">Closed with sale</div>
-            </div>
-            <div className="card clickable" onClick={() => focus('all', 'all', 'lost')}>
-              <div className="num">{formatCount(counts.lost)}</div>
-              <div className="label">Closed without sale</div>
-            </div>
-            <div className="card clickable" onClick={() => focus('all', 'untriaged')}>
-              <div className="num">{formatCount(counts.untriaged)}</div>
-              <div className="label">UTM resolved to nothing</div>
-            </div>
-            <div className="card clickable" onClick={() => focus('all', 'triaged')}>
-              <div className="num">{formatCount(counts.triaged)}</div>
-              <div className="label">Triaged: no Meta campaign</div>
-            </div>
-          </div>
+          <StatGrid>
+            <StatCard
+              label="Captured leads"
+              value={formatCount(counts.all)}
+              active={isFocus('all', 'all')}
+              onClick={() => focus('all', 'all')}
+            />
+            <StatCard
+              label="Not linked to a follow-up"
+              value={formatCount(counts.unlinked)}
+              active={isFocus('unlinked', 'all')}
+              onClick={() => focus('unlinked', 'all')}
+            />
+            <StatCard
+              label="Closed with sale"
+              value={formatCount(counts.won)}
+              active={isFocus('all', 'all', 'won')}
+              onClick={() => focus('all', 'all', 'won')}
+            />
+            <StatCard
+              label="Closed without sale"
+              value={formatCount(counts.lost)}
+              active={isFocus('all', 'all', 'lost')}
+              onClick={() => focus('all', 'all', 'lost')}
+            />
+            <StatCard
+              label="UTM resolved to nothing"
+              value={formatCount(counts.untriaged)}
+              active={isFocus('all', 'untriaged')}
+              onClick={() => focus('all', 'untriaged')}
+            />
+            <StatCard
+              label="Triaged: no Meta campaign"
+              value={formatCount(counts.triaged)}
+              active={isFocus('all', 'triaged')}
+              onClick={() => focus('all', 'triaged')}
+            />
+          </StatGrid>
 
-          <div className="mkt-filters">
+          <FilterBar>
             <label>
-              <span>Source</span>
+              Source
               <select value={source} onChange={(e) => setSource(e.target.value)}>
                 <option value="all">All ({counts.all})</option>
                 <option value="web">Web form ({counts.web})</option>
@@ -175,7 +225,18 @@ export default function AdLeads({ onOpenTask }) {
               </select>
             </label>
             <label>
-              <span>Follow-up</span>
+              Form
+              <select value={form} onChange={(e) => setForm(e.target.value)}>
+                <option value="all">All</option>
+                {Object.entries(counts.forms).map(([f, n]) => (
+                  <option key={f} value={f}>
+                    {formLabel(f)} ({n})
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Follow-up
               <select value={link} onChange={(e) => setLink(e.target.value)}>
                 <option value="all">All</option>
                 <option value="unlinked">Not linked</option>
@@ -183,7 +244,7 @@ export default function AdLeads({ onOpenTask }) {
               </select>
             </label>
             <label>
-              <span>Campaign</span>
+              Campaign
               <select value={resolution} onChange={(e) => setResolution(e.target.value)}>
                 <option value="all">All</option>
                 <option value="resolved">Resolved to a campaign</option>
@@ -192,7 +253,7 @@ export default function AdLeads({ onOpenTask }) {
               </select>
             </label>
             <label>
-              <span>Status</span>
+              Status
               <select value={status} onChange={(e) => setStatus(e.target.value)}>
                 <option value="all">All</option>
                 {LEAD_STATES.map((s) => (
@@ -202,14 +263,16 @@ export default function AdLeads({ onOpenTask }) {
                 ))}
               </select>
             </label>
-          </div>
+          </FilterBar>
 
-          <div className="toolbar">
-            <p id="status">
-              Showing {formatCount(rows.length)} of {formatCount(counts.all)} lead(s) ·{' '}
-              {formatCount(counts.web)} web, {formatCount(counts.meta)} Meta
-            </p>
-          </div>
+          <PageHeader
+            meta={
+              <span id="status">
+                Showing {formatCount(rows.length)} of {formatCount(counts.all)} lead(s) ·{' '}
+                {formatCount(counts.web)} web, {formatCount(counts.meta)} Meta
+              </span>
+            }
+          />
 
           {meta && meta.truncated && (
             <p className="hint">
@@ -220,28 +283,26 @@ export default function AdLeads({ onOpenTask }) {
           )}
 
           {rows.length === 0 ? (
-            <p className="subtle">No leads match the current filters.</p>
+            <EmptyState title="No leads match the current filters" />
           ) : (
-            <div className="mkt-scroll">
-              <table className="tasks mkt-table">
-                <thead>
-                  <tr>
-                    <th>Contact</th>
-                    <th>Captured</th>
-                    <th>Source</th>
-                    <th>UTM</th>
-                    <th>Campaign</th>
-                    <th>Status</th>
-                    <th>Follow-up</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((lead) => (
-                    <LeadRow key={`${lead.source}-${lead.id}`} lead={lead} onOpenTask={onOpenTask} />
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <DataTable className="mkt-wide">
+              <thead>
+                <tr>
+                  <th>Contact</th>
+                  <th>Captured</th>
+                  <th>Source</th>
+                  <th>UTM</th>
+                  <th>Campaign</th>
+                  <th>Status</th>
+                  <th>Follow-up</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((lead) => (
+                  <LeadRow key={`${lead.source}-${lead.id}`} lead={lead} />
+                ))}
+              </tbody>
+            </DataTable>
           )}
         </>
       )}
@@ -249,8 +310,14 @@ export default function AdLeads({ onOpenTask }) {
   );
 }
 
-function LeadRow({ lead, onOpenTask }) {
+function LeadRow({ lead }) {
   const utm = lead.utm;
+  // The row opens the lead page. A lead with no usable phone has nowhere to go.
+  const leadKey = rowPhoneKey(lead, lead.phone);
+  const open = (e) => {
+    e.stopPropagation();
+    openLead(leadKey);
+  };
   const how = lead.resolvedBy ? RESOLVED_BY[lead.resolvedBy] : null;
   // A web lead can arrive with the UTM object present but every field empty —
   // somebody reached the form from an untagged link. That is a different problem
@@ -259,7 +326,7 @@ function LeadRow({ lead, onOpenTask }) {
   const tagged = Boolean(utm) && Object.values(utm).some((v) => v != null && v !== '');
 
   return (
-    <tr>
+    <tr className={leadKey ? 'clickable-row' : undefined} onClick={leadKey ? open : undefined}>
       <td>
         <div className="contact-name">{dash(lead.name)}</div>
         <div className="subtle">{dash(lead.phone)}</div>
@@ -268,7 +335,7 @@ function LeadRow({ lead, onOpenTask }) {
       <td className="subtle">{lead.capturedAt ? new Date(lead.capturedAt).toLocaleString() : '—'}</td>
       <td>
         <span className="badge badge-normal">{lead.source}</span>
-        <div className="subtle">{dash(lead.form)}</div>
+        <div className="subtle">{dash(lead.source === 'web' ? formLabel(lead.form) : lead.form)}</div>
       </td>
       <td>
         {utm && !tagged ? (
@@ -323,10 +390,12 @@ function LeadRow({ lead, onOpenTask }) {
         <LeadStatus lead={lead} />
       </td>
       <td>
-        {lead.linked && lead.task ? (
-          <button className="mkt-open" onClick={() => onOpenTask && onOpenTask(lead.task.id)}>
+        {lead.linked && lead.task && leadKey ? (
+          <button className="mkt-open" onClick={open}>
             Open follow-up
           </button>
+        ) : lead.linked && lead.task ? (
+          <span className="subtle">no phone</span>
         ) : (
           <span className="subtle">not linked</span>
         )}

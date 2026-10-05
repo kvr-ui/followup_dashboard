@@ -1,0 +1,259 @@
+/* Shared bits every view uses: badges, messages, table row states, contact
+   cells. The layout components live in components.css. */
+
+.breakdown {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+/* ---------- Badges ---------- */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+.badge-high {
+  background: var(--red-soft);
+  color: var(--red);
+}
+.badge-normal {
+  background: var(--slate-soft);
+  color: var(--slate);
+}
+.badge-low {
+  background: var(--green-soft);
+  color: var(--green);
+}
+.status-in-progress {
+  background: var(--amber-soft);
+  color: var(--amber);
+}
+.status-completed {
+  background: var(--green-soft);
+  color: var(--green);
+}
+.status-not-started,
+.status-unknown {
+  background: var(--surface-inset);
+  color: var(--ink-2);
+}
+/* Ad Leads: what became of the lead. Green only for a sale — an open pipeline is
+   amber because it is unfinished, not good news. */
+.status-won {
+  background: var(--green-soft);
+  color: var(--green);
+}
+.status-lost {
+  background: var(--red-soft);
+  color: var(--red);
+}
+.status-pipeline {
+  background: var(--amber-soft);
+  color: var(--amber);
+}
+.status-followup {
+  background: var(--slate-soft);
+  color: var(--slate);
+}
+.status-none {
+  background: var(--surface-inset);
+  color: var(--ink-2);
+}
+/* Leads tab: funnel stage (MQL -> SQL -> Closed). */
+.stage-mql {
+  background: var(--slate-soft);
+  color: var(--slate);
+}
+.stage-sql {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+.stage-closed {
+  background: var(--green-soft);
+  color: var(--green);
+}
+#status {
+  color: var(--ink-2);
+  font-size: 0.86rem;
+  margin: 0;
+}
+.clickable-row {
+  cursor: pointer;
+}
+.who {
+  font-weight: 600;
+  color: var(--ink);
+}
+.contact-name {
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.phone-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.15rem;
+}
+.phone-link {
+  font-size: 0.82rem;
+  color: var(--accent);
+}
+
+.copy-btn {
+  background: var(--surface-inset);
+  color: var(--ink-2);
+  border: 1px solid var(--border);
+  padding: 0.1rem 0.45rem;
+  border-radius: 6px;
+  font-size: 0.68rem;
+  font-weight: 500;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+.copy-btn:hover {
+  background: var(--surface-2);
+  border-color: var(--border-strong);
+}
+.copy-btn.copied {
+  background: var(--green-soft);
+  color: var(--green);
+  border-color: var(--green-soft);
+}
+
+/* Row states */
+tr.row-overdue td {
+  background: color-mix(in srgb, var(--red-soft) 55%, var(--surface));
+}
+tr.row-overdue:hover td {
+  background: var(--red-soft);
+}
+tr.row-today td {
+  background: color-mix(in srgb, var(--amber-soft) 60%, var(--surface));
+}
+.tag-overdue {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  font-size: 0.66rem;
+  font-weight: 700;
+  background: var(--red-soft);
+  color: var(--red);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.cell-overdue {
+  color: var(--red);
+  font-weight: 700;
+}
+
+.link-danger {
+  background: transparent;
+  border: none;
+  color: var(--red);
+  padding: 0.3rem 0.5rem;
+  font-size: 0.82rem;
+}
+.link-danger:hover {
+  background: var(--red-soft);
+}
+
+/* ---------- Analytics rate bar ---------- */
+.rate-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 140px;
+}
+.rate-bar {
+  flex: 1;
+  height: 7px;
+  background: var(--surface-inset);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.rate-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.4s ease;
+}
+.rate-num {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--ink-2);
+  min-width: 36px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.error {
+  background: var(--red-soft);
+  color: var(--red);
+  padding: 0.6rem 0.8rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  margin-bottom: 0.85rem;
+}
+.notice {
+  background: var(--green-soft);
+  color: var(--green);
+  padding: 0.6rem 0.8rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  margin-bottom: 0.85rem;
+}
+.hint {
+  background: var(--amber-soft);
+  color: var(--amber);
+  padding: 0.6rem 0.8rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.82rem;
+  margin-bottom: 1rem;
+}
+
+/* ---------- Lead source badges (follow-ups table Source column) ----------
+   Appended block — nothing above is modified.
+
+   Deliberately quiet. This table already spends colour on meaning: the
+   overdue and due-today row highlighting, and the priority/status badges
+   either side. So the two sources carry a tinted dot plus their own ink
+   rather than a loud fill — enough to tell apart at a glance without
+   competing with the row states. Meta takes the accent (blue-slate),
+   Web the green; leads with no ad origin get no badge at all, just the
+   table's standard muted dash. */
+.source-cell {
+  white-space: nowrap;
+}
+.source-badge {
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+/* The dot does the at-a-glance work — it reads as source colour even when
+   the pale fills sit next to the grey Category badge in the previous cell. */
+.source-badge::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: none;
+}
+.source-meta {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  border-color: var(--accent-soft);
+}
+.source-web {
+  background: var(--green-soft);
+  color: var(--green);
+  border-color: var(--green-soft);
+}

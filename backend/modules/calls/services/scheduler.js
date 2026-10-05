@@ -308,6 +308,47 @@ async function reconcileBiginCalls() {
   }
 }
 
+// Nightly safety net for the Funnel's SQL count. The 10-minute poll only reads from its
+// cursor, so a call Bigin logs late, or one a broken deploy saved without its contact id
+// (Oct 2026: prod ran code without biginContactId for days), is never revisited. Once a
+// night we re-read the last NIGHTLY_BIGIN_LOOKBACK_HOURS in full; every write is keyed,
+// so re-reading is free of side effects.
+const NIGHTLY_BIGIN_HOUR_IST = Number(process.env.NIGHTLY_BIGIN_HOUR_IST || 2);
+const NIGHTLY_BIGIN_LOOKBACK_HOURS = Number(process.env.NIGHTLY_BIGIN_LOOKBACK_HOURS || 48);
+const istNow = () => new Date(Date.now() + 330 * 60000);
+
+async function nightlyBiginResync() {
+  const now = istNow();
+  if (now.getUTCHours() !== NIGHTLY_BIGIN_HOUR_IST || running.bigin) return;
+  const today = now.toISOString().slice(0, 10);
+
+  // The last run is kept in SyncState so a restart inside the hour doesn't run it twice.
+  const SyncState = require('../../../models/SyncState');
+  const state = await SyncState.findOne({ job: 'biginCallsNightly' }).lean();
+  const lastDay = state && state.lastRunAt
+    ? new Date(new Date(state.lastRunAt).getTime() + 330 * 60000).toISOString().slice(0, 10)
+    : null;
+  if (lastDay === today) return;
+
+  running.bigin = true;
+  const startedAt = new Date();
+  try {
+    const since = Date.now() - NIGHTLY_BIGIN_LOOKBACK_HOURS * 60 * 60 * 1000;
+    console.log(`[nightly bigin] window ${fmtWindow(since)}`);
+    const t = await biginCalls.syncSince(since);
+    if (t.skipped) return;
+    await commit('biginCallsNightly', startedAt);
+    if (t.created || t.linked) require('./journeyCache').invalidate();
+    console.log(
+      `[nightly bigin] ${t.total} seen — ${t.created} new, ${t.linked} linked, ${t.updated} refreshed`
+    );
+  } catch (err) {
+    console.warn('[nightly bigin] failed:', err.message);
+  } finally {
+    running.bigin = false;
+  }
+}
+
 async function reconcileDeals() {
   if (running.deals) return;
   running.deals = true;
@@ -597,6 +638,8 @@ function start() {
   setInterval(transcribePending, TRANSCRIBE_EVERY_MIN * 60 * 1000);
   setInterval(gradePending, GRADE_EVERY_MIN * 60 * 1000);
   setInterval(auditPipeline, AUDIT_EVERY_MIN * 60 * 1000);
+  // Checks every 10 minutes; runs once, inside NIGHTLY_BIGIN_HOUR_IST.
+  setInterval(nightlyBiginResync, 10 * 60 * 1000);
 }
 
 module.exports = {
@@ -604,6 +647,7 @@ module.exports = {
   reconcileCalls,
   reconcileOutgoingCalls,
   reconcileBiginCalls,
+  nightlyBiginResync,
   reconcileDeals,
   transcribePending,
   gradePending,

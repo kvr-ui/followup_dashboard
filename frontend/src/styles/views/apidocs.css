@@ -1,0 +1,400 @@
+/* ============================================================
+   API Docs tab
+   ============================================================ */
+
+.docs {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  max-width: 1000px;
+}
+
+/* ---- "Start here": base URL, header, live token ---- */
+
+.docs-start {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.docs-start-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.docs-start-label {
+  min-width: 96px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.docs-code-inline {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.78rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 2px 7px;
+  color: var(--ink);
+}
+
+.docs-token {
+  max-width: 46ch;
+  overflow-wrap: anywhere;
+}
+
+/* The token is a live credential, so the warning is a warning and not a hint. */
+.docs-warn {
+  margin: 4px 0 0;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--red);
+  border-left: 3px solid var(--red);
+  background: var(--red-soft);
+  border-radius: 0 6px 6px 0;
+  padding: 8px 10px;
+}
+
+.docs-mini {
+  font-size: 0.72rem;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.docs-mini:hover {
+  background: var(--surface-inset);
+}
+
+/* ---- Search + group nav ---- */
+
+/* The flex gap already spaces the blocks. */
+.docs .filter-bar,
+.docs .sub-tabs {
+  margin-bottom: 0;
+}
+
+.docs-search {
+  flex: 1;
+  max-width: 420px;
+  padding: 8px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  font: inherit;
+  background: var(--surface);
+}
+
+.docs-nav-count {
+  margin-left: var(--space-1);
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+
+/* ---- A group of endpoints ---- */
+
+.docs-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.docs-group h3 {
+  font-size: 1rem;
+}
+
+.docs-blurb {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.6;
+  color: var(--ink-2);
+  max-width: 84ch;
+}
+
+/* ---- One endpoint ---- */
+
+.docs-ep {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.docs-ep.open {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-sm);
+}
+
+.docs-ep-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: none;
+  border: 0;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+
+.docs-ep-head:hover {
+  background: var(--surface-2);
+}
+
+.docs-method {
+  flex: 0 0 auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 3px 7px;
+  border-radius: 5px;
+  min-width: 52px;
+  text-align: center;
+}
+
+.m-get {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+.m-post {
+  background: var(--green-soft);
+  color: var(--green);
+}
+.m-patch {
+  background: var(--amber-soft);
+  color: var(--amber);
+}
+.m-delete {
+  background: var(--red-soft);
+  color: var(--red);
+}
+
+.docs-path {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8rem;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.docs-ep-summary {
+  flex: 1;
+  font-size: 0.8rem;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.docs-chev {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+/* Who may call it. Three distinct colours because "no auth" and "admin only"
+   are opposite facts and must not be skimmable as the same chip. */
+.auth-admin {
+  background: var(--red-soft);
+  color: var(--red);
+}
+.auth-user {
+  background: var(--slate-soft);
+  color: var(--slate);
+}
+.auth-public {
+  background: var(--amber-soft);
+  color: var(--amber);
+}
+
+.docs-ep-body {
+  border-top: 1px solid var(--border);
+  padding: 14px 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background: var(--surface-2);
+}
+
+.docs-note {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.6;
+  color: var(--ink-2);
+  border-left: 3px solid var(--accent);
+  background: var(--accent-soft);
+  border-radius: 0 6px 6px 0;
+  padding: 9px 11px;
+}
+
+.docs-block {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.docs-block-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.78rem;
+  color: var(--ink-2);
+}
+
+.docs-block-head strong {
+  font-size: 0.78rem;
+}
+
+.docs-tabs {
+  display: flex;
+  gap: 4px;
+  margin-right: auto;
+}
+
+.docs-tab {
+  padding: 3px 9px;
+  font-size: 0.72rem;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 6px;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.docs-tab.active {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--surface);
+}
+
+.docs-code {
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.75rem;
+  line-height: 1.6;
+  background: var(--ink);
+  color: var(--surface-inset);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  overflow-x: auto;
+  white-space: pre;
+}
+
+/* A live response can be thousands of lines; it scrolls inside its own box
+   rather than pushing the next endpoint off the page. */
+.docs-live {
+  max-height: 420px;
+  overflow: auto;
+}
+
+.docs-hint {
+  margin: 0;
+  font-size: 0.76rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.docs-hint code {
+  font-size: 0.74rem;
+  background: var(--surface-inset);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+/* ---- Parameter / error tables ---- */
+
+.docs-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.79rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.docs-table td {
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+  color: var(--ink-2);
+}
+
+.docs-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.docs-arg,
+.docs-type,
+.docs-status {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  white-space: nowrap;
+}
+
+.docs-arg {
+  color: var(--ink);
+  font-weight: 600;
+  width: 1%;
+}
+
+.docs-type {
+  color: var(--muted);
+  font-size: 0.73rem;
+  width: 1%;
+}
+
+.docs-status {
+  color: var(--red);
+  font-weight: 600;
+  width: 1%;
+}
+
+/* ---- Try it ---- */
+
+.docs-try {
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 11px 12px;
+  background: var(--surface);
+}
+
+.docs-try-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.docs-try-input {
+  flex: 1;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.76rem;
+  padding: 7px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+.docs-source {
+  margin: 0;
+  font-size: 0.73rem;
+  color: var(--muted);
+}
+
+.docs-source code {
+  font-size: 0.72rem;
+  background: var(--surface-inset);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+/* ---------------------------------------------------------------------------

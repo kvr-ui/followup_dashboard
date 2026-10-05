@@ -7,7 +7,10 @@ import { presetRanges } from '../adStats';
 // A preset reads as active only when BOTH ends still match it, so nudging one
 // date by hand drops the highlight and the range calls itself "Custom" —
 // otherwise a picker can sit lit up on "Last 30 days" while showing 12.
-export default function DateRangeBar({ range, onChange, children }) {
+//
+// `extra` adds view-specific presets to the same segmented group, e.g.
+// Sources' "All time": [{ label, active, onSelect }].
+export default function DateRangeBar({ range, onChange, extra = [], children }) {
   const presets = presetRanges();
   // Two presets can describe the SAME window — on the 7th of a month, "Last 7
   // days" and "This month" are both 1st-to-today — so only the first match
@@ -16,20 +19,32 @@ export default function DateRangeBar({ range, onChange, children }) {
 
   return (
     <div className="mkt-rangebar">
-      <div className="mkt-presets">
+      <div className="tabs" role="group" aria-label="Date range">
         {presets.map((p, i) => {
           const active = i === activeIndex;
           return (
             <button
               key={p.label}
               type="button"
-              className={active ? 'mkt-preset mkt-preset-on' : 'mkt-preset'}
+              className={active ? 'tab active' : 'tab'}
+              aria-pressed={active}
               onClick={() => onChange(p)}
             >
               {p.label}
             </button>
           );
         })}
+        {extra.map((x) => (
+          <button
+            key={x.label}
+            type="button"
+            className={x.active ? 'tab active' : 'tab'}
+            aria-pressed={x.active}
+            onClick={x.onSelect}
+          >
+            {x.label}
+          </button>
+        ))}
       </div>
 
       <div className="mkt-dates">

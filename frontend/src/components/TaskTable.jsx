@@ -1,7 +1,9 @@
 import { formatDateTime, priorityClass, statusClass, getContact } from '../utils';
 import { classifyDue } from '../taskStats';
 import CopyButton from './CopyButton';
+import DataTable from './ui/DataTable';
 import { formatWatch } from '../vslStats';
+import { openLead, toPhoneKey } from '../route';
 
 // Where the lead came from, read straight off the row. The list response carries
 // a denormalised `leadSource`, so this is a plain lookup in a map — never a fetch
@@ -16,25 +18,31 @@ function SourceBadge({ leadSource }) {
   return <span className={`badge source-badge source-${leadSource}`}>{label}</span>;
 }
 
-function TaskRow({ task, receivedAt, category, categorySource, leadSource, vslMinutes, vslPercentage, onSelect }) {
+function TaskRow({ task, receivedAt, category, categorySource, leadSource, vslMinutes, vslPercentage }) {
   const who = task.Who_Id?.name || '—';
   const owner = task.Owner?.name || '—';
   const { phone } = getContact(task);
+  // The row opens the lead page, keyed on the phone. No usable phone, no link.
+  const leadKey = toPhoneKey(phone);
   const { bucket } = classifyDue(task);
   const rowClass = bucket === 'overdue' ? 'row-overdue' : bucket === 'today' ? 'row-today' : '';
 
   return (
-    <tr className={`${rowClass} clickable-row`} onClick={onSelect}>
+    <tr
+      className={leadKey ? `${rowClass} clickable-row`.trim() : rowClass}
+      onClick={leadKey ? () => openLead(leadKey) : undefined}
+    >
       <td>
         <div className="who">{task.Subject || '—'}</div>
       </td>
       <td>
         {category ? (
           <span
-            className="badge badge-normal"
             // A category read out of the subject line is a guess. Say so, quietly —
             // don't let it pass as something the rep actually recorded in Bigin.
-            style={categorySource === 'subject' ? { opacity: 0.7, fontStyle: 'italic' } : undefined}
+            className={
+              categorySource === 'subject' ? 'badge badge-normal badge-inferred' : 'badge badge-normal'
+            }
             title={
               categorySource === 'bigin'
                 ? 'Set in Bigin'
@@ -93,9 +101,9 @@ function TaskRow({ task, receivedAt, category, categorySource, leadSource, vslMi
   );
 }
 
-export default function TaskTable({ tasks, onSelect }) {
+export default function TaskTable({ tasks }) {
   return (
-    <table className="tasks">
+    <DataTable>
       <thead>
         <tr>
           <th>Task</th>
@@ -115,7 +123,6 @@ export default function TaskTable({ tasks, onSelect }) {
         {tasks.map(
           ({
             key,
-            recordId,
             task,
             receivedAt,
             category,
@@ -133,11 +140,10 @@ export default function TaskTable({ tasks, onSelect }) {
               leadSource={leadSource}
               vslMinutes={vslMinutes}
               vslPercentage={vslPercentage}
-              onSelect={() => onSelect?.(recordId)}
             />
           )
         )}
       </tbody>
-    </table>
+    </DataTable>
   );
 }

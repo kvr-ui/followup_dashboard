@@ -1,0 +1,99 @@
+/* ---------- Funnel tab (MQL vs SQL by source x month) ---------- */
+.funnel-intro,
+.funnel-drawer-meta {
+  margin-top: 0;
+}
+.funnel-intro {
+  margin-bottom: var(--space-4);
+}
+
+/* Chained with .data-table so these beat the kit's table rules. */
+table.data-table.funnel-table th,
+table.data-table.funnel-table td {
+  text-align: right;
+  white-space: nowrap;
+  vertical-align: middle;
+  padding: 0.55rem 0.8rem;
+  border-left: 1px solid var(--border);
+  border-bottom: 1px solid var(--border-strong);
+}
+table.data-table.funnel-table tbody tr:nth-child(even) td {
+  background: var(--surface-2);
+}
+table.data-table.funnel-table .funnel-src {
+  text-align: left;
+  position: sticky;
+  left: 0;
+  background: var(--surface);
+  border-left: none;
+}
+table.data-table.funnel-table th.funnel-src {
+  z-index: 2;
+}
+table.data-table.funnel-table .funnel-mh {
+  border-left: 2px solid var(--border-strong);
+}
+table.data-table.funnel-table .funnel-center {
+  text-align: center;
+}
+table.data-table.funnel-table tfoot td {
+  border-top: 2px solid var(--border);
+  border-bottom: none;
+}
+table.data-table.funnel-table .funnel-reasons {
+  text-align: left;
+}
+.funnel-foot {
+  font-weight: 700;
+}
+.funnel-bold {
+  font-weight: 600;
+}
+.funnel-pct {
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+.funnel-unit {
+  font-size: 0.8rem;
+  font-weight: 400;
+}
+.funnel-bar {
+  height: 6px;
+  margin-top: var(--space-2);
+  border-radius: 3px;
+  background: var(--accent-soft);
+  overflow: hidden;
+}
+.funnel-bar-sql {
+  height: 100%;
+  background: var(--accent);
+}
+.funnel-won {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.funnel-won-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 3px;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--accent-ink);
+  cursor: pointer;
+  line-height: 0;
+}
+.funnel-won-btn:hover {
+  background: var(--accent-soft);
+}
+.funnel-won-lead {
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.6rem;
+}
+.funnel-won-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
+}

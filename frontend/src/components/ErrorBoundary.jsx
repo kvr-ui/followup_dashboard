@@ -1,4 +1,6 @@
 import React from 'react';
+import EmptyState from './ui/EmptyState';
+import '../styles/views/reports.css';
 
 /**
  * Catches render/lifecycle errors in the subtree so one bad record or a null-access
@@ -21,14 +23,11 @@ export default class ErrorBoundary extends React.Component {
   render() {
     if (this.state.error) {
       return (
-        <div className="card" style={{ padding: '20px', margin: '24px auto', maxWidth: 520 }}>
-          <h2 style={{ marginTop: 0 }}>Something went wrong</h2>
-          <p className="subtle">
-            This view hit an error and stopped. The rest of the app is fine — reload to try again.
-          </p>
-          <button className="btn" onClick={() => this.setState({ error: null })}>
-            Try again
-          </button>
+        <div className="crash-wrap">
+          <EmptyState title="Something went wrong">
+            <p>This view hit an error and stopped. The rest of the app is fine — reload to try again.</p>
+            <button onClick={() => this.setState({ error: null })}>Try again</button>
+          </EmptyState>
         </div>
       );
     }
