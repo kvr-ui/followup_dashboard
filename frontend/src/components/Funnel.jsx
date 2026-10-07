@@ -61,6 +61,12 @@ const VIEWS = {
     { label: 'Won %', cell: (c) => pct(c.won, c.mql), pct: true },
     { label: 'Revenue', cell: (c) => money(c.revenue) },
     { label: 'Lost', cell: (c) => num(c.lost) },
+    {
+      label: 'Junk',
+      cell: (c) => num(c.junk),
+      title: 'Lost as WrongNumber / Not Enq, Wrong Course/Level or Language Issue',
+    },
+    { label: 'Junk %', cell: (c) => pct(c.junk, c.mql), pct: true },
   ],
 };
 

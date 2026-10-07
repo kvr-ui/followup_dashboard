@@ -14,6 +14,10 @@
 //           Revenue is the sum of those won deals' amounts.
 //   Lost    an MQL whose contact has a lost deal and no won deal. Its lost
 //           reasons feed the top-reasons list on each row.
+//   Junk    a Lost MQL with a JUNK_REASONS lost reason — a wrong number, not
+//           a real enquiry, a course we don't offer, or a language we can't
+//           serve. Shows lead quality per source; every other lost reason is
+//           a real lead that did not convert.
 //
 // Deals count against the month the CONTACT was created, not the deal's
 // closing month — so a source's quality reads straight across a row, and
@@ -47,6 +51,12 @@ const NOT_SET = 'Not set';
 const UNASSIGNED = 'Unassigned';
 const NO_REASON = 'No reason';
 const TOP_REASONS = 3;
+
+// Bigin lost reasons that mark a lead as junk, lower-cased. Bigin's own
+// spellings, typos included.
+const JUNK_REASONS = new Set(
+  ['WrongNumber / Not Enq', 'Wrong Course/Level', 'Language Issue'].map((r) => r.toLowerCase())
+);
 
 const lower = (v) => String(v || '').trim().toLowerCase();
 
@@ -163,6 +173,9 @@ function classifyContacts({ contacts, calls, deals }, query, user, now) {
     const wonDeals = [...matched].filter((d) => d.outcome === 'won');
     const won = wonDeals.length > 0;
     const lost = !won && [...matched].some((d) => d.outcome === 'lost');
+    const reasons = lost
+      ? new Set([...matched].filter((d) => d.outcome === 'lost').map((d) => d.lostReason || NO_REASON))
+      : new Set();
     facts.push({
       contact: c,
       month,
@@ -174,9 +187,8 @@ function classifyContacts({ contacts, calls, deals }, query, user, now) {
       wonDeals,
       revenue: wonDeals.reduce((sum, d) => sum + (Number(d.amount) || 0), 0),
       lost,
-      reasons: lost
-        ? new Set([...matched].filter((d) => d.outcome === 'lost').map((d) => d.lostReason || NO_REASON))
-        : new Set(),
+      junk: [...reasons].some((r) => JUNK_REASONS.has(lower(r))),
+      reasons,
     });
   }
   return { isAdmin, months, owners, facts };
@@ -186,7 +198,7 @@ function classifyContacts({ contacts, calls, deals }, query, user, now) {
 function selectFunnel(src, query, user, now = new Date()) {
   const { isAdmin, months, owners, facts } = classifyContacts(src, query, user, now);
 
-  const empty = () => ({ mql: 0, sql: 0, lateSql: 0, won: 0, lost: 0, revenue: 0 });
+  const empty = () => ({ mql: 0, sql: 0, lateSql: 0, won: 0, lost: 0, junk: 0, revenue: 0 });
   const newRow = () => ({
     byMonth: Object.fromEntries(months.map((m) => [m, empty()])),
     total: empty(),
@@ -214,6 +226,7 @@ function selectFunnel(src, query, user, now = new Date()) {
       if (f.lateSql) bucket.lateSql += 1;
       if (f.won) bucket.won += 1;
       if (f.lost) bucket.lost += 1;
+      if (f.junk) bucket.junk += 1;
       bucket.revenue += f.revenue;
     }
     for (const reason of f.reasons) {
