@@ -39,6 +39,7 @@ const SRC = {
     contact('c10', '2026-09-07T05:00:00Z', 'Facebook', '9000000010', REP_B), // lost: Cold
     contact('c11', '2026-08-15T05:00:00Z', 'fb', null, REP_B), // lost: Cold
     contact('c12', '2026-08-16T05:00:00Z', 'Instagram', '9000000012'), // lost, no reason, unowned
+    contact('c13', '2026-09-08T05:00:00Z', 'WhatsApp', '9000000013', REP_A), // lost: junk + Cold
   ],
   calls: [
     { biginContactId: 'c1', biginDurationSec: 45, startedAt: new Date('2026-09-02T06:00:00Z') },
@@ -60,6 +61,8 @@ const SRC = {
     { contactPhoneKey: '9000000010', outcome: 'lost', lostReason: 'Cold' },
     { contactId: 'c11', outcome: 'lost', lostReason: 'Cold' },
     { contactId: 'c12', outcome: 'lost', lostReason: null },
+    { contactId: 'c13', outcome: 'lost', lostReason: 'WrongNumber / Not Enq' },
+    { contactId: 'c13', outcome: 'lost', lostReason: 'Cold' },
   ],
 };
 
@@ -89,8 +92,8 @@ check('MQL month is the IST created month', () => {
 });
 
 check('SQL needs a Bigin call on the contact, strictly over 30s, in the SAME month', () => {
-  assert.deepStrictEqual(res.byMonth['2026-09'], { mql: 6, sql: 2, lateSql: 0, won: 2, lost: 1, revenue: 70000 });
-  assert.deepStrictEqual(res.byMonth['2026-08'], { mql: 4, sql: 1, lateSql: 1, won: 0, lost: 2, revenue: 0 });
+  assert.deepStrictEqual(res.byMonth['2026-09'], { mql: 7, sql: 2, lateSql: 0, won: 2, lost: 2, junk: 1, revenue: 70000 });
+  assert.deepStrictEqual(res.byMonth['2026-08'], { mql: 4, sql: 1, lateSql: 1, won: 0, lost: 2, junk: 0, revenue: 0 });
 });
 
 check('late SQL: a qualifying call only in a later month', () => {
@@ -99,32 +102,39 @@ check('late SQL: a qualifying call only in a later month', () => {
 });
 
 check('won: deal by contact id or phone, any time; revenue counted once per deal', () => {
-  assert.deepStrictEqual(res.byMonth['2026-07'], { mql: 1, sql: 0, lateSql: 0, won: 1, lost: 0, revenue: 50000 });
-  assert.deepStrictEqual(res.total, { mql: 11, sql: 3, lateSql: 1, won: 3, lost: 3, revenue: 120000 });
+  assert.deepStrictEqual(res.byMonth['2026-07'], { mql: 1, sql: 0, lateSql: 0, won: 1, lost: 0, junk: 0, revenue: 50000 });
+  assert.deepStrictEqual(res.total, { mql: 12, sql: 3, lateSql: 1, won: 3, lost: 4, junk: 1, revenue: 120000 });
   assert.strictEqual(row(res, 'WhatsApp').total.revenue, 70000);
 });
 
 check('lost: a won contact is never lost; reasons ranked, null as No reason', () => {
-  assert.strictEqual(row(res, 'WhatsApp').total.lost, 0);
-  assert.deepStrictEqual(row(res, 'WhatsApp').topLostReasons, []);
+  assert.strictEqual(row(res, 'WhatsApp').byMonth['2026-09'].won, 2);
+  assert.strictEqual(row(res, 'WhatsApp').total.lost, 1); // c13 only, never c9
   assert.deepStrictEqual(res.topLostReasons, [
-    { reason: 'Cold', count: 2 },
+    { reason: 'Cold', count: 3 },
     { reason: 'No reason', count: 1 },
+    { reason: 'WrongNumber / Not Enq', count: 1 },
   ]);
   assert.deepStrictEqual(row(res, 'Facebook').topLostReasons, [{ reason: 'Cold', count: 2 }]);
+});
+
+check('junk: a lost lead with a junk reason, counted once', () => {
+  assert.strictEqual(row(res, 'WhatsApp').total.junk, 1); // c13: junk + Cold
+  assert.strictEqual(row(res, 'Facebook').total.junk, 0); // Cold is not junk
+  assert.strictEqual(row(res, 'Instagram').total.junk, 0); // no reason is not junk
 });
 
 check('owner x month: admin only, Unassigned last', () => {
   assert.deepStrictEqual(
     res.owners.map((o) => [o.owner, o.total.mql]),
-    [[REP_A, 4], [REP_B, 4], ['Unassigned', 3]]
+    [[REP_A, 5], [REP_B, 4], ['Unassigned', 3]]
   );
   assert.strictEqual(res.owners[0].total.revenue, 70000);
   assert.deepStrictEqual(selectFunnel(SRC, {}, rep(REP_A), NOW).owners, []);
 });
 
 check('sources merge case/short forms; Not set last', () => {
-  assert.strictEqual(row(res, 'WhatsApp').total.mql, 3);
+  assert.strictEqual(row(res, 'WhatsApp').total.mql, 4);
   assert.strictEqual(row(res, 'Instagram').total.mql, 3);
   assert.strictEqual(res.sources[res.sources.length - 1].source, 'Not set');
   assert.strictEqual(funnelSourceName(' fb '), 'Facebook');
@@ -137,7 +147,7 @@ check('sources merge case/short forms; Not set last', () => {
 
 check('a rep counts their own contacts plus unowned ones', () => {
   const r = selectFunnel(SRC, {}, rep(REP_A), NOW);
-  assert.strictEqual(r.total.mql, 7); // c1, c2, c8, c9 (A) + c5, c6, c12 (unowned)
+  assert.strictEqual(r.total.mql, 8); // c1, c2, c8, c9, c13 (A) + c5, c6, c12 (unowned)
   assert.deepStrictEqual(r.facets.owners, []);
 });
 
