@@ -211,7 +211,10 @@ async function reconcileOutgoingCalls() {
             // transcribable — instead of creating a second row for the same call.
             const twin = await biginCalls.findBiginTwin(doc);
             if (twin) {
-              Object.assign(twin, doc, { source: 'telecmi' });
+              // Skip TeleCMI's nulls: when the number isn't a lead it has no leadPhone/
+              // leadName, and blanking Bigin's values would drop the contact from the row.
+              const known = Object.fromEntries(Object.entries(doc).filter(([, v]) => v != null));
+              Object.assign(twin, known, { source: 'telecmi' });
               // It was parked as `skipped` for want of a recording; now there is one.
               if (twin.transcriptionStatus === 'skipped' && shouldTranscribe(twin)) {
                 twin.transcriptionStatus = 'pending';
@@ -496,8 +499,14 @@ async function pipelineReport({ graceMin = AUDIT_GRACE_MIN, heal = true } = {}) 
   // miss: it was written at hangup, before the recording existed. Re-ask now.
   // shouldTranscribe depends on outcome under a narrow TRANSCRIBE_SCOPE, so it cannot be
   // expressed as a query — filter in JS. Bounded, because a healthy system has ~none.
-  const skippedWithAudio = await Call.find({ ...old, transcriptionStatus: 'skipped', hasRecording: true })
-    .limit(500);
+  // Bigin-only rows are excluded in the query (not just by shouldTranscribe): there are
+  // thousands of them parked on purpose, and they would otherwise fill the 500 cap.
+  const skippedWithAudio = await Call.find({
+    ...old,
+    transcriptionStatus: 'skipped',
+    hasRecording: true,
+    $or: [{ source: { $ne: 'bigin' } }, { filename: { $ne: null } }],
+  }).limit(500);
   const revivable = skippedWithAudio.filter((c) => shouldTranscribe(c));
 
   const [inFlight, awaitingGrade, deadTranscribe, deadGradeTotal, noSpeech] = await Promise.all([

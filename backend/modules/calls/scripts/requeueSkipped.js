@@ -31,7 +31,7 @@ async function run() {
   await connectDB();
 
   const skipped = await Call.find({ transcriptionStatus: 'skipped' })
-    .select('_id duration outcome hasRecording startedAt')
+    .select('_id duration outcome hasRecording startedAt source filename')
     .sort({ startedAt: -1 })
     .lean();
 

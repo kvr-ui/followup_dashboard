@@ -26,6 +26,11 @@ function outcomeOf(stage) {
 /** Should this call be transcribed, given our scope setting? */
 function shouldTranscribe(call) {
   if (!call.hasRecording || call.duration < MIN_DURATION) return false;
+  // A Bigin-only row's "recording" is a Zoho PhoneBridge URL, which needs an OAuth scope
+  // we don't hold. Its audio arrives via TeleCMI's outgoing feed, which adopts the row and
+  // attaches a `filename` — only then is it transcribable. Every requeue path (deal
+  // update, pipeline audit, requeueSkipped) goes through here, so guard it once.
+  if (call.source === 'bigin' && !call.filename) return false;
   if (SCOPE === 'all') return true;
   if (SCOPE === 'closed') return call.outcome === 'won' || call.outcome === 'lost';
   return call.outcome === 'won';

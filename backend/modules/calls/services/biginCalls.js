@@ -107,14 +107,18 @@ async function findTelecmiTwin(doc) {
  * must find the other's row. Without this the same call exists twice — once with a
  * recording and once without — and the rep's call count doubles.
  */
-async function findBiginTwin({ startedAt, leadPhone }) {
-  if (!startedAt || !leadPhone) return null;
-  const k = key10(leadPhone);
-  if (!k) return null;
+async function findBiginTwin({ startedAt, leadPhone, direction, to, from }) {
+  // leadPhone is null whenever the customer isn't in our leads DB, and requiring it left
+  // those calls duplicated (a transcribed TeleCMI row beside a stranded Bigin one). Fall
+  // back to the customer's leg: on outbound out_cdr rows `from` is the office DID, so use
+  // `to`. Never match on all phoneKeys — some Bigin rows are keyed on the DID itself.
+  const customer = direction === 'outbound' ? to : from;
+  const keys = [...new Set([key10(leadPhone), key10(customer)].filter(Boolean))];
+  if (!startedAt || !keys.length) return null;
 
   return Call.findOne({
     source: 'bigin',
-    phoneKeys: k,
+    phoneKeys: { $in: keys },
     startedAt: {
       $gte: new Date(new Date(startedAt).getTime() - DEDUPE_WINDOW_MS),
       $lte: new Date(new Date(startedAt).getTime() + DEDUPE_WINDOW_MS),
