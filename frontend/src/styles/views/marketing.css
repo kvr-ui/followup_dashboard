@@ -343,3 +343,34 @@ table.data-table td.src-divider {
   font-size: 0.82rem;
   line-height: 1.5;
 }
+
+/* ---------- Ad Performance ---------- */
+/* Campaign -> ad set -> ad tree inside one table. Indent the name cell; the
+   toggle and its spacer share a width so names line up at every level. */
+.adp-name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.adp-indent-1 {
+  padding-left: 1.25rem;
+}
+.adp-indent-2 {
+  padding-left: 2.5rem;
+}
+.adp-toggle,
+.adp-toggle-spacer {
+  flex: 0 0 1.25rem;
+  width: 1.25rem;
+}
+.adp-toggle {
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  line-height: 1;
+}
+.adp-table tr.adp-adset td,
+.adp-table tr.adp-ad td {
+  background: var(--surface-2);
+}

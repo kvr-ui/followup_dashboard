@@ -142,6 +142,16 @@ async function runSyncAll(range) {
   const accountInsights = await runTracked('insights:account', () =>
     syncInsights({ from: range.from, to: range.to, level: 'account' })
   );
+  // Per ad, for the Ad Performance tab's ad set / ad spend. Best-effort like
+  // leads: losing it costs that breakdown, not the campaign numbers above.
+  let adInsights = 0;
+  try {
+    adInsights = await runTracked('insights:ad', () =>
+      syncInsights({ from: range.from, to: range.to, level: 'ad' })
+    );
+  } catch (err) {
+    console.warn('[ads sync] ad-level insights failed, continuing:', err.message);
+  }
 
   // Leads are best-effort: the form ids are configured separately and the
   // permission is separate too, so a failure here must not lose the spend data
@@ -155,7 +165,7 @@ async function runSyncAll(range) {
 
   await rebuildCplCache();
 
-  return { campaigns, creatives, adsets, ads, insights, accountInsights, leads };
+  return { campaigns, creatives, adsets, ads, insights, accountInsights, adInsights, leads };
 }
 
 /**

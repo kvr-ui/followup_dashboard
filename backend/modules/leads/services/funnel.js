@@ -60,6 +60,9 @@ const JUNK_REASONS = new Set(
 
 const lower = (v) => String(v || '').trim().toLowerCase();
 
+/** Is this Bigin lost reason a junk one? Shared with the Ad Performance tab. */
+const isJunkReason = (reason) => JUNK_REASONS.has(lower(reason));
+
 // Short forms and spellings of one channel. Keys are lower-case.
 const SOURCE_ALIASES = {
   ig: 'Instagram',
@@ -187,7 +190,7 @@ function classifyContacts({ contacts, calls, deals }, query, user, now) {
       wonDeals,
       revenue: wonDeals.reduce((sum, d) => sum + (Number(d.amount) || 0), 0),
       lost,
-      junk: [...reasons].some((r) => JUNK_REASONS.has(lower(r))),
+      junk: [...reasons].some(isJunkReason),
       reasons,
     });
   }
@@ -395,4 +398,5 @@ module.exports = {
   selectWonLeads,
   funnelSourceName,
   istMonth,
+  isJunkReason,
 };

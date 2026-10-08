@@ -40,6 +40,8 @@ const cplCache = require('../services/cplCache');
 const { phoneFromFieldData } = require('../services/leadLinker');
 const { getSourceRollup } = require('../services/sourceRollup');
 const { LEAD_STATES, leadStatus } = require('../services/leadState');
+const { DEAL_FIELDS, indexDeals } = require('../services/dealJoin');
+const { buildAdPerformance } = require('../services/adPerformance');
 const { NAME_FIELDS, EMAIL_FIELDS, fieldValue } = require('../services/metaFields');
 const { rateLimit } = require('../middleware/rateLimit');
 const { authenticate, requireAdmin } = require('../../../middleware/auth');
@@ -309,18 +311,6 @@ function clamp(raw, fallback, min, max) {
 
 const TASK_FIELDS = { _id: 1, phone: 1, 'body.Who_Id': 1, 'body.Status': 1 };
 
-// Enough of a Deal to say what happened, and nothing more — this list runs up to
-// 1,000 rows wide and a Deal carries a products subform.
-const DEAL_FIELDS = {
-  socialLeadId: 1,
-  contactPhoneKey: 1,
-  stage: 1,
-  outcome: 1,
-  amount: 1,
-  closingDate: 1,
-  modifiedTime: 1,
-};
-
 /** Query-string boolean: `?unlinked=1`, `?unlinked=true` and `?unlinked` are all true. */
 function boolParam(raw) {
   if (raw === undefined) return undefined;
@@ -357,30 +347,6 @@ function taskSummary(task) {
   if (!task) return null;
   const who = (task.body && task.body.Who_Id) || {};
   return { id: String(task._id), name: who.name || null, phone: task.phone || who.phone || null };
-}
-
-// A contact can carry several deals. Won beats lost beats open — a lead that lost
-// one deal and won another HAS bought — and within a rank the newest wins.
-const OUTCOME_RANK = { won: 0, lost: 1, open: 2 };
-
-function bestDeal(a, b) {
-  if (!a) return b;
-  if (!b) return a;
-  const rank = (d) => (OUTCOME_RANK[d.outcome] === undefined ? 3 : OUTCOME_RANK[d.outcome]);
-  if (rank(a) !== rank(b)) return rank(a) < rank(b) ? a : b;
-  const at = a.modifiedTime ? new Date(a.modifiedTime).getTime() : 0;
-  const bt = b.modifiedTime ? new Date(b.modifiedTime).getTime() : 0;
-  return bt > at ? b : a;
-}
-
-function indexDeals(deals, keyOf) {
-  const map = new Map();
-  for (const deal of deals) {
-    const key = keyOf(deal);
-    if (!key) continue;
-    map.set(String(key), bestDeal(map.get(String(key)), deal));
-  }
-  return map;
 }
 
 // Each row's `status` comes from leadStatus() in services/leadState — the one
@@ -630,6 +596,31 @@ router.get('/leads', async (req, res) => {
     });
   } catch (err) {
     return serverError(res, 'load ad leads', err);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/ads/performance — leads, junk and sales per campaign / ad set / ad
+// ---------------------------------------------------------------------------
+
+/**
+ * The Ad Performance tab. Leads captured in the range, bucketed by what their
+ * deal says today, rolled up campaign -> ad set -> ad, with spend for the same
+ * dates. See services/adPerformance for which leads count and how.
+ */
+router.get('/performance', async (req, res) => {
+  const range = parseRange(req.query);
+  if (range.error) return fail(res, 400, range.error);
+  try {
+    const result = await buildAdPerformance(range);
+    return res.json({
+      success: true,
+      range,
+      units: { spend: 'rupees', revenue: 'rupees' },
+      ...result,
+    });
+  } catch (err) {
+    return serverError(res, 'load ad performance', err);
   }
 });
 

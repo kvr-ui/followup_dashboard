@@ -2,6 +2,7 @@ import FollowUps from './components/FollowUps';
 import Calls from './components/Calls';
 import Leads from './components/Leads';
 import AdLeads from './components/AdLeads';
+import AdPerformance from './components/AdPerformance';
 import Funnel from './components/Funnel';
 import Installments from './components/Installments';
 import Upsells from './components/Upsells';
@@ -63,6 +64,7 @@ export const MODULES = [
     tabs: [
       { id: 'campaigns', label: 'Campaigns', component: Marketing, adminOnly: true, legacy: 'marketing' },
       { id: 'sources', label: 'Sources', component: Sources, adminOnly: true, legacy: 'sources' },
+      { id: 'ad-performance', label: 'Ad Performance', component: AdPerformance, adminOnly: true },
       { id: 'vsl', label: 'VSL Tracking', component: VSLTracking, legacy: 'vsl' },
     ],
   },
