@@ -157,6 +157,21 @@ export default function AdPerformance() {
           </tr>
         );
       }
+      if (s.noAd) {
+        rows.push(
+          <tr key={`na:${c.id}:${s.id}`} className="adp-ad">
+            <td>
+              <div className="adp-name adp-indent-2">
+                <span className="adp-toggle-spacer" />
+                <span className="subtle" title="LeadChain records the ad set, not the ad">
+                  Ad not tracked
+                </span>
+              </div>
+            </td>
+            <Cells counts={s.noAd.counts} spend={null} />
+          </tr>
+        );
+      }
     }
 
     if (c.landingPage) {
@@ -249,7 +264,7 @@ export default function AdPerformance() {
               </DataTable>
             )}
             <p className="subtle mkt-note">
-              Leads are Meta form leads (Bigin contacts LeadChain tagged with the ad) plus
+              Leads are Meta form leads (Bigin contacts LeadChain tagged with campaign and ad set) plus
               landing-page leads matched to a campaign, picked by capture date; the outcome is what the Bigin deal says today. Junk + Lost + Won +
               Pipeline + No deal = Leads. One person on the same ad counts once. Junk is a lost
               deal with reason Wrong Number, Wrong Course/Level or Language Issue.

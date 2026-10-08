@@ -6,8 +6,9 @@
 // Three sources:
 //   meta   Meta instant-form leads synced from the Graph API (MetaLead) — needs
 //          the leads_retrieval permission, so may be empty.
-//   bigin  Bigin contacts LeadChain stamped with the Meta campaign / ad set / ad
-//          ids (Contact.metaCampaignId etc.). Joins to its deal by contact id.
+//   bigin  Bigin contacts LeadChain stamped with the Meta campaign and ad set ids
+//          (Contact.metaCampaignId / metaAdsetId). LeadChain cannot map the ad
+//          id, so these stop at the ad set. Joins to its deal by contact id.
 //   web    landing-page leads whose UTM resolved to a Meta campaign. A landing-page lead
 // knows its campaign but never its ad, so it sits under its campaign in a
 // separate "landing page" bucket rather than being guessed onto an ad.
@@ -73,15 +74,14 @@ const time = (v) => (v ? new Date(v).getTime() || 0 : 0);
 function normaliseLeads(metaLeads, webLeads, adById, contacts = []) {
   const all = [];
   for (const c of contacts) {
-    const ad = c.metaAdId ? adById.get(String(c.metaAdId)) : null;
     all.push({
       source: 'bigin',
       id: String(c.zohoId),
       capturedAt: c.createdTime,
       phoneKey: (c.phoneKeys && c.phoneKeys[0]) || null,
-      campaignId: String(c.metaCampaignId || (ad && ad.campaignId) || UNKNOWN),
-      adsetId: String(c.metaAdsetId || (ad && ad.adsetId) || UNKNOWN),
-      adId: String(c.metaAdId || UNKNOWN),
+      campaignId: String(c.metaCampaignId || UNKNOWN),
+      adsetId: String(c.metaAdsetId || UNKNOWN),
+      adId: UNKNOWN,
     });
   }
   for (const l of metaLeads) {
@@ -131,7 +131,7 @@ function normaliseLeads(metaLeads, webLeads, adById, contacts = []) {
  * @param {object} input
  * @param {object[]} input.metaLeads   MetaLead docs ({_id, createdTime, adId, campaignId, phoneKey})
  * @param {object[]} input.webLeads    WebLead docs ({_id, createdAt, resolvedCampaignId, phoneKey})
- * @param {object[]} [input.contacts]  Contact docs carrying Meta ids ({zohoId, createdTime, phoneKeys, metaCampaignId, metaAdsetId, metaAdId})
+ * @param {object[]} [input.contacts]  Contact docs carrying Meta ids ({zohoId, createdTime, phoneKeys, metaCampaignId, metaAdsetId})
  * @param {object[]} input.deals       Deal docs matched by socialLeadId or contactPhoneKey
  * @param {object[]} input.campaigns   MetaCampaign {_id, name}
  * @param {object[]} input.adsets      MetaAdset {_id, name, campaignId}
@@ -211,7 +211,14 @@ function rollUpPerformance(input) {
     } else {
       const adset = adsetNode(campaign, lead.adsetId);
       addTo(adset.counts, bucket, deal);
-      addTo(adNode(adset, lead.adId).counts, bucket, deal);
+      // A lead that names its ad set but not its ad (every Bigin/LeadChain lead)
+      // counts on the ad set only, in an explicit "ad not tracked" bucket.
+      if (lead.adId === UNKNOWN) {
+        if (!adset.noAd) adset.noAd = emptyCounts();
+        addTo(adset.noAd, bucket, deal);
+      } else {
+        addTo(adNode(adset, lead.adId).counts, bucket, deal);
+      }
     }
   }
 
@@ -253,6 +260,7 @@ function rollUpPerformance(input) {
           name: s.name,
           counts: roundCounts(s.counts),
           spend: s.spend === null ? null : money(s.spend),
+          noAd: s.noAd ? { counts: roundCounts(s.noAd) } : null,
           ads: [...s.ads.values()]
             .map((a) => ({
               id: a.id,
@@ -294,9 +302,9 @@ async function buildAdPerformance(range) {
     Contact.find(
       {
         createdTime: { $gte: after, $lt: before },
-        $or: [{ metaCampaignId: { $ne: null } }, { metaAdId: { $ne: null } }],
+        metaCampaignId: { $ne: null },
       },
-      { zohoId: 1, createdTime: 1, phoneKeys: 1, metaCampaignId: 1, metaAdsetId: 1, metaAdId: 1 }
+      { zohoId: 1, createdTime: 1, phoneKeys: 1, metaCampaignId: 1, metaAdsetId: 1 }
     ).lean(),
     MetaInsight.find({ level: 'campaign', ...rangeFilter(range) }, { entityId: 1, spend: 1 })
       .sort({ entityId: 1, dateStart: 1, dateStop: 1 })
@@ -323,7 +331,6 @@ async function buildAdPerformance(range) {
     ...new Set(
       [
         ...metaLeads.map((l) => l.adId),
-        ...contacts.map((c) => c.metaAdId),
         ...adSpendRows.map((r) => r.entityId),
       ].filter(Boolean)
     ),

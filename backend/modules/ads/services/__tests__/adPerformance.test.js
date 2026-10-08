@@ -114,20 +114,22 @@ test('spend: campaign from campaign rows, ad set/ad from ad rows, null when unsy
   assert.deepEqual(Object.fromEntries(set.ads.map((a) => [a.id, a.spend])), { a1: 60, a2: 40.5 });
 });
 
-test('Bigin contacts with LeadChain ad ids count on their ad and join deals by contact id', () => {
+test('Bigin contacts count on their ad set (ad not tracked) and join deals by contact id', () => {
   const input = base();
   input.contacts = [
-    { zohoId: 'z1', createdTime: new Date('2026-10-01'), phoneKeys: ['9000000011'], metaCampaignId: 'c1', metaAdsetId: 's1', metaAdId: 'a1' },
-    { zohoId: 'z2', createdTime: new Date('2026-10-01'), phoneKeys: ['9000000012'], metaCampaignId: null, metaAdsetId: null, metaAdId: 'a2' },
+    { zohoId: 'z1', createdTime: new Date('2026-10-01'), phoneKeys: ['9000000011'], metaCampaignId: 'c1', metaAdsetId: 's1' },
+    { zohoId: 'z2', createdTime: new Date('2026-10-01'), phoneKeys: ['9000000012'], metaCampaignId: 'c1', metaAdsetId: 's1' },
   ];
   input.deals = [
     { contactId: 'z1', outcome: 'won', amount: 3000 },
     { contactId: 'z2', outcome: 'lost', lostReason: 'Wrong Course/Level' },
   ];
   const [c] = rollUpPerformance(input).campaigns;
-  assert.equal(c.id, 'c1'); // z2's campaign is inferred from its ad
-  const byAd = Object.fromEntries(c.adsets[0].ads.map((a) => [a.id, a.counts]));
-  assert.equal(byAd.a1.won, 1);
-  assert.equal(byAd.a2.junk, 1);
+  assert.equal(c.id, 'c1');
+  const [set] = c.adsets;
+  assert.equal(set.ads.length, 0);
+  assert.equal(set.counts.leads, 2);
+  assert.equal(set.noAd.counts.won, 1);
+  assert.equal(set.noAd.counts.junk, 1);
   assert.equal(c.counts.revenue, 3000);
 });
