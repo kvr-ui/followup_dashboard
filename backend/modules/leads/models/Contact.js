@@ -24,6 +24,12 @@ const contactSchema = new mongoose.Schema(
     // Contacts.Lead_Source1, verbatim (free text in Bigin).
     leadSource: { type: String, default: null },
 
+    // The Meta campaign / ad set / ad behind the lead, as LeadChain stamped them
+    // (see contactStore.fromBiginRecord for which Bigin field carries which).
+    metaCampaignId: { type: String, default: null, index: true },
+    metaAdsetId: { type: String, default: null },
+    metaAdId: { type: String, default: null, index: true },
+
     ownerName: { type: String, default: null },
     ownerEmail: { type: String, default: null, index: true },
 

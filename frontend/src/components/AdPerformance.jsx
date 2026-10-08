@@ -249,8 +249,8 @@ export default function AdPerformance() {
               </DataTable>
             )}
             <p className="subtle mkt-note">
-              Leads are Meta form fills plus landing-page leads matched to a campaign, picked by
-              capture date; the outcome is what the Bigin deal says today. Junk + Lost + Won +
+              Leads are Meta form leads (Bigin contacts LeadChain tagged with the ad) plus
+              landing-page leads matched to a campaign, picked by capture date; the outcome is what the Bigin deal says today. Junk + Lost + Won +
               Pipeline + No deal = Leads. One person on the same ad counts once. Junk is a lost
               deal with reason Wrong Number, Wrong Course/Level or Language Issue.
               {!data.adSpendAvailable &&

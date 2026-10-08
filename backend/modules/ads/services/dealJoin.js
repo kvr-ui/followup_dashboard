@@ -6,6 +6,7 @@
 // thousands of rows wide and a Deal carries a products subform.
 const DEAL_FIELDS = {
   socialLeadId: 1,
+  contactId: 1,
   contactPhoneKey: 1,
   stage: 1,
   outcome: 1,

@@ -20,6 +20,15 @@ const text = (v) => {
   return s || null;
 };
 
+// LeadChain writes the Meta ad that produced a lead into three REUSED Bigin
+// fields (there was no spare custom field): Mailing_Country = campaign id,
+// Description = ad set id, Other_Country = ad id. Only an all-digit value is a
+// Meta id — anything else is a real country or note someone typed, and is ignored.
+const metaId = (v) => {
+  const s = text(v);
+  return s && /^\d{6,25}$/.test(s) ? s : null;
+};
+
 /** A Bigin Contacts record (REST shape) -> our Contact fields. */
 function fromBiginRecord(rec) {
   if (!rec || !rec.id) return null;
@@ -35,6 +44,9 @@ function fromBiginRecord(rec) {
     mobile,
     phoneKeys: [...new Set([phoneKey(phone), phoneKey(mobile)].filter(Boolean))],
     leadSource: text(rec.Lead_Source1),
+    metaCampaignId: metaId(rec.Mailing_Country),
+    metaAdsetId: metaId(rec.Description),
+    metaAdId: metaId(rec.Other_Country),
     ownerName: text(owner.name),
     ownerEmail: text(owner.email) ? owner.email.trim().toLowerCase() : null,
     createdTime: toDate(rec.Created_Time),
@@ -66,6 +78,9 @@ function normalizeContactPayload(b) {
     Phone: pick('Phone', 'phone'),
     Mobile: pick('Mobile', 'mobile'),
     Lead_Source1: pick('Lead_Source1', 'lead_source1', 'Lead_Source', 'lead_source', 'leadSource'),
+    Mailing_Country: pick('Mailing_Country', 'mailing_country'),
+    Description: pick('Description', 'description'),
+    Other_Country: pick('Other_Country', 'other_country'),
     Created_Time: pick('Created_Time', 'created_time', 'createdTime'),
     Modified_Time: pick('Modified_Time', 'modified_time', 'modifiedTime'),
     Owner: b.Owner || {

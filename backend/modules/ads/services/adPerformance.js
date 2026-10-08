@@ -3,8 +3,12 @@
 //
 // WHICH LEADS
 // -----------
-// Meta instant-form leads (Meta names the ad and campaign outright) plus
-// landing-page leads whose UTM resolved to a Meta campaign. A landing-page lead
+// Three sources:
+//   meta   Meta instant-form leads synced from the Graph API (MetaLead) — needs
+//          the leads_retrieval permission, so may be empty.
+//   bigin  Bigin contacts LeadChain stamped with the Meta campaign / ad set / ad
+//          ids (Contact.metaCampaignId etc.). Joins to its deal by contact id.
+//   web    landing-page leads whose UTM resolved to a Meta campaign. A landing-page lead
 // knows its campaign but never its ad, so it sits under its campaign in a
 // separate "landing page" bucket rather than being guessed onto an ad.
 //
@@ -33,6 +37,7 @@ const MetaAdset = require('../models/MetaAdset');
 const MetaAd = require('../models/MetaAd');
 const MetaInsight = require('../models/MetaInsight');
 const Deal = require('../../calls/models/Deal');
+const Contact = require('../../leads/models/Contact');
 const { isJunkReason } = require('../../leads/services/funnel');
 const { DEAL_FIELDS, indexDeals } = require('./dealJoin');
 const { rangeFilter, nextDay, money } = require('./adMetrics');
@@ -65,8 +70,20 @@ const time = (v) => (v ? new Date(v).getTime() || 0 : 0);
  * Normalise both lead sources into one shape, drop test leads, and keep only the
  * earliest lead per (bucket, phone).
  */
-function normaliseLeads(metaLeads, webLeads, adById) {
+function normaliseLeads(metaLeads, webLeads, adById, contacts = []) {
   const all = [];
+  for (const c of contacts) {
+    const ad = c.metaAdId ? adById.get(String(c.metaAdId)) : null;
+    all.push({
+      source: 'bigin',
+      id: String(c.zohoId),
+      capturedAt: c.createdTime,
+      phoneKey: (c.phoneKeys && c.phoneKeys[0]) || null,
+      campaignId: String(c.metaCampaignId || (ad && ad.campaignId) || UNKNOWN),
+      adsetId: String(c.metaAdsetId || (ad && ad.adsetId) || UNKNOWN),
+      adId: String(c.metaAdId || UNKNOWN),
+    });
+  }
   for (const l of metaLeads) {
     const ad = l.adId ? adById.get(String(l.adId)) : null;
     all.push({
@@ -114,6 +131,7 @@ function normaliseLeads(metaLeads, webLeads, adById) {
  * @param {object} input
  * @param {object[]} input.metaLeads   MetaLead docs ({_id, createdTime, adId, campaignId, phoneKey})
  * @param {object[]} input.webLeads    WebLead docs ({_id, createdAt, resolvedCampaignId, phoneKey})
+ * @param {object[]} [input.contacts]  Contact docs carrying Meta ids ({zohoId, createdTime, phoneKeys, metaCampaignId, metaAdsetId, metaAdId})
  * @param {object[]} input.deals       Deal docs matched by socialLeadId or contactPhoneKey
  * @param {object[]} input.campaigns   MetaCampaign {_id, name}
  * @param {object[]} input.adsets      MetaAdset {_id, name, campaignId}
@@ -129,6 +147,7 @@ function rollUpPerformance(input) {
   const campaignName = new Map(input.campaigns.map((c) => [String(c._id), c.name]));
 
   const dealByLeadId = indexDeals(input.deals, (d) => d.socialLeadId);
+  const dealByContactId = indexDeals(input.deals, (d) => d.contactId);
   const dealByPhone = indexDeals(
     input.deals.filter((d) => !PLACEHOLDER_PHONES.has(String(d.contactPhoneKey))),
     (d) => d.contactPhoneKey
@@ -175,9 +194,10 @@ function rollUpPerformance(input) {
 
   const totals = emptyCounts();
 
-  for (const lead of normaliseLeads(input.metaLeads, input.webLeads, adById)) {
+  for (const lead of normaliseLeads(input.metaLeads, input.webLeads, adById, input.contacts)) {
     const deal =
       (lead.source === 'meta' && dealByLeadId.get(lead.id)) ||
+      (lead.source === 'bigin' && dealByContactId.get(lead.id)) ||
       (lead.phoneKey && dealByPhone.get(lead.phoneKey)) ||
       null;
     const bucket = outcomeOf(deal);
@@ -258,7 +278,7 @@ async function buildAdPerformance(range) {
   const after = new Date(`${range.from}T00:00:00`);
   const before = new Date(`${nextDay(range.to)}T00:00:00`);
 
-  const [metaLeads, webLeads, campaignSpend, adSpendRows, anyAdSpend] = await Promise.all([
+  const [metaLeads, webLeads, contacts, campaignSpend, adSpendRows, anyAdSpend] = await Promise.all([
     MetaLead.find(
       { createdTime: { $gte: range.from, $lt: nextDay(range.to) } },
       { _id: 1, createdTime: 1, adId: 1, campaignId: 1, phoneKey: 1 }
@@ -270,6 +290,13 @@ async function buildAdPerformance(range) {
         resolvedBy: { $ne: 'unmapped' },
       },
       { _id: 1, createdAt: 1, resolvedCampaignId: 1, phoneKey: 1 }
+    ).lean(),
+    Contact.find(
+      {
+        createdTime: { $gte: after, $lt: before },
+        $or: [{ metaCampaignId: { $ne: null } }, { metaAdId: { $ne: null } }],
+      },
+      { zohoId: 1, createdTime: 1, phoneKeys: 1, metaCampaignId: 1, metaAdsetId: 1, metaAdId: 1 }
     ).lean(),
     MetaInsight.find({ level: 'campaign', ...rangeFilter(range) }, { entityId: 1, spend: 1 })
       .sort({ entityId: 1, dateStart: 1, dateStop: 1 })
@@ -284,19 +311,27 @@ async function buildAdPerformance(range) {
   ]);
 
   const socialIds = [...new Set(metaLeads.map((l) => String(l._id)))];
+  const contactIds = contacts.map((c) => String(c.zohoId));
   const phoneKeys = [
     ...new Set(
-      [...metaLeads, ...webLeads]
+      [...metaLeads, ...webLeads, ...contacts.map((c) => ({ phoneKey: (c.phoneKeys || [])[0] }))]
         .map((l) => l.phoneKey)
         .filter((k) => k && !PLACEHOLDER_PHONES.has(k))
     ),
   ];
   const adIds = [
-    ...new Set([...metaLeads.map((l) => l.adId), ...adSpendRows.map((r) => r.entityId)].filter(Boolean)),
+    ...new Set(
+      [
+        ...metaLeads.map((l) => l.adId),
+        ...contacts.map((c) => c.metaAdId),
+        ...adSpendRows.map((r) => r.entityId),
+      ].filter(Boolean)
+    ),
   ];
 
-  const [dealsById, dealsByPhone, ads] = await Promise.all([
+  const [dealsById, dealsByContact, dealsByPhone, ads] = await Promise.all([
     socialIds.length ? Deal.find({ socialLeadId: { $in: socialIds } }, DEAL_FIELDS).lean() : [],
+    contactIds.length ? Deal.find({ contactId: { $in: contactIds } }, DEAL_FIELDS).lean() : [],
     phoneKeys.length ? Deal.find({ contactPhoneKey: { $in: phoneKeys } }, DEAL_FIELDS).lean() : [],
     adIds.length
       ? MetaAd.find({ _id: { $in: adIds } }, { name: 1, adsetId: 1, campaignId: 1 }).lean()
@@ -304,13 +339,18 @@ async function buildAdPerformance(range) {
   ]);
 
   const adsetIds = [
-    ...new Set([...ads.map((a) => a.adsetId), ...adSpendRows.map((r) => r.adsetId)].filter(Boolean)),
+    ...new Set(
+      [...ads.map((a) => a.adsetId), ...contacts.map((c) => c.metaAdsetId), ...adSpendRows.map((r) => r.adsetId)].filter(
+        Boolean
+      )
+    ),
   ];
   const campaignIds = [
     ...new Set(
       [
         ...metaLeads.map((l) => l.campaignId),
         ...webLeads.map((l) => l.resolvedCampaignId),
+        ...contacts.map((c) => c.metaCampaignId),
         ...ads.map((a) => a.campaignId),
         ...campaignSpend.map((r) => r.entityId),
         ...adSpendRows.map((r) => r.campaignId),
@@ -332,7 +372,8 @@ async function buildAdPerformance(range) {
   return rollUpPerformance({
     metaLeads,
     webLeads,
-    deals: [...dealsById, ...dealsByPhone],
+    deals: [...dealsById, ...dealsByContact, ...dealsByPhone],
+    contacts,
     campaigns,
     adsets,
     ads,
