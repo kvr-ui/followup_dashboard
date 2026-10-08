@@ -42,10 +42,7 @@ const Contact = require('../../leads/models/Contact');
 const { isJunkReason } = require('../../leads/services/funnel');
 const { DEAL_FIELDS, indexDeals } = require('./dealJoin');
 const { rangeFilter, nextDay, money } = require('./adMetrics');
-
-// Test contacts, never real leads — and a phone join on them would hand one
-// person's deal to every test submission.
-const PLACEHOLDER_PHONES = new Set(['9999999999', '9876543210']);
+const { PLACEHOLDER_PHONES } = require('../../../utils/phone');
 
 const UNKNOWN = 'unknown';
 
