@@ -1,4 +1,4 @@
-const { buildRepLifecycle, listLifecycleOwners } = require('../services/repLifecycle');
+const { buildRepLifecycle, buildLeadPreCall, listLifecycleOwners } = require('../services/repLifecycle');
 const { parseRange, daysAgo, localIso } = require('../../ads/services/adMetrics');
 
 // The Rep Lifecycle tab (admin-only): lead-in -> first call, by outcome, for one
@@ -36,4 +36,16 @@ async function repLifecycleOwners(req, res) {
   }
 }
 
-module.exports = { repLifecycle, repLifecycleOwners };
+/** GET /api/calls/rep-lifecycle/lead/:contactId — one lead's pre-call timeline. */
+async function repLifecycleLead(req, res) {
+  try {
+    const lead = await buildLeadPreCall(req.params.contactId);
+    if (!lead) return fail(res, 404, 'No such contact');
+    return res.json({ success: true, lead });
+  } catch (err) {
+    console.error('[rep lifecycle] lead failed:', err.message);
+    return fail(res, 500, 'Failed to load the lead timeline');
+  }
+}
+
+module.exports = { repLifecycle, repLifecycleOwners, repLifecycleLead };

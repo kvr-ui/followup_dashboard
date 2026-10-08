@@ -17,6 +17,7 @@ const biginCalls = require('./biginCalls');
 const { runBatch, requeueStale, dueFilter } = require('./transcriptionWorker');
 const grader = require('./grader');
 const { sinceFor, commit, fmtWindow } = require('../../../services/lookback');
+const { syncRecent } = require('../../wati/services/watiSync');
 
 const CALL_POLL_MIN = Number(process.env.CALL_POLL_MINUTES || 15);
 const BIGIN_POLL_MIN = Number(process.env.BIGIN_CALL_POLL_MINUTES || 10);
@@ -609,6 +610,12 @@ async function auditPipeline() {
   }
 }
 
+const WATI_SYNC_MIN = Number(process.env.WATI_SYNC_MIN || 30);
+
+function syncRecentChats() {
+  return syncRecent().catch((e) => console.warn('[wati sync] failed:', e.message));
+}
+
 function start() {
   if (process.env.CALL_JOBS_ENABLED === 'false') {
     console.log('Call jobs disabled (CALL_JOBS_ENABLED=false)');
@@ -639,6 +646,8 @@ function start() {
   // Last in the stagger: the audit judges what the jobs above left behind, so it must
   // not run before they have had their turn.
   setTimeout(auditPipeline, 150 * 1000);
+  // WATI chats for the Rep Lifecycle tab — off the call pipeline's path entirely.
+  setTimeout(syncRecentChats, 180 * 1000);
 
   setInterval(reconcileCalls, CALL_POLL_MIN * 60 * 1000);
   setInterval(reconcileOutgoingCalls, CALL_POLL_MIN * 60 * 1000);
@@ -649,6 +658,7 @@ function start() {
   setInterval(auditPipeline, AUDIT_EVERY_MIN * 60 * 1000);
   // Checks every 10 minutes; runs once, inside NIGHTLY_BIGIN_HOUR_IST.
   setInterval(nightlyBiginResync, 10 * 60 * 1000);
+  setInterval(syncRecentChats, WATI_SYNC_MIN * 60 * 1000);
 }
 
 module.exports = {

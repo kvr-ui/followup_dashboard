@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { rollUpLifecycle, speedBucket, dedupeTwins } = require('../repLifecycle');
+const { rollUpLifecycle, speedBucket, dedupeTwins, analyseLead } = require('../repLifecycle');
 
 const REP = 'veera@focasedu.com';
 const T0 = new Date('2026-10-01T04:30:00Z'); // 10:00 IST, a Thursday
@@ -110,8 +110,9 @@ test('outcomes split junk from lost and the signal rows add up', () => {
   assert.equal(summary.open.leads, 1);
   assert.equal(summary.won.revenue, 20000);
   assert.equal(summary.won.medianMinsToDial, 3);
-  for (const rows of Object.values(signals)) {
-    if (rows === signals.templates) continue;
+  for (const [key, rows] of Object.entries(signals)) {
+    // templates and topics are multi/partial by design; vsl is null with no VSL cluster.
+    if (!rows || key === 'templates' || key === 'topics') continue;
     assert.equal(rows.reduce((s, r) => s + r.leads, 0), 4);
   }
   assert.equal(row(signals.speed, 'lt5m').winPct, 100);
@@ -175,4 +176,127 @@ test('dedupeTwins keeps calls further apart than the twin window', () => {
   assert.equal(kept.length, 2);
   assert.equal(kept[0].talkSec, 40);
   assert.equal(kept[0].by, REP);
+});
+
+// ---- before the first call: WATI chat and VSL ------------------------------
+
+const item = (mins, kind, extra = {}) => ({ at: at(mins), kind, ...extra });
+
+test('lead-in moves to the first WhatsApp message in the week before Bigin', () => {
+  const input = base();
+  input.contacts = [contact('c1', '9000000001', 20)];
+  input.chats = [{ phoneKey: '9000000001', items: [item(0, 'lead', { text: 'Hi' })] }];
+  input.calls = [call('9000000001', 25, { duration: 60 })];
+  const [lead] = rollUpLifecycle(input).leads;
+  assert.equal(lead.leadInSource, 'whatsapp');
+  assert.equal(lead.minsToDial, 25);
+});
+
+test('chat: bot answers vs enquiries, rep chat, cut off at the first dial', () => {
+  const input = base();
+  input.contacts = [contact('c1', '9000000001')];
+  input.chats = [
+    {
+      phoneKey: '9000000001',
+      items: [
+        item(0, 'lead', { text: 'Hi' }),
+        item(1, 'flow', { state: 'started', name: 'Contact Onboarding v3' }),
+        item(2, 'bot', { text: 'Which group?' }),
+        item(3, 'lead', { text: '2' }), // a bot answer, not an enquiry
+        item(4, 'flow', { state: 'ended', name: 'Contact Onboarding v3' }),
+        item(5, 'bot', { text: 'https://www.focasedu.online/vsl?phone=91900' }),
+        item(6, 'lead', { text: 'I need details about last attempt kit' }),
+        item(7, 'rep', { text: 'May i call now ?' }),
+        item(30, 'lead', { text: 'What is the fee?' }), // after the first dial: ignored
+      ],
+    },
+  ];
+  input.calls = [call('9000000001', 10, { duration: 120 })];
+  const { leads, signals } = rollUpLifecycle(input);
+  const [lead] = leads;
+  assert.equal(lead.firstMover, 'lead');
+  assert.equal(lead.bot, 'completed');
+  assert.equal(lead.botFlow, 'Contact Onboarding v3');
+  assert.equal(lead.botAnswers, 1);
+  assert.equal(lead.leadMsgs, 2);
+  assert.equal(lead.firstEnquiry, 'I need details about last attempt kit');
+  assert.deepEqual(lead.topics.sort(), ['attempt', 'details', 'kit']);
+  assert.equal(lead.repChat, 'yes');
+  assert.equal(lead.askedToCall, true);
+  assert.equal(lead.vslLinkSent, true);
+  assert.equal(row(signals.bot, 'completed').leads, 1);
+  assert.equal(row(signals.topics, 'fees'), undefined);
+});
+
+test('chat: not synced vs no chat; unfinished bot; greetings only', () => {
+  const input = base();
+  input.contacts = [contact('c1', '9000000001'), contact('c2', '9000000002'), contact('c3', '9000000003')];
+  input.chats = [
+    { phoneKey: '9000000002', items: [] },
+    {
+      phoneKey: '9000000003',
+      items: [item(1, 'flow', { state: 'started', name: 'Onb' }), item(2, 'lead', { text: '1' }), item(9, 'flow', { state: 'expired', name: 'Onb' }), item(10, 'lead', { text: 'ok' })],
+    },
+  ];
+  const { leads, signals } = rollUpLifecycle(input);
+  const byId = Object.fromEntries(leads.map((l) => [l.contactId, l]));
+  assert.equal(byId.c1.bot, 'unsynced');
+  assert.equal(byId.c2.firstMover, 'none');
+  assert.equal(byId.c2.bot, 'none');
+  assert.equal(byId.c3.firstMover, 'us');
+  assert.equal(byId.c3.bot, 'unfinished');
+  assert.deepEqual(byId.c3.topics, ['none']);
+  assert.equal(row(signals.bot, 'unsynced').leads, 1);
+});
+
+test('VSL: peak before the first dial, bucket edges, no record', () => {
+  const input = base();
+  input.vslAvailable = true;
+  input.contacts = [contact('c1', '9000000001'), contact('c2', '9000000002'), contact('c3', '9000000003')];
+  input.vsl = [
+    {
+      phoneKey: '9000000001',
+      firstOpenedAt: at(2),
+      events: [
+        { at: at(3), type: 'play_started', pct: 0 },
+        { at: at(5), type: 'milestone', pct: 25 },
+        { at: at(60), type: 'completed', pct: 100 }, // after the dial
+      ],
+    },
+    { phoneKey: '9000000002', firstOpenedAt: at(2), events: [] },
+  ];
+  input.calls = [call('9000000001', 10)];
+  const { leads, signals } = rollUpLifecycle(input);
+  const byId = Object.fromEntries(leads.map((l) => [l.contactId, l]));
+  assert.equal(byId.c1.vsl, '25to75');
+  assert.equal(byId.c1.vslPeakPct, 25);
+  assert.equal(byId.c2.vsl, 'openedNoPlay');
+  assert.equal(byId.c3.vsl, 'noLink');
+  assert.equal(signals.vsl.reduce((s, r) => s + r.leads, 0), 3);
+});
+
+test('VSL signal is null when the VSL cluster is not configured', () => {
+  const input = base();
+  input.contacts = [contact('c1', '9000000001')];
+  const { signals, leads } = rollUpLifecycle(input);
+  assert.equal(signals.vsl, null);
+  assert.equal(leads[0].vsl, null);
+});
+
+test('timeline runs lead-in to first connect, in order', () => {
+  const lead = analyseLead({
+    contact: contact('c1', '9000000001'),
+    formTimes: [],
+    calls: [call('9000000001', 10), call('9000000001', 20, { duration: 90 }), call('9000000001', 99, { duration: 30 })],
+    deal: null,
+    whatsapp: [],
+    chat: [item(1, 'lead', { text: 'hello' }), item(15, 'rep', { text: 'call?' }), item(50, 'lead', { text: 'late' })],
+    vsl: { firstOpenedAt: at(4), events: [{ at: at(5), type: 'play_started', pct: 0 }] },
+    vslAvailable: true,
+    taskHistory: [{ createdTime: at(12), subject: 'CB', category: 'Call Back' }],
+    withTimeline: true,
+  });
+  const kinds = lead.timeline.map((t) => t.kind);
+  assert.deepEqual(kinds, ['leadIn', 'lead', 'vsl', 'vsl', 'call', 'task', 'rep', 'call']);
+  assert.ok(lead.timeline.every((t, i, a) => i === 0 || a[i - 1].at <= t.at));
 });

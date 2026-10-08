@@ -27,7 +27,9 @@ async function watiFetch(path, options = {}) {
   });
   const json = await res.json().catch(() => ({}));
   if (!res.ok) {
-    throw new Error(json.message || json.info || `WATI error ${res.status}`);
+    const err = new Error(json.message || json.info || `WATI error ${res.status}`);
+    err.status = res.status;
+    throw err;
   }
   return json;
 }
@@ -82,4 +84,19 @@ async function sendTemplate(number, templateName, parameters = []) {
   }
 }
 
-module.exports = { isConfigured, getTemplates, sendTemplate, normalizeNumber };
+// One page of a contact's chat history, newest first: messages, template sends
+// and ticket events (bot flows, chat opened/closed). Throws on an HTTP error so
+// the sync can tell a rate limit from an empty chat.
+async function getMessages(number, pageNumber = 1, pageSize = 100) {
+  const num = normalizeNumber(number);
+  if (!num) return { items: [], hasMore: false };
+  const json = await watiFetch(
+    `/api/v1/getMessages/${num}?pageSize=${pageSize}&pageNumber=${pageNumber}`,
+    { method: 'GET' }
+  );
+  const items = (json.messages && json.messages.items) || [];
+  const link = json.link || {};
+  return { items, hasMore: Boolean(link.nextPage) || items.length === pageSize };
+}
+
+module.exports = { isConfigured, getTemplates, sendTemplate, normalizeNumber, getMessages };
