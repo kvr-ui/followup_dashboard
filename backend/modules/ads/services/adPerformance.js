@@ -42,14 +42,13 @@
 //
 // `mql` and `sql` are NOT buckets — they are cumulative funnel counters that
 // overlap the buckets (leads ≥ mql ≥ sql):
-//   mql  the lead exists as a Bigin contact (a bigin lead IS one; a web/meta
-//        lead is one when a contact shares its phone key)
-//   sql  the lead has any deal, or any call strictly longer than
-//        SQL_MIN_CALL_SEC — leadState.funnelStage's rule, with NO time window
-//        (deliberately NOT the Funnel tab's same-calendar-month rule, which
-//        would punish ads launched late in a month). deal ⇒ sql ⇒ mql, always,
-//        so the funnel is monotone even when a deal joined by Meta's lead id has
-//        no phone-matched contact.
+//   mql  the lead had at least one CONNECTED call (talk time > 0, either
+//        direction, whenever it happened — the Rep Lifecycle tab's "connect")
+//   sql  a Bigin deal exists for the lead. deal ⇒ sql ⇒ mql, always, so the
+//        funnel is monotone even when a deal joined by Meta's lead id has no
+//        phone-matched call (e.g. a WhatsApp-only sale).
+//        NOTE: the Funnel and Ad Leads tabs still use leadState's older rule
+//        (SQL = deal or a 30s+ call), so their numbers differ by design.
 //
 // `stages` on a node is the open-deal pipeline broken down by the raw Bigin
 // stage string; its values sum to counts.pipeline.
@@ -70,7 +69,6 @@ const { isJunkReason } = require('../../leads/services/funnel');
 const { DEAL_FIELDS, indexDeals } = require('./dealJoin');
 const { rangeFilter, nextDay, money } = require('./adMetrics');
 const { canonicalSource } = require('./leadSourceName');
-const { SQL_MIN_CALL_SEC } = require('./leadState');
 const { PLACEHOLDER_PHONES, OFFICE_DID } = require('../../../utils/phone');
 
 const UNKNOWN = 'unknown';
@@ -100,12 +98,11 @@ function outcomeOf(deal) {
  * for — see the file header.
  */
 function funnelFlags(lead, deal, sets) {
-  const sql =
-    Boolean(deal) ||
-    Boolean(lead.phoneKey && sets.sqlPhones.has(lead.phoneKey)) ||
-    (lead.source === 'bigin' && sets.sqlContactIds.has(lead.id));
+  const sql = Boolean(deal);
   const mql =
-    sql || lead.source === 'bigin' || Boolean(lead.phoneKey && sets.mqlPhones.has(lead.phoneKey));
+    sql ||
+    Boolean(lead.phoneKey && sets.connectedPhones.has(lead.phoneKey)) ||
+    (lead.source === 'bigin' && sets.connectedContactIds.has(lead.id));
   return { mql, sql };
 }
 
@@ -215,8 +212,8 @@ function sourceRowOf(lead) {
 }
 
 /**
- * The pure roll-up: leads + deals + names + spend in, campaign tree AND source /
- * medium rows out. No DB.
+ * The pure roll-up: leads + deals + names + spend in; campaign tree, source /
+ * medium rows AND campaign × medium rows out. No DB.
  *
  * @param {object} input
  * @param {object[]} input.metaLeads   MetaLead docs ({_id, createdTime, adId, campaignId, phoneKey})
@@ -231,9 +228,8 @@ function sourceRowOf(lead) {
  * @param {object[]} input.campaignSpend  campaign-level insight rows {entityId, spend}
  * @param {object[]|null} input.adSpend   ad-level insight rows {entityId, adsetId, campaignId, spend};
  *        null when ad-level spend has never been synced, so ad set / ad spend is unknown, not zero.
- * @param {Set<string>} [input.mqlPhones]     phone keys that have a Bigin contact
- * @param {Set<string>} [input.sqlPhones]     phone keys with a qualifying (> SQL_MIN_CALL_SEC) call
- * @param {Set<string>} [input.sqlContactIds] Bigin contact ids with a qualifying call
+ * @param {Set<string>} [input.connectedPhones]     phone keys with a connected (talk time > 0) call
+ * @param {Set<string>} [input.connectedContactIds] Bigin contact ids with a connected call
  */
 function rollUpPerformance(input) {
   const adById = new Map(input.ads.map((a) => [String(a._id), a]));
@@ -242,9 +238,8 @@ function rollUpPerformance(input) {
   const campaignName = new Map(input.campaigns.map((c) => [String(c._id), c.name]));
 
   const sets = {
-    mqlPhones: input.mqlPhones || new Set(),
-    sqlPhones: input.sqlPhones || new Set(),
-    sqlContactIds: input.sqlContactIds || new Set(),
+    connectedPhones: input.connectedPhones || new Set(),
+    connectedContactIds: input.connectedContactIds || new Set(),
   };
 
   const dealByLeadId = indexDeals(input.deals, (d) => d.socialLeadId);
@@ -365,6 +360,40 @@ function rollUpPerformance(input) {
     applyLead(sourceTotals, bucket, deal, flags);
   }
 
+  // --- The campaign × medium view — every capture ----------------------------
+  // One row per campaign + utm_medium. Only web leads carry a medium (Meta's
+  // {{placement}} macro); Meta lead-form leads and Bigin contacts land in
+  // "(no medium)" under their campaign. A literal, unsubstituted "{{placement}}"
+  // is kept verbatim — it flags a tagging bug, hiding it would bury that.
+  const cmCampaignOf = (lead) => String(treeCampaignOf(lead) || UNKNOWN);
+  const cmMediumOf = (lead) =>
+    lead.source === 'web' ? String(lead.utmMedium || '').trim() : '';
+  const cmKeyOf = (lead) =>
+    `cm:${cmCampaignOf(lead)}|${cmMediumOf(lead).toLowerCase() || '-'}`;
+
+  const cmRows = new Map();
+  const cmTotals = emptyNode();
+  for (const lead of dedupBy(allLeads, cmKeyOf)) {
+    const deal = dealFor(lead);
+    const bucket = outcomeOf(deal);
+    const flags = funnelFlags(lead, deal, sets);
+    const key = cmKeyOf(lead);
+    if (!cmRows.has(key)) {
+      const campaignId = cmCampaignOf(lead);
+      const medium = cmMediumOf(lead);
+      cmRows.set(key, {
+        key,
+        campaignId: campaignId === UNKNOWN ? null : campaignId,
+        campaignName: campaignId === UNKNOWN ? null : campaignName.get(campaignId) || null,
+        // First-seen casing wins, same as the source rows.
+        medium: medium || null,
+        ...emptyNode(),
+      });
+    }
+    applyLead(cmRows.get(key), bucket, deal, flags);
+    applyLead(cmTotals, bucket, deal, flags);
+  }
+
   // Spend. Campaign totals come from campaign-level rows — the same numbers the
   // Marketing tab shows. Ad set and ad spend come from ad-level rows.
   let totalSpend = 0;
@@ -438,11 +467,39 @@ function rollUpPerformance(input) {
     }))
     .sort((a, b) => b.counts.leads - a.counts.leads || a.label.localeCompare(b.label));
 
+  // Rows of one campaign sit together: campaigns by their total leads, mediums
+  // by leads within the campaign. "(no campaign)" (null id) sorts by weight too.
+  const cmLeadsByCampaign = new Map();
+  for (const r of cmRows.values()) {
+    const id = r.campaignId || UNKNOWN;
+    cmLeadsByCampaign.set(id, (cmLeadsByCampaign.get(id) || 0) + r.counts.leads);
+  }
+  const campaignMedium = [...cmRows.values()]
+    .map((r) => ({
+      key: r.key,
+      campaignId: r.campaignId,
+      campaignName: r.campaignName,
+      medium: r.medium,
+      counts: roundCounts(r.counts),
+      stages: stagesOf(r.stages),
+    }))
+    .sort((a, b) => {
+      const ca = cmLeadsByCampaign.get(a.campaignId || UNKNOWN);
+      const cb = cmLeadsByCampaign.get(b.campaignId || UNKNOWN);
+      if (cb !== ca) return cb - ca;
+      const idA = a.campaignId || '';
+      const idB = b.campaignId || '';
+      if (idA !== idB) return idA.localeCompare(idB);
+      return b.counts.leads - a.counts.leads || String(a.medium).localeCompare(String(b.medium));
+    });
+
   return {
     totals: { counts: roundCounts(totals.counts), stages: stagesOf(totals.stages), spend: money(totalSpend) },
     campaigns: tree,
     sources,
     sourceTotals: { counts: roundCounts(sourceTotals.counts), stages: stagesOf(sourceTotals.stages) },
+    campaignMedium,
+    campaignMediumTotals: { counts: roundCounts(cmTotals.counts), stages: stagesOf(cmTotals.stages) },
     adSpendAvailable: Boolean(input.adSpend),
   };
 }
@@ -508,32 +565,23 @@ async function buildAdPerformance(range) {
     ),
   ];
 
-  const [dealsById, dealsByContact, dealsByPhone, ads, mqlContacts, sqlCalls] = await Promise.all([
+  const [dealsById, dealsByContact, dealsByPhone, ads, connectedCalls] = await Promise.all([
     socialIds.length ? Deal.find({ socialLeadId: { $in: socialIds } }, DEAL_FIELDS).lean() : [],
     contactIds.length ? Deal.find({ contactId: { $in: contactIds } }, DEAL_FIELDS).lean() : [],
     phoneKeys.length ? Deal.find({ contactPhoneKey: { $in: phoneKeys } }, DEAL_FIELDS).lean() : [],
     adIds.length
       ? MetaAd.find({ _id: { $in: adIds } }, { name: 1, adsetId: 1, campaignId: 1 }).lean()
       : [],
-    // MQL: does a Bigin contact (from ANY time, not just the range) share the
-    // lead's phone key?
-    phoneKeys.length
-      ? Contact.find({ phoneKeys: { $in: phoneKeys } }, { phoneKeys: 1 }).lean()
-      : [],
-    // SQL: a call strictly longer than SQL_MIN_CALL_SEC, whenever it happened
-    // (decision: no time window). The $or is a prefilter — the authoritative
-    // rule is leadList's callSeconds (Bigin's duration when logged there, the
-    // TeleCMI one otherwise), applied in JS below, so a call with a long TeleCMI
-    // leg but a 20s Bigin log does NOT qualify.
+    // MQL: a CONNECTED call — any talk time at all, whenever it happened
+    // (decision: no time window). Connect = max(duration, biginDurationSec) > 0,
+    // the Rep Lifecycle tab's rule, so the two tabs agree on what "connected"
+    // means. The $or is the same rule as a Mongo prefilter.
     phoneKeys.length || contactIds.length
       ? Call.find(
           {
             $and: [
               {
-                $or: [
-                  { duration: { $gt: SQL_MIN_CALL_SEC } },
-                  { biginDurationSec: { $gt: SQL_MIN_CALL_SEC } },
-                ],
+                $or: [{ duration: { $gt: 0 } }, { biginDurationSec: { $gt: 0 } }],
               },
               {
                 $or: [
@@ -548,18 +596,15 @@ async function buildAdPerformance(range) {
       : [],
   ]);
 
-  const mqlPhones = new Set();
-  for (const c of mqlContacts) for (const k of c.phoneKeys || []) mqlPhones.add(k);
-
-  const callSeconds = (c) => Number(c.biginDurationSec != null ? c.biginDurationSec : c.duration) || 0;
-  const sqlPhones = new Set();
-  const sqlContactIds = new Set();
-  for (const call of sqlCalls) {
-    if (!(callSeconds(call) > SQL_MIN_CALL_SEC)) continue;
+  const talkSeconds = (c) => Math.max(Number(c.duration) || 0, Number(c.biginDurationSec) || 0);
+  const connectedPhones = new Set();
+  const connectedContactIds = new Set();
+  for (const call of connectedCalls) {
+    if (!(talkSeconds(call) > 0)) continue;
     for (const k of call.phoneKeys || []) {
-      if (k && k !== OFFICE_DID && !PLACEHOLDER_PHONES.has(k)) sqlPhones.add(k);
+      if (k && k !== OFFICE_DID && !PLACEHOLDER_PHONES.has(k)) connectedPhones.add(k);
     }
-    if (call.biginContactId) sqlContactIds.add(String(call.biginContactId));
+    if (call.biginContactId) connectedContactIds.add(String(call.biginContactId));
   }
 
   const adsetIds = [
@@ -607,9 +652,8 @@ async function buildAdPerformance(range) {
     ads,
     campaignSpend,
     adSpend: anyAdSpend ? adSpendRows : null,
-    mqlPhones,
-    sqlPhones,
-    sqlContactIds,
+    connectedPhones,
+    connectedContactIds,
   });
 }
 

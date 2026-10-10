@@ -17,24 +17,28 @@ import {
 } from '../adStats';
 
 // The Ad Performance tab — the full funnel (Leads → MQL → SQL → Pipeline → Won)
-// per campaign, ad set and ad, against the spend; and the same funnel grouped by
-// source / medium ("which channel works best"). Renders GET /api/ads/performance
-// verbatim; the only client-side maths is the per-row rates in
-// adStats.performanceRates.
+// per campaign, ad set and ad, against the spend; the same funnel grouped by
+// source / medium ("which channel works best"); and by campaign × utm_medium
+// ("which placement works for which campaign"). Renders GET
+// /api/ads/performance verbatim; the only client-side maths is the per-row
+// rates in adStats.performanceRates.
 //
-// TWO VIEWS, TWO UNIVERSES (the backend's rule, restated in the footnote): the
-// campaign tree counts only ad-attributed leads, the source view counts every
-// capture — so the source view's totals are the larger ones, by design.
+// THREE VIEWS, TWO UNIVERSES (the backend's rule, restated in the footnote):
+// the campaign tree counts only ad-attributed leads; the source and campaign ×
+// medium views count every capture — so their totals are the larger ones, by
+// design.
 //
 // The outcome columns do not overlap (Junk + Lost + Won + Pipeline + No deal =
 // Leads; Lost and No deal live in the Leads cell's tooltip). MQL and SQL are
 // cumulative funnel counts that overlap them: Leads ≥ MQL ≥ SQL.
+// MQL = at least one connected call (talk time > 0 — the Rep Lifecycle tab's
+// "connect"). SQL = a Bigin deal exists.
 
 const COUNT_COLUMNS = [
   { key: 'leads', label: 'Leads', title: 'Hover for Lost / No deal — the columns that left the grid' },
-  { key: 'mql', label: 'MQL', title: 'Exists as a Bigin contact (LeadChain leads are contacts; web/Meta leads match by phone)' },
+  { key: 'mql', label: 'MQL', title: 'At least one connected call (any talk time, either direction, whenever it happened)' },
   { key: 'mqlPct', label: 'MQL %', rate: true, title: 'MQL as % of leads' },
-  { key: 'sql', label: 'SQL', title: 'Has any Bigin deal, or any call over 30s — whenever it happened' },
+  { key: 'sql', label: 'SQL', title: 'A Bigin deal exists for this lead' },
   { key: 'sqlPct', label: 'SQL %', rate: true, title: 'SQL as % of MQL' },
   { key: 'pipeline', label: 'Pipeline', title: 'Deal still open — click the count for the stage breakdown' },
   { key: 'won', label: 'Won', title: 'Closed with sale' },
@@ -126,7 +130,7 @@ const KIND_TITLES = {
 
 export default function AdPerformance() {
   const [range, setRange] = useState(defaultRange);
-  const [view, setView] = useState('tree'); // 'tree' | 'source'
+  const [view, setView] = useState('tree'); // 'tree' | 'source' | 'cm'
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -161,8 +165,10 @@ export default function AdPerformance() {
 
   const totals = data && data.totals;
   const sourceTotals = data && data.sourceTotals;
+  const cmTotals = data && data.campaignMediumTotals;
   const campaigns = (data && data.campaigns) || [];
   const sources = (data && data.sources) || [];
+  const campaignMedium = (data && data.campaignMedium) || [];
 
   // One row + its optional expanded stage breakdown.
   const pushRow = (rows, key, nameCell, node, spend, rowClass) => {
@@ -283,9 +289,66 @@ export default function AdPerformance() {
     );
   }
 
+  // --- Campaign × medium rows ------------------------------------------------
+  const cmRows = [];
+  for (const r of campaignMedium) {
+    pushRow(
+      cmRows,
+      `cm:${r.key}`,
+      <div className="adp-name">
+        <span className="adp-toggle-spacer" />
+        <span className="who">{r.campaignName || '(no campaign)'}</span>{' '}
+        <span className={r.medium ? undefined : 'subtle'} title="utm_medium — Meta substitutes {{placement}} (e.g. Instagram_Story) on landing-page links">
+          · {r.medium || '(no medium)'}
+        </span>
+      </div>,
+      r,
+      null,
+      'adp-campaign'
+    );
+  }
+
   const isTree = view === 'tree';
-  const kpiCounts = isTree ? totals && totals.counts : sourceTotals && sourceTotals.counts;
-  const kpiRates = kpiCounts ? performanceRates(kpiCounts, isTree ? totals.spend : null) : null;
+  // Everything that differs between the three views, in one place.
+  const viewConfig = {
+    tree: {
+      title: 'By campaign, ad set and ad',
+      header: 'Campaign / ad set / ad',
+      emptyTitle: 'No ad leads or spend in this range',
+      count: campaigns.length,
+      rows: treeRows,
+      viewTotals: totals,
+      totalsSpend: totals ? totals.spend : null,
+      totalsLabel: 'All campaigns',
+      totalsKey: 't:all',
+    },
+    source: {
+      title: 'By source / medium',
+      header: 'Source / medium',
+      emptyTitle: 'No leads in this range',
+      count: sources.length,
+      rows: sourceRows,
+      viewTotals: sourceTotals,
+      totalsSpend: null,
+      totalsLabel: 'All sources',
+      totalsKey: 't:src',
+    },
+    cm: {
+      title: 'By campaign × medium',
+      header: 'Campaign · medium',
+      emptyTitle: 'No leads in this range',
+      count: campaignMedium.length,
+      rows: cmRows,
+      viewTotals: cmTotals,
+      totalsSpend: null,
+      totalsLabel: 'All campaigns × mediums',
+      totalsKey: 't:cm',
+    },
+  };
+  const v = viewConfig[view] || viewConfig.tree;
+
+  const kpiCounts = v.viewTotals && v.viewTotals.counts;
+  const kpiRates = kpiCounts ? performanceRates(kpiCounts, v.totalsSpend) : null;
 
   return (
     <>
@@ -297,6 +360,7 @@ export default function AdPerformance() {
               <select value={view} onChange={(e) => setView(e.target.value)}>
                 <option value="tree">By campaign / ad set / ad</option>
                 <option value="source">By source / medium</option>
+                <option value="cm">By campaign × medium</option>
               </select>
             </label>
             <button onClick={() => load(range)} disabled={loading}>
@@ -344,19 +408,17 @@ export default function AdPerformance() {
           </div>
 
           <Section
-            title={isTree ? 'By campaign, ad set and ad' : 'By source / medium'}
+            title={v.title}
             meta={`Leads captured ${formatDay(range.from)} – ${formatDay(range.to)}`}
-            flush={(isTree ? campaigns : sources).length > 0}
+            flush={v.count > 0}
           >
-            {(isTree ? campaigns : sources).length === 0 ? (
-              <EmptyState title={isTree ? 'No ad leads or spend in this range' : 'No leads in this range'}>
-                Try a wider window.
-              </EmptyState>
+            {v.count === 0 ? (
+              <EmptyState title={v.emptyTitle}>Try a wider window.</EmptyState>
             ) : (
               <DataTable className="mkt-wide adp-table">
                 <thead>
                   <tr>
-                    <th>{isTree ? 'Campaign / ad set / ad' : 'Source / medium'}</th>
+                    <th>{v.header}</th>
                     {COUNT_COLUMNS.map((c) => (
                       <th key={c.key} className="num" title={c.title}>
                         {c.label}
@@ -369,47 +431,55 @@ export default function AdPerformance() {
                     <th className="num">ROAS</th>
                   </tr>
                 </thead>
-                <tbody>{isTree ? treeRows : sourceRows}</tbody>
+                <tbody>{v.rows}</tbody>
                 <tfoot>
                   <tr>
                     <td>
-                      <b>{isTree ? 'All campaigns' : 'All sources'}</b>
+                      <b>{v.totalsLabel}</b>
                     </td>
-                    {isTree ? (
-                      <Cells counts={totals.counts} spend={totals.spend} stages={totals.stages} expanded={openStages.has('t:all')} onToggle={totals.stages ? () => toggleStages('t:all') : undefined} />
-                    ) : (
-                      <Cells counts={sourceTotals.counts} spend={null} stages={sourceTotals.stages} expanded={openStages.has('t:src')} onToggle={sourceTotals.stages ? () => toggleStages('t:src') : undefined} />
-                    )}
+                    <Cells
+                      counts={v.viewTotals.counts}
+                      spend={v.totalsSpend}
+                      stages={v.viewTotals.stages}
+                      expanded={openStages.has(v.totalsKey)}
+                      onToggle={v.viewTotals.stages ? () => toggleStages(v.totalsKey) : undefined}
+                    />
                   </tr>
-                  {isTree && openStages.has('t:all') && totals.stages && (
-                    <StagesRow rowKey="t:all:stages" stages={totals.stages} />
-                  )}
-                  {!isTree && openStages.has('t:src') && sourceTotals.stages && (
-                    <StagesRow rowKey="t:src:stages" stages={sourceTotals.stages} />
+                  {openStages.has(v.totalsKey) && v.viewTotals.stages && (
+                    <StagesRow rowKey={`${v.totalsKey}:stages`} stages={v.viewTotals.stages} />
                   )}
                 </tfoot>
               </DataTable>
             )}
             <p className="subtle mkt-note">
-              {isTree ? (
+              {view === 'tree' && (
                 <>
                   Ad-attributed leads only (Meta form leads, LeadChain-tagged Bigin contacts, and
                   landing-page leads whose UTM resolved to a campaign, ad set or ad), picked by capture
-                  date; the outcome is what the Bigin deal says today. The source / medium view counts
-                  every capture, so its totals run larger.
+                  date; the outcome is what the Bigin deal says today. The other views count every
+                  capture, so their totals run larger.
                 </>
-              ) : (
+              )}
+              {view === 'source' && (
                 <>
                   Every captured lead — including ones no ad could be matched to — grouped by UTM
                   source · medium (landing pages), the rep&apos;s Lead Source (Bigin contacts) or Meta
                   lead form. The campaign view counts only ad-attributed leads, so its totals run
                   smaller. Spend is a campaign-view concept.
                 </>
+              )}
+              {view === 'cm' && (
+                <>
+                  Every captured lead, one row per campaign × utm_medium (Meta&apos;s{' '}
+                  {'{{placement}}'} on landing-page links — e.g. Instagram_Story). Meta lead-form
+                  leads and Bigin contacts carry no medium and group under (no medium). Campaign
+                  spend cannot be split by medium, so spend is a campaign-view concept.
+                </>
               )}{' '}
-              MQL = exists as a Bigin contact. SQL = any deal or any call over 30s, whenever it
-              happened (the Funnel tab windows SQL to the contact&apos;s month, so its numbers differ).
-              Junk + Lost + Won + Pipeline + No deal = Leads; one person on the same{' '}
-              {isTree ? 'ad' : 'source'} counts once.
+              MQL = at least one connected call (any talk time, whenever it happened — the Rep
+              Lifecycle tab&apos;s connect). SQL = a Bigin deal exists. (The Funnel and Ad Leads tabs
+              still count a 30s call as SQL, so their numbers differ.) Junk + Lost + Won + Pipeline +
+              No deal = Leads; one person on the same {isTree ? 'ad' : 'row'} counts once.
               {isTree &&
                 !data.adSpendAvailable &&
                 ' Ad set and ad spend appear after the next Meta sync; campaign spend is complete.'}

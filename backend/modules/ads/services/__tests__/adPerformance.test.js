@@ -117,25 +117,29 @@ test('spend: campaign from campaign rows, ad set/ad from ad rows, null when unsy
   assert.deepEqual(Object.fromEntries(set.ads.map((a) => [a.id, a.spend])), { a1: 60, a2: 40.5 });
 });
 
-test('funnel flags: bigin is mql, a qualifying call is sql, a deal is both', () => {
+test('funnel flags: a connected call is mql (not sql), a deal is both, a bare contact is neither', () => {
   const input = base();
   input.contacts = [
-    // A bare Bigin contact: mql by existence, nothing more.
+    // A bare Bigin contact with no call and no deal: a lead, nothing more.
     { zohoId: 'z1', createdTime: new Date('2026-10-01'), phoneKeys: ['9000000021'], metaCampaignId: 'c1', metaAdsetId: 's1' },
-    // A contact with a qualifying call matched by contact id.
+    // A contact with a connected call matched by contact id.
     { zohoId: 'z2', createdTime: new Date('2026-10-01'), phoneKeys: ['9000000022'], metaCampaignId: 'c1', metaAdsetId: 's1' },
   ];
-  // A meta lead with no contact and no call: lead only. Another whose phone has
-  // both a contact and a qualifying call.
-  input.metaLeads = [meta('L1', 'a1', '9000000023'), meta('L2', 'a1', '9000000024')];
-  input.mqlPhones = new Set(['9000000024']);
-  input.sqlPhones = new Set(['9000000024']);
-  input.sqlContactIds = new Set(['z2']);
+  // A meta lead with no call: lead only. Another whose phone has a connected
+  // call. A third with a deal but no call: sql ⇒ mql.
+  input.metaLeads = [
+    meta('L1', 'a1', '9000000023'),
+    meta('L2', 'a1', '9000000024'),
+    meta('L3', 'a1', '9000000025'),
+  ];
+  input.deals = [{ socialLeadId: 'L3', outcome: 'open' }];
+  input.connectedPhones = new Set(['9000000024']);
+  input.connectedContactIds = new Set(['z2']);
 
   const { totals } = rollUpPerformance(input);
-  assert.equal(totals.counts.leads, 4);
-  assert.equal(totals.counts.mql, 3); // z1, z2, L2 — not L1
-  assert.equal(totals.counts.sql, 2); // z2, L2
+  assert.equal(totals.counts.leads, 5);
+  assert.equal(totals.counts.mql, 3); // z2, L2 (connected), L3 (deal) — not z1, not L1
+  assert.equal(totals.counts.sql, 1); // L3 only — a connected call alone is not sql
 });
 
 test('a deal with no phone/contact match still makes the lead mql and sql (monotone)', () => {
@@ -247,6 +251,71 @@ test('source view dedups one person per row, and placeholders stay out of it', (
   const { sources } = rollUpPerformance(input);
   assert.equal(sources.length, 1);
   assert.equal(sources[0].counts.leads, 1);
+});
+
+test('campaign × medium: one row per pair, (no medium) for meta/bigin, (no campaign) for unattributed', () => {
+  const input = base();
+  input.webLeads = [
+    // Two casing variants of one campaign+medium pair merge (first label wins).
+    { _id: 'w1', createdAt: new Date('2026-10-01'), phoneKey: '9000000081', utmMedium: 'Instagram_Story', resolvedCampaignId: 'c1' },
+    { _id: 'w2', createdAt: new Date('2026-10-02'), phoneKey: '9000000082', utmMedium: 'instagram_story', resolvedCampaignId: 'c1' },
+    // Unattributed web lead: (no campaign) × its medium.
+    { _id: 'w3', createdAt: new Date('2026-10-03'), phoneKey: '9000000083', utmMedium: 'cpc' },
+    // Unsubstituted Meta macro stays verbatim — it flags a tagging bug.
+    { _id: 'w4', createdAt: new Date('2026-10-04'), phoneKey: '9000000084', utmMedium: '{{placement}}', resolvedCampaignId: 'c1' },
+  ];
+  // Meta lead-form lead and a stamped Bigin contact: no medium exists for them.
+  input.metaLeads = [meta('L1', 'a1', '9000000085')];
+  input.contacts = [
+    { zohoId: 'z1', createdTime: new Date('2026-10-01'), phoneKeys: ['9000000086'], metaCampaignId: 'c1', metaAdsetId: 's1' },
+  ];
+  input.deals = [{ contactPhoneKey: '9000000081', outcome: 'won', amount: 2000 }];
+
+  const { campaignMedium, campaignMediumTotals } = rollUpPerformance(input);
+
+  assert.equal(campaignMediumTotals.counts.leads, 6);
+  assert.equal(campaignMediumTotals.counts.won, 1);
+
+  const byKey = Object.fromEntries(campaignMedium.map((r) => [r.key, r]));
+  const story = byKey['cm:c1|instagram_story'];
+  assert.equal(story.counts.leads, 2);
+  assert.equal(story.campaignName, 'Campaign One');
+  assert.equal(story.medium, 'Instagram_Story'); // first-seen casing
+  assert.equal(story.counts.won, 1);
+
+  const noMedium = byKey['cm:c1|-'];
+  assert.equal(noMedium.counts.leads, 2); // meta lead form + bigin contact
+  assert.equal(noMedium.medium, null);
+
+  const placement = byKey['cm:c1|{{placement}}'];
+  assert.equal(placement.counts.leads, 1);
+  assert.equal(placement.medium, '{{placement}}');
+
+  const noCampaign = byKey['cm:unknown|cpc'];
+  assert.equal(noCampaign.counts.leads, 1);
+  assert.equal(noCampaign.campaignId, null);
+  assert.equal(noCampaign.campaignName, null);
+
+  // Rows of the heavier campaign come first, mediums by leads within it.
+  assert.equal(campaignMedium[0].key, 'cm:c1|instagram_story');
+  assert.equal(campaignMedium[campaignMedium.length - 1].key, 'cm:unknown|cpc');
+});
+
+test('campaign × medium dedups one person per pair and follows the ad set\'s campaign', () => {
+  const input = base();
+  input.campaigns.push({ _id: 'c2', name: 'Campaign Two' });
+  input.webLeads = [
+    // Same person, same pair, twice → counts once.
+    { _id: 'w1', createdAt: new Date('2026-10-01'), phoneKey: '9000000091', utmMedium: 'reels', resolvedCampaignId: 'c1' },
+    { _id: 'w2', createdAt: new Date('2026-10-02'), phoneKey: '9000000091', utmMedium: 'reels', resolvedCampaignId: 'c1' },
+    // utm campaign said c2 but the resolved ad set s1 belongs to c1 — id wins,
+    // same as the tree.
+    { _id: 'w3', createdAt: new Date('2026-10-03'), phoneKey: '9000000092', utmMedium: 'reels', resolvedCampaignId: 'c2', resolvedAdsetId: 's1' },
+  ];
+  const { campaignMedium } = rollUpPerformance(input);
+  assert.equal(campaignMedium.length, 1);
+  assert.equal(campaignMedium[0].key, 'cm:c1|reels');
+  assert.equal(campaignMedium[0].counts.leads, 2);
 });
 
 test('Bigin contacts count on their ad set (ad not tracked) and join deals by contact id', () => {
