@@ -399,9 +399,15 @@ export function utmBreakdown(leads, campaignRows) {
 export function performanceRates(counts, spend) {
   const c = counts || {};
   const leads = c.leads || 0;
+  const mql = c.mql || 0;
+  const sql = c.sql || 0;
   const won = c.won || 0;
   const hasSpend = spend != null;
   return {
+    // The funnel reads step-over-step: MQL % of leads, SQL % of MQL.
+    mqlPct: leads > 0 ? round((mql / leads) * 100, 2) : null,
+    sqlPct: mql > 0 ? round((sql / mql) * 100, 2) : null,
+    sqlWinPct: sql > 0 ? round((won / sql) * 100, 2) : null,
     junkPct: leads > 0 ? round(((c.junk || 0) / leads) * 100, 2) : null,
     winPct: leads > 0 ? round((won / leads) * 100, 2) : null,
     cpl: hasSpend && leads > 0 ? round(spend / leads, 2) : null,

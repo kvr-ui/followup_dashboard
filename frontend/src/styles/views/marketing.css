@@ -374,6 +374,16 @@ table.data-table td.src-divider {
 .adp-table tr.adp-ad td {
   background: var(--surface-2);
 }
+/* The Pipeline count doubles as the stage-breakdown toggle. Inherits the cell's
+   numeric look; the chevron is the only hint it opens something. */
+.adp-pipe {
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
 
 /* ---------- Rep Lifecycle ---------- */
 /* The first-enquiry cell stays one line; the full text is in its title. */

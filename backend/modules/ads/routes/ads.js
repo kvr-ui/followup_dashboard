@@ -600,13 +600,17 @@ router.get('/leads', async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// GET /api/ads/performance — leads, junk and sales per campaign / ad set / ad
+// GET /api/ads/performance — the funnel per campaign / ad set / ad, and per
+// source / medium
 // ---------------------------------------------------------------------------
 
 /**
  * The Ad Performance tab. Leads captured in the range, bucketed by what their
- * deal says today, rolled up campaign -> ad set -> ad, with spend for the same
- * dates. See services/adPerformance for which leads count and how.
+ * deal says today and flagged MQL / SQL, rolled up campaign -> ad set -> ad
+ * (`campaigns`, ad-attributed leads only) AND by source / medium (`sources` /
+ * `sourceTotals`, every capture), with spend for the same dates. Each node
+ * carries `stages` — its open deals by raw Bigin stage. See
+ * services/adPerformance for which leads count and how.
  */
 router.get('/performance', async (req, res) => {
   const range = parseRange(req.query);

@@ -121,6 +121,21 @@ async function attribute(lead) {
     warnAttribution('campaign resolution', lead._id, err);
   }
 
+  // Separate try block on purpose — a broken ad resolver must not throw away a
+  // campaign that resolved fine.
+  try {
+    if (lead.utmTerm || lead.utmContent) {
+      const { resolveAdEntities } = require('../services/adEntityResolver');
+      const r = await resolveAdEntities(lead);
+      update.resolvedAdsetId = r.adsetId;
+      update.resolvedAdsetBy = r.adsetBy;
+      update.resolvedAdId = r.adId;
+      update.resolvedAdBy = r.adBy;
+    }
+  } catch (err) {
+    warnAttribution('ad set/ad resolution', lead._id, err);
+  }
+
   // Separate try block on purpose — a broken linker must not throw away a
   // campaign that resolved fine.
   try {

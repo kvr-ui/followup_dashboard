@@ -60,6 +60,32 @@ const webLeadSchema = new mongoose.Schema({
     default: null,
   },
 
+  // The MetaAdset `_id` this lead's utm_term (the ad set id on our click URLs)
+  // resolved to, or null. Resolved by services/adEntityResolver.
+  resolvedAdsetId: { type: String, default: null, index: true },
+
+  // HOW the ad set was resolved: 'id' (utm_term was the ad set id — the expected
+  // path), 'ad-id' (utm_term was an AD id; the ad set is that ad's parent),
+  // 'exact' / 'normalized' (utm_term matched an ad set name), or null.
+  resolvedAdsetBy: {
+    type: String,
+    enum: ['id', 'ad-id', 'exact', 'normalized', null],
+    default: null,
+  },
+
+  // The MetaAd `_id` this lead's utm_content (the ad name) resolved to, within
+  // the resolved ad set, or null — a lead with an ad set but no ad sits in the
+  // ad set's "ad not tracked" bucket, same as a LeadChain lead.
+  resolvedAdId: { type: String, default: null, index: true },
+
+  // 'term' (utm_term itself was the ad id), 'id' (utm_content was the ad id),
+  // 'exact' / 'normalized' (utm_content matched an ad name in the ad set), null.
+  resolvedAdBy: {
+    type: String,
+    enum: ['term', 'id', 'exact', 'normalized', null],
+    default: null,
+  },
+
   // The Task this lead was matched to, or null.
   linkedTaskId: {
     type: mongoose.Schema.Types.ObjectId,
