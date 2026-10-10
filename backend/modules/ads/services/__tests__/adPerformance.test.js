@@ -318,6 +318,35 @@ test('campaign × medium dedups one person per pair and follows the ad set\'s ca
   assert.equal(campaignMedium[0].counts.leads, 2);
 });
 
+test('tree leaves carry a medium breakdown; a lone form/no-medium row is suppressed', () => {
+  const input = base();
+  // a1: two placements + a Meta form lead → three medium rows.
+  input.webLeads = [
+    { _id: 'w1', createdAt: new Date('2026-10-01'), phoneKey: '9000000101', utmMedium: 'Instagram_Story', resolvedCampaignId: 'c1', resolvedAdsetId: 's1', resolvedAdId: 'a1' },
+    { _id: 'w2', createdAt: new Date('2026-10-02'), phoneKey: '9000000102', utmMedium: 'instagram_story', resolvedCampaignId: 'c1', resolvedAdsetId: 's1', resolvedAdId: 'a1' },
+    { _id: 'w3', createdAt: new Date('2026-10-03'), phoneKey: '9000000103', utmMedium: 'Facebook_Mobile_Reels', resolvedCampaignId: 'c1', resolvedAdsetId: 's1', resolvedAdId: 'a1' },
+    // Landing page (no ad set): its own medium breakdown.
+    { _id: 'w4', createdAt: new Date('2026-10-04'), phoneKey: '9000000104', utmMedium: 'cpc', resolvedCampaignId: 'c1' },
+    { _id: 'w5', createdAt: new Date('2026-10-05'), phoneKey: '9000000105', resolvedCampaignId: 'c1' },
+  ];
+  // a2: only Meta form leads → breakdown suppressed.
+  input.metaLeads = [meta('L1', 'a1', '9000000106'), meta('L2', 'a2', '9000000107')];
+
+  const [c] = rollUpPerformance(input).campaigns;
+  const [set] = c.adsets;
+  const a1 = set.ads.find((a) => a.id === 'a1');
+  assert.deepEqual(
+    a1.mediums.map((m) => [m.label, m.counts.leads]),
+    [['Instagram_Story', 2], ['Facebook_Mobile_Reels', 1], ['Meta lead form', 1]]
+  );
+  const a2 = set.ads.find((a) => a.id === 'a2');
+  assert.equal(a2.mediums, null);
+  assert.deepEqual(
+    c.landingPage.mediums.map((m) => [m.label, m.counts.leads]),
+    [['cpc', 1], ['(no medium)', 1]]
+  );
+});
+
 test('Bigin contacts count on their ad set (ad not tracked) and join deals by contact id', () => {
   const input = base();
   input.contacts = [

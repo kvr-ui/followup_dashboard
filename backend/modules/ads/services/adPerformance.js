@@ -317,6 +317,23 @@ function rollUpPerformance(input) {
 
   const totals = emptyNode();
 
+  // Per-medium breakdown on the tree's LEAF nodes (ad, "ad not tracked",
+  // landing page): which placement the leads of this ad came through. Only web
+  // leads carry a placement (utm_medium); a Meta form lead reads "Meta lead
+  // form", a LeadChain contact "(no medium)".
+  const mediumLabelOf = (lead) => {
+    if (lead.source === 'web') return String(lead.utmMedium || '').trim() || '(no medium)';
+    if (lead.source === 'meta') return 'Meta lead form';
+    return '(no medium)';
+  };
+  const applyMedium = (node, lead, bucket, deal, flags) => {
+    if (!node.mediums) node.mediums = new Map();
+    const label = mediumLabelOf(lead);
+    const key = label.toLowerCase();
+    if (!node.mediums.has(key)) node.mediums.set(key, { label, ...emptyNode() });
+    applyLead(node.mediums.get(key), bucket, deal, flags);
+  };
+
   for (const lead of dedupBy(allLeads.filter(treeEligible), treeBucket)) {
     const deal = dealFor(lead);
     const bucket = outcomeOf(deal);
@@ -328,6 +345,7 @@ function rollUpPerformance(input) {
     if (lead.source === 'web' && !lead.adsetId) {
       if (!campaign.landingPage) campaign.landingPage = emptyNode();
       applyLead(campaign.landingPage, bucket, deal, flags);
+      applyMedium(campaign.landingPage, lead, bucket, deal, flags);
     } else {
       const adset = adsetNode(campaign, lead.adsetId);
       applyLead(adset, bucket, deal, flags);
@@ -337,8 +355,11 @@ function rollUpPerformance(input) {
       if (!lead.adId || lead.adId === UNKNOWN) {
         if (!adset.noAd) adset.noAd = emptyNode();
         applyLead(adset.noAd, bucket, deal, flags);
+        applyMedium(adset.noAd, lead, bucket, deal, flags);
       } else {
-        applyLead(adNode(adset, lead.adId), bucket, deal, flags);
+        const ad = adNode(adset, lead.adId);
+        applyLead(ad, bucket, deal, flags);
+        applyMedium(ad, lead, bucket, deal, flags);
       }
     }
   }
@@ -424,6 +445,23 @@ function rollUpPerformance(input) {
       ? Object.fromEntries([...m.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])))
       : null;
   const byWeight = (a, b) => b.counts.leads - a.counts.leads || (b.spend || 0) - (a.spend || 0);
+  // A leaf node's placement breakdown, heaviest first. Null when it would only
+  // repeat the parent row: a lone "Meta lead form" or "(no medium)" says
+  // nothing, but a lone real placement is still worth surfacing.
+  const mediumsOf = (n) => {
+    if (!n.mediums || !n.mediums.size) return null;
+    const rows = [...n.mediums.values()];
+    if (rows.length === 1 && (rows[0].label === 'Meta lead form' || rows[0].label === '(no medium)'))
+      return null;
+    return rows
+      .map((m) => ({ label: m.label, counts: roundCounts(m.counts), stages: stagesOf(m.stages) }))
+      .sort(
+        (a, b) =>
+          b.counts.leads - a.counts.leads ||
+          (a.label === '(no medium)') - (b.label === '(no medium)') ||
+          a.label.localeCompare(b.label)
+      );
+  };
 
   const tree = [...campaigns.values()]
     .map((c) => ({
@@ -433,7 +471,11 @@ function rollUpPerformance(input) {
       stages: stagesOf(c.stages),
       spend: money(c.spend),
       landingPage: c.landingPage
-        ? { counts: roundCounts(c.landingPage.counts), stages: stagesOf(c.landingPage.stages) }
+        ? {
+            counts: roundCounts(c.landingPage.counts),
+            stages: stagesOf(c.landingPage.stages),
+            mediums: mediumsOf(c.landingPage),
+          }
         : null,
       adsets: [...c.adsets.values()]
         .map((s) => ({
@@ -442,7 +484,13 @@ function rollUpPerformance(input) {
           counts: roundCounts(s.counts),
           stages: stagesOf(s.stages),
           spend: s.spend === null ? null : money(s.spend),
-          noAd: s.noAd ? { counts: roundCounts(s.noAd.counts), stages: stagesOf(s.noAd.stages) } : null,
+          noAd: s.noAd
+            ? {
+                counts: roundCounts(s.noAd.counts),
+                stages: stagesOf(s.noAd.stages),
+                mediums: mediumsOf(s.noAd),
+              }
+            : null,
           ads: [...s.ads.values()]
             .map((a) => ({
               id: a.id,
@@ -450,6 +498,7 @@ function rollUpPerformance(input) {
               counts: roundCounts(a.counts),
               stages: stagesOf(a.stages),
               spend: a.spend === null ? null : money(a.spend),
+              mediums: mediumsOf(a),
             }))
             .sort(byWeight),
         }))

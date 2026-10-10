@@ -358,6 +358,9 @@ table.data-table td.src-divider {
 .adp-indent-2 {
   padding-left: 2.5rem;
 }
+.adp-indent-3 {
+  padding-left: 3.75rem;
+}
 .adp-toggle,
 .adp-toggle-spacer {
   flex: 0 0 1.25rem;

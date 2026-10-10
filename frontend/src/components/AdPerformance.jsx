@@ -190,6 +190,25 @@ export default function AdPerformance() {
 
   // --- Campaign → ad set → ad rows ------------------------------------------
   const treeRows = [];
+  // The placement breakdown under an expanded leaf (ad / ad not tracked /
+  // landing page): one row per medium the leads came through.
+  const pushMediumRows = (parentKey, mediums) => {
+    for (const m of mediums) {
+      pushRow(
+        treeRows,
+        `${parentKey}:m:${m.label}`,
+        <div className="adp-name adp-indent-3">
+          <span className="adp-toggle-spacer" />
+          <span className="subtle" title="utm_medium of the landing-page leads — Meta substitutes {{placement}}; form leads carry none">
+            {m.label}
+          </span>
+        </div>,
+        m,
+        null,
+        'adp-ad'
+      );
+    }
+  };
   for (const c of campaigns) {
     const cKey = `c:${c.id}`;
     const cOpen = open.has(cKey);
@@ -227,24 +246,37 @@ export default function AdPerformance() {
       );
       if (!sOpen) continue;
       for (const a of s.ads) {
+        const aKey = `a:${c.id}:${s.id}:${a.id}`;
+        const aOpen = open.has(aKey);
         pushRow(
           treeRows,
-          `a:${c.id}:${s.id}:${a.id}`,
+          aKey,
           <div className="adp-name adp-indent-2">
-            <span className="adp-toggle-spacer" />
+            {a.mediums ? (
+              <Toggle open={aOpen} onClick={() => toggle(aKey)} label="ad placements" />
+            ) : (
+              <span className="adp-toggle-spacer" />
+            )}
             <span>{nameOr(a.name, a.id, 'Unknown ad')}</span>
           </div>,
           a,
           a.spend,
           'adp-ad'
         );
+        if (aOpen && a.mediums) pushMediumRows(aKey, a.mediums);
       }
       if (s.noAd) {
+        const naKey = `na:${c.id}:${s.id}`;
+        const naOpen = open.has(naKey);
         pushRow(
           treeRows,
-          `na:${c.id}:${s.id}`,
+          naKey,
           <div className="adp-name adp-indent-2">
-            <span className="adp-toggle-spacer" />
+            {s.noAd.mediums ? (
+              <Toggle open={naOpen} onClick={() => toggle(naKey)} label="untracked-ad placements" />
+            ) : (
+              <span className="adp-toggle-spacer" />
+            )}
             <span className="subtle" title="LeadChain records the ad set, not the ad; a web lead's utm_content may not match an ad">
               Ad not tracked
             </span>
@@ -253,21 +285,29 @@ export default function AdPerformance() {
           null,
           'adp-ad'
         );
+        if (naOpen && s.noAd.mediums) pushMediumRows(naKey, s.noAd.mediums);
       }
     }
 
     if (c.landingPage) {
+      const lpKey = `lp:${c.id}`;
+      const lpOpen = open.has(lpKey);
       pushRow(
         treeRows,
-        `lp:${c.id}`,
+        lpKey,
         <div className="adp-name adp-indent-1">
-          <span className="adp-toggle-spacer" />
+          {c.landingPage.mediums ? (
+            <Toggle open={lpOpen} onClick={() => toggle(lpKey)} label="landing-page placements" />
+          ) : (
+            <span className="adp-toggle-spacer" />
+          )}
           <span className="subtle">Landing page (ad unknown)</span>
         </div>,
         c.landingPage,
         null,
         'adp-adset'
       );
+      if (lpOpen && c.landingPage.mediums) pushMediumRows(lpKey, c.landingPage.mediums);
     }
   }
 
