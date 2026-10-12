@@ -64,12 +64,12 @@ const MetaAd = require('../models/MetaAd');
 const MetaInsight = require('../models/MetaInsight');
 const Deal = require('../../calls/models/Deal');
 const Contact = require('../../leads/models/Contact');
-const Call = require('../../calls/models/Call');
 const { isJunkReason } = require('../../leads/services/funnel');
 const { DEAL_FIELDS, indexDeals } = require('./dealJoin');
 const { rangeFilter, nextDay, money } = require('./adMetrics');
 const { canonicalSource } = require('./leadSourceName');
-const { PLACEHOLDER_PHONES, OFFICE_DID } = require('../../../utils/phone');
+const { PLACEHOLDER_PHONES } = require('../../../utils/phone');
+const { loadConnectedSets } = require('./connectedCalls');
 
 const UNKNOWN = 'unknown';
 
@@ -614,47 +614,17 @@ async function buildAdPerformance(range) {
     ),
   ];
 
-  const [dealsById, dealsByContact, dealsByPhone, ads, connectedCalls] = await Promise.all([
+  const [dealsById, dealsByContact, dealsByPhone, ads, connected] = await Promise.all([
     socialIds.length ? Deal.find({ socialLeadId: { $in: socialIds } }, DEAL_FIELDS).lean() : [],
     contactIds.length ? Deal.find({ contactId: { $in: contactIds } }, DEAL_FIELDS).lean() : [],
     phoneKeys.length ? Deal.find({ contactPhoneKey: { $in: phoneKeys } }, DEAL_FIELDS).lean() : [],
     adIds.length
       ? MetaAd.find({ _id: { $in: adIds } }, { name: 1, adsetId: 1, campaignId: 1 }).lean()
       : [],
-    // MQL: a CONNECTED call — any talk time at all, whenever it happened
-    // (decision: no time window). Connect = max(duration, biginDurationSec) > 0,
-    // the Rep Lifecycle tab's rule, so the two tabs agree on what "connected"
-    // means. The $or is the same rule as a Mongo prefilter.
-    phoneKeys.length || contactIds.length
-      ? Call.find(
-          {
-            $and: [
-              {
-                $or: [{ duration: { $gt: 0 } }, { biginDurationSec: { $gt: 0 } }],
-              },
-              {
-                $or: [
-                  ...(phoneKeys.length ? [{ phoneKeys: { $in: phoneKeys } }] : []),
-                  ...(contactIds.length ? [{ biginContactId: { $in: contactIds } }] : []),
-                ],
-              },
-            ],
-          },
-          { phoneKeys: 1, biginContactId: 1, duration: 1, biginDurationSec: 1 }
-        ).lean()
-      : [],
+    // MQL: a CONNECTED call — services/connectedCalls for the rule.
+    loadConnectedSets({ phoneKeys, contactIds }),
   ]);
-
-  const talkSeconds = (c) => Math.max(Number(c.duration) || 0, Number(c.biginDurationSec) || 0);
-  const connectedPhones = new Set();
-  const connectedContactIds = new Set();
-  for (const call of connectedCalls) {
-    if (!(talkSeconds(call) > 0)) continue;
-    for (const k of call.phoneKeys || []) {
-      if (k && k !== OFFICE_DID && !PLACEHOLDER_PHONES.has(k)) connectedPhones.add(k);
-    }
-    if (call.biginContactId) connectedContactIds.add(String(call.biginContactId));
-  }
+  const { connectedPhones, connectedContactIds } = connected;
 
   const adsetIds = [
     ...new Set(

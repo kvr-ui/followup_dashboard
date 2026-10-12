@@ -1,5 +1,6 @@
 const WebLead = require('../models/WebLead');
 const { phoneKey } = require('../../../utils/phone');
+const { cpFromUrl } = require('../services/cpParams');
 
 // Public web-lead capture, ported from the retired focas-crm
 // (backend/src/routes/webLeads.ts). The CRM validated with Zod; the dashboard
@@ -30,6 +31,8 @@ const FIELDS = {
   utmCampaign: 300,
   utmContent: 300,
   utmTerm: 300,
+  cp1: 300,
+  cp2: 300,
   landingUrl: 2000,
   referrer: 2000,
 
@@ -183,7 +186,12 @@ async function ingestWebLead(req, res) {
 
     // Derived here rather than in attribute(): it is pure string work that
     // cannot fail, so the join key is on the row even if attribution dies.
-    const data = { ...parsed.data, phoneKey: phoneKey(parsed.data.phone) };
+    // cp1 / cp2 sent explicitly win; otherwise they come off the landing URL.
+    const data = {
+      ...cpFromUrl(parsed.data.landingUrl),
+      ...parsed.data,
+      phoneKey: phoneKey(parsed.data.phone),
+    };
 
     const lead = await WebLead.create(data);
 

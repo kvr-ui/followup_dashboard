@@ -42,6 +42,7 @@ const { getSourceRollup } = require('../services/sourceRollup');
 const { LEAD_STATES, leadStatus } = require('../services/leadState');
 const { DEAL_FIELDS, indexDeals } = require('../services/dealJoin');
 const { buildAdPerformance } = require('../services/adPerformance');
+const { buildUtmReport } = require('../services/utmReport');
 const { NAME_FIELDS, EMAIL_FIELDS, fieldValue } = require('../services/metaFields');
 const { rateLimit } = require('../middleware/rateLimit');
 const { authenticate, requireAdmin } = require('../../../middleware/auth');
@@ -627,6 +628,26 @@ router.get('/performance', async (req, res) => {
     });
   } catch (err) {
     return serverError(res, 'load ad performance', err);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/ads/utm-report — registrations -> demo -> sale per UTM / cp value
+// ---------------------------------------------------------------------------
+
+/**
+ * The Reports -> UTM Report tab. Web leads captured in the range, grouped by each
+ * of utm_source / medium / campaign / content / term and cp1 / cp2 (one block per
+ * dimension, case-insensitive). See services/utmReport for the funnel rules.
+ */
+router.get('/utm-report', async (req, res) => {
+  const range = parseRange(req.query);
+  if (range.error) return fail(res, 400, range.error);
+  try {
+    const dimensions = await buildUtmReport(range);
+    return res.json({ success: true, range, units: { revenue: 'rupees' }, dimensions });
+  } catch (err) {
+    return serverError(res, 'load UTM report', err);
   }
 });
 

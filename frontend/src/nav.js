@@ -12,6 +12,7 @@ import VSLTracking from './components/VSLTracking';
 import Analytics from './components/Analytics';
 import Scorecard from './components/Scorecard';
 import RepLifecycle from './components/RepLifecycle';
+import UtmReport from './components/UtmReport';
 import ApiUsage from './components/ApiUsage';
 import AdminUsers from './components/AdminUsers';
 import Products from './components/Products';
@@ -77,6 +78,7 @@ export const MODULES = [
       { id: 'analytics', label: 'Analytics', component: Analytics, adminOnly: true, legacy: 'analytics' },
       { id: 'scorecard', label: 'Scorecard', repLabel: 'My score', component: Scorecard, legacy: 'scorecard' },
       { id: 'lifecycle', label: 'Rep Lifecycle', component: RepLifecycle, adminOnly: true },
+      { id: 'utm-report', label: 'UTM Report', component: UtmReport, adminOnly: true },
       { id: 'ai-usage', label: 'AI Usage', component: ApiUsage, adminOnly: true, legacy: 'usage' },
     ],
   },

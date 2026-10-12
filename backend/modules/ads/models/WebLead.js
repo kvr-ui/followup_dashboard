@@ -23,6 +23,10 @@ const webLeadSchema = new mongoose.Schema({
   utmCampaign: String,
   utmContent: String,
   utmTerm: String,
+  // Custom tracking params `cp1` / `cp2` from the landing-page URL. Taken from
+  // the body when the lead server sends them, else parsed out of landingUrl.
+  cp1: String,
+  cp2: String,
   landingUrl: String,
   referrer: String,
 
