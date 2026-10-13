@@ -637,8 +637,8 @@ router.get('/performance', async (req, res) => {
 
 /**
  * The Reports -> UTM Report tab. Web leads captured in the range, grouped by each
- * of utm_source / medium / campaign / content / term and cp1 / cp2 (one block per
- * dimension, case-insensitive). See services/utmReport for the funnel rules.
+ * of utm_source / medium / campaign / content / term (one block per dimension,
+ * case-insensitive). See services/utmReport for the funnel rules.
  */
 router.get('/utm-report', async (req, res) => {
   const range = parseRange(req.query);

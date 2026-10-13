@@ -10,7 +10,7 @@ import Icon from './ui/Icon';
 import { defaultRange, formatCount, formatDay, formatPct, formatRupees } from '../adStats';
 
 // The UTM Report tab — landing-page leads grouped by one tracking value at a
-// time (utm_source … utm_term, cp1, cp2): Registrations → MQL → SQL → Sales
+// time (utm_source … utm_term): Registrations → MQL → SQL → Sales
 // → Revenue, plus Junk. Renders GET /api/ads/utm-report verbatim; one fetch carries every
 // dimension, so switching tabs is client-side. The only maths here is the two
 // rates. See backend services/utmReport for the rules: values merge
@@ -24,8 +24,6 @@ const TABS = [
   { id: 'campaign', label: 'UTM Campaign' },
   { id: 'content', label: 'UTM Content' },
   { id: 'term', label: 'UTM Term' },
-  { id: 'cp1', label: 'CP 1' },
-  { id: 'cp2', label: 'CP 2' },
 ];
 
 const pct = (n, d) => (d > 0 ? (n / d) * 100 : null);
