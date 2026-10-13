@@ -66,6 +66,7 @@ let running = {
   transcribe: false,
   grade: false,
   audit: false,
+  contactPrune: false,
 };
 
 async function reconcileCalls() {
@@ -350,6 +351,39 @@ async function nightlyBiginResync() {
     console.warn('[nightly bigin] failed:', err.message);
   } finally {
     running.bigin = false;
+  }
+}
+
+// Nightly: drop mirror contacts that were deleted in Bigin (the contact webhook
+// only fires on Create / Edit). services/contactPrune has the safety rules.
+const NIGHTLY_CONTACT_PRUNE_HOUR_IST = Number(process.env.NIGHTLY_CONTACT_PRUNE_HOUR_IST || 3);
+
+async function nightlyContactPrune() {
+  const now = istNow();
+  if (now.getUTCHours() !== NIGHTLY_CONTACT_PRUNE_HOUR_IST || running.contactPrune) return;
+  const today = now.toISOString().slice(0, 10);
+
+  const SyncState = require('../../../models/SyncState');
+  const state = await SyncState.findOne({ job: 'contactPruneNightly' }).lean();
+  const lastDay = state && state.lastRunAt
+    ? new Date(new Date(state.lastRunAt).getTime() + 330 * 60000).toISOString().slice(0, 10)
+    : null;
+  if (lastDay === today) return;
+
+  running.contactPrune = true;
+  const startedAt = new Date();
+  try {
+    const { pruneDeletedContacts } = require('../../leads/services/contactPrune');
+    const r = await pruneDeletedContacts();
+    if (r.skipped) return;
+    // Committed even when refused, so a bad night doesn't retry every 10 minutes.
+    await commit('contactPruneNightly', startedAt);
+    if (r.refused) console.warn(`[contact prune] refused: ${r.refused}`);
+    else console.log(`[contact prune] Bigin ${r.bigin}, mirror ${r.mirror} — deleted ${r.deleted}`);
+  } catch (err) {
+    console.warn('[contact prune] failed:', err.message);
+  } finally {
+    running.contactPrune = false;
   }
 }
 
@@ -658,6 +692,7 @@ function start() {
   setInterval(auditPipeline, AUDIT_EVERY_MIN * 60 * 1000);
   // Checks every 10 minutes; runs once, inside NIGHTLY_BIGIN_HOUR_IST.
   setInterval(nightlyBiginResync, 10 * 60 * 1000);
+  setInterval(nightlyContactPrune, 10 * 60 * 1000);
   setInterval(syncRecentChats, WATI_SYNC_MIN * 60 * 1000);
 }
 
@@ -667,6 +702,7 @@ module.exports = {
   reconcileOutgoingCalls,
   reconcileBiginCalls,
   nightlyBiginResync,
+  nightlyContactPrune,
   reconcileDeals,
   transcribePending,
   gradePending,
