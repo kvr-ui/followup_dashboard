@@ -1,6 +1,6 @@
 // UTM Report — landing-page leads grouped by one tracking value at a time
 // (utm_source, utm_medium, utm_campaign, utm_content, utm_term, cp1, cp2), each
-// row showing how far its leads got: registrations -> demo completed -> sale.
+// row showing how far its leads got: registrations -> MQL -> SQL -> sale, plus junk.
 //
 // WHICH LEADS
 // -----------
@@ -17,9 +17,12 @@
 // THE FUNNEL
 // ----------
 //   registrations  leads in the row
-//   demo           the lead had a CONNECTED call (services/connectedCalls) OR a
-//                  Bigin deal exists — Ad Performance's MQL, so deal ⇒ demo and
-//                  sales can never outnumber demos
+//   mql            "demo completed": the lead had a CONNECTED call
+//                  (services/connectedCalls) OR a Bigin deal exists — Ad
+//                  Performance's MQL, so sql ⇒ mql and sales never outnumber it
+//   sql            a Bigin deal exists for the lead (Ad Performance's SQL)
+//   junk           the deal closed without sale for a junk reason
+//                  (funnel.isJunkReason) — a subset of sql
 //   sales          the lead's deal closed with a sale
 //   revenue        sum of those deals' amounts, in rupees
 //
@@ -30,6 +33,7 @@ const Deal = require('../../calls/models/Deal');
 const { DEAL_FIELDS, indexDeals } = require('./dealJoin');
 const { nextDay, money } = require('./adMetrics');
 const { loadConnectedSets } = require('./connectedCalls');
+const { isJunkReason } = require('../../leads/services/funnel');
 const { PLACEHOLDER_PHONES } = require('../../../utils/phone');
 
 // Report tab id -> the WebLead field it groups by.
@@ -45,7 +49,8 @@ const DIMENSIONS = {
 
 const NONE = '(none)';
 
-const emptyCounts = () => ({ registrations: 0, demo: 0, sales: 0, revenue: 0 });
+const COUNTS = ['registrations', 'mql', 'sql', 'junk', 'sales', 'revenue'];
+const emptyCounts = () => Object.fromEntries(COUNTS.map((k) => [k, 0]));
 
 const time = (v) => (v ? new Date(v).getTime() || 0 : 0);
 
@@ -75,7 +80,9 @@ function rollUpUtm(input) {
     const won = Boolean(deal && deal.outcome === 'won');
     return {
       lead,
-      demo: Boolean(deal) || Boolean(lead.phoneKey && connected.has(lead.phoneKey)),
+      mql: Boolean(deal) || Boolean(lead.phoneKey && connected.has(lead.phoneKey)),
+      sql: Boolean(deal),
+      junk: Boolean(deal && deal.outcome === 'lost' && isJunkReason(deal.lostReason)),
       won,
       revenue: won ? Number(deal.amount) || 0 : 0,
     };
@@ -100,7 +107,9 @@ function rollUpUtm(input) {
       const row = rows.get(key);
       row.spellings.set(raw, (row.spellings.get(raw) || 0) + 1);
       row.registrations += 1;
-      if (f.demo) row.demo += 1;
+      if (f.mql) row.mql += 1;
+      if (f.sql) row.sql += 1;
+      if (f.junk) row.junk += 1;
       if (f.won) row.sales += 1;
       row.revenue += f.revenue;
     }
@@ -113,10 +122,7 @@ function rollUpUtm(input) {
       for (const [spelling, n] of spellings) {
         if (n > best) [label, best] = [spelling, n];
       }
-      totals.registrations += row.registrations;
-      totals.demo += row.demo;
-      totals.sales += row.sales;
-      totals.revenue += row.revenue;
+      for (const k of COUNTS) totals[k] += row[k];
       return { ...row, label: label || NONE, revenue: money(row.revenue) };
     });
 

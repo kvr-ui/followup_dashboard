@@ -10,12 +10,13 @@ import Icon from './ui/Icon';
 import { defaultRange, formatCount, formatDay, formatPct, formatRupees } from '../adStats';
 
 // The UTM Report tab — landing-page leads grouped by one tracking value at a
-// time (utm_source … utm_term, cp1, cp2): Registrations → Demo completed → Sales
-// → Revenue. Renders GET /api/ads/utm-report verbatim; one fetch carries every
+// time (utm_source … utm_term, cp1, cp2): Registrations → MQL → SQL → Sales
+// → Revenue, plus Junk. Renders GET /api/ads/utm-report verbatim; one fetch carries every
 // dimension, so switching tabs is client-side. The only maths here is the two
 // rates. See backend services/utmReport for the rules: values merge
-// case-insensitively, "demo completed" = a connected call or a deal exists, and
-// revenue is the won deals' amount.
+// case-insensitively, MQL ("demo completed") = a connected call or a deal
+// exists, SQL = a deal exists, junk = deal lost for a junk reason, and revenue
+// is the won deals' amount.
 
 const TABS = [
   { id: 'source', label: 'UTM Source' },
@@ -29,15 +30,23 @@ const TABS = [
 
 const pct = (n, d) => (d > 0 ? (n / d) * 100 : null);
 
+function CountPct({ n, of }) {
+  return (
+    <td className="num">
+      {formatCount(n)} <span className="subtle">({formatPct(pct(n, of))})</span>
+    </td>
+  );
+}
+
 function Cells({ row }) {
   return (
     <>
       <td className="num">{formatCount(row.registrations)}</td>
-      <td className="num">
-        {formatCount(row.demo)} <span className="subtle">({formatPct(pct(row.demo, row.registrations))})</span>
-      </td>
+      <CountPct n={row.mql} of={row.registrations} />
+      <CountPct n={row.sql} of={row.registrations} />
+      <CountPct n={row.junk} of={row.registrations} />
       <td className="num">{formatCount(row.sales)}</td>
-      <td className="num">{formatPct(pct(row.sales, row.demo))}</td>
+      <td className="num">{formatPct(pct(row.sales, row.mql))}</td>
       <td className="num">{formatRupees(row.revenue)}</td>
     </>
   );
@@ -104,11 +113,17 @@ export default function UtmReport() {
                     <th className="num" title="Landing-page leads (one per person per row)">
                       Registrations
                     </th>
-                    <th className="num" title="A connected call, or a Bigin deal exists — % of registrations">
-                      Demo completed
+                    <th className="num" title="Demo completed: a connected call, or a Bigin deal exists — % of registrations">
+                      MQL
+                    </th>
+                    <th className="num" title="A Bigin deal exists — % of registrations">
+                      SQL
+                    </th>
+                    <th className="num" title="Deal lost for a junk reason (wrong number, wrong course, language) — % of registrations">
+                      Junk
                     </th>
                     <th className="num" title="Deal closed with sale">Sales</th>
-                    <th className="num" title="Sales as % of demo completed">Conversion rate</th>
+                    <th className="num" title="Sales as % of MQL">Conversion rate</th>
                     <th className="num" title="Won deals' amount">Revenue</th>
                   </tr>
                 </thead>

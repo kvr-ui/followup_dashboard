@@ -51,25 +51,34 @@ test('one person per row — earliest fill wins, phoneless leads always count', 
   assert.deepEqual(byKey, { a: 3, b: 1 });
 });
 
-test('demo = connected call or a deal; sales and revenue come from won deals', () => {
+test('mql = connected call or a deal, sql = a deal, junk = junk-lost deal; sales/revenue from won', () => {
   const { medium } = rollUpUtm({
     webLeads: [
       web('1', '9000000001', { utmMedium: 'cpc' }), // connected, no deal
       web('2', '9000000002', { utmMedium: 'cpc' }), // won deal, no call logged
       web('3', '9000000003', { utmMedium: 'cpc' }), // lost deal
       web('4', '9000000004', { utmMedium: 'cpc' }), // nothing
+      web('5', '9000000005', { utmMedium: 'cpc' }), // junk deal
     ],
     deals: [
       { contactPhoneKey: '9000000002', outcome: 'won', amount: 45000.5 },
       { contactPhoneKey: '9000000002', outcome: 'lost', amount: 0 },
       { contactPhoneKey: '9000000003', outcome: 'lost', amount: 30000 },
+      { contactPhoneKey: '9000000005', outcome: 'lost', lostReason: 'WrongNumber / Not Enq', amount: 0 },
     ],
     connectedPhones: new Set(['9000000001']),
   });
   const [row] = medium.rows;
   assert.deepEqual(
-    { registrations: row.registrations, demo: row.demo, sales: row.sales, revenue: row.revenue },
-    { registrations: 4, demo: 3, sales: 1, revenue: 45000.5 }
+    {
+      registrations: row.registrations,
+      mql: row.mql,
+      sql: row.sql,
+      junk: row.junk,
+      sales: row.sales,
+      revenue: row.revenue,
+    },
+    { registrations: 5, mql: 4, sql: 3, junk: 1, sales: 1, revenue: 45000.5 }
   );
 });
 
