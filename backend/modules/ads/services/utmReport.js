@@ -1,5 +1,5 @@
 // UTM Report — landing-page leads grouped by one tracking value at a time
-// (utm_source, utm_medium, utm_campaign, utm_content, utm_term, cp1, cp2), each
+// (utm_source, utm_medium, utm_campaign, utm_content, utm_term), each
 // row showing how far its leads got: registrations -> MQL -> SQL -> sale, plus junk.
 //
 // WHICH LEADS
@@ -43,8 +43,6 @@ const DIMENSIONS = {
   campaign: 'utmCampaign',
   content: 'utmContent',
   term: 'utmTerm',
-  cp1: 'cp1',
-  cp2: 'cp2',
 };
 
 const NONE = '(none)';
@@ -58,7 +56,7 @@ const time = (v) => (v ? new Date(v).getTime() || 0 : 0);
  * The pure roll-up — no DB.
  *
  * @param {object} input
- * @param {object[]} input.webLeads  WebLead docs ({_id, createdAt, phoneKey, utm*, cp1, cp2})
+ * @param {object[]} input.webLeads  WebLead docs ({_id, createdAt, phoneKey, utm*})
  * @param {object[]} input.deals     Deal docs matched by contactPhoneKey
  * @param {Set<string>} [input.connectedPhones] phone keys with a connected call
  * @returns {{ [dimension: string]: { rows: object[], totals: object } }}
@@ -148,8 +146,6 @@ async function buildUtmReport(range) {
       utmCampaign: 1,
       utmContent: 1,
       utmTerm: 1,
-      cp1: 1,
-      cp2: 1,
     }
   ).lean();
 
