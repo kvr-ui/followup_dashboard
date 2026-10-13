@@ -385,3 +385,33 @@ export function utmBreakdown(leads, campaignRows) {
 
   return { bySource, byCampaign, total: (leads || []).length };
 }
+
+// ---------------------------------------------------------------------------
+// Ad Performance rates
+// ---------------------------------------------------------------------------
+
+/**
+ * The rates the Ad Performance tab shows for one row, from its counts and spend.
+ * A zero denominator gives null (rendered "—"): a campaign with spend and no sale
+ * has an undefined cost per sale, not a free one. Percentages come back as
+ * percentages (12.5, not 0.125) to suit formatPct.
+ */
+export function performanceRates(counts, spend) {
+  const c = counts || {};
+  const leads = c.leads || 0;
+  const mql = c.mql || 0;
+  const sql = c.sql || 0;
+  const won = c.won || 0;
+  const hasSpend = spend != null;
+  return {
+    // The funnel reads step-over-step: MQL % of leads, SQL % of MQL.
+    mqlPct: leads > 0 ? round((mql / leads) * 100, 2) : null,
+    sqlPct: mql > 0 ? round((sql / mql) * 100, 2) : null,
+    sqlWinPct: sql > 0 ? round((won / sql) * 100, 2) : null,
+    junkPct: leads > 0 ? round(((c.junk || 0) / leads) * 100, 2) : null,
+    winPct: leads > 0 ? round((won / leads) * 100, 2) : null,
+    cpl: hasSpend && leads > 0 ? round(spend / leads, 2) : null,
+    costPerSale: hasSpend && won > 0 ? round(spend / won, 2) : null,
+    roas: hasSpend && spend > 0 ? round((c.revenue || 0) / spend, 2) : null,
+  };
+}

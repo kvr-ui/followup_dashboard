@@ -13,6 +13,7 @@ const {
   pipelineHealth,
 } = require('../controllers/callController');
 const { apiUsage } = require('../controllers/usageController');
+const { repLifecycle, repLifecycleOwners, repLifecycleLead } = require('../controllers/lifecycleController');
 const { authenticate, requireAdmin } = require('../../../middleware/auth');
 
 const router = express.Router();
@@ -35,6 +36,10 @@ router.get('/pipeline-health', requireAdmin, pipelineHealth);
 // Account-wide billing data, so admin-only — and declared BEFORE '/:id' or the id
 // route would swallow it.
 router.get('/usage', requireAdmin, apiUsage);
+// Lead-in -> first call for any rep's leads, so admin-only (also before '/:id').
+router.get('/rep-lifecycle', requireAdmin, repLifecycle);
+router.get('/rep-lifecycle/owners', requireAdmin, repLifecycleOwners);
+router.get('/rep-lifecycle/lead/:contactId', requireAdmin, repLifecycleLead);
 router.get('/:id', getCall);
 router.get('/:id/recording', streamRecording);
 

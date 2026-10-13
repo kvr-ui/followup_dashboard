@@ -22,4 +22,12 @@ function phoneKey(value) {
   return d.length >= 10 ? d.slice(-10) : null;
 }
 
-module.exports = { key10, phoneKey };
+// Test contacts, never real leads — and a phone join on them would hand one
+// person's deal to every test submission.
+const PLACEHOLDER_PHONES = new Set(['9999999999', '9876543210']);
+
+// The office TeleCMI DID. Some call rows are keyed on it, so it would join every
+// such call to whichever lead happened to carry it.
+const OFFICE_DID = '7943447443';
+
+module.exports = { key10, phoneKey, PLACEHOLDER_PHONES, OFFICE_DID };

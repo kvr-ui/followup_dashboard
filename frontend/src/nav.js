@@ -2,6 +2,7 @@ import FollowUps from './components/FollowUps';
 import Calls from './components/Calls';
 import Leads from './components/Leads';
 import AdLeads from './components/AdLeads';
+import AdPerformance from './components/AdPerformance';
 import Funnel from './components/Funnel';
 import Installments from './components/Installments';
 import Upsells from './components/Upsells';
@@ -10,6 +11,8 @@ import Sources from './components/Sources';
 import VSLTracking from './components/VSLTracking';
 import Analytics from './components/Analytics';
 import Scorecard from './components/Scorecard';
+import RepLifecycle from './components/RepLifecycle';
+import UtmReport from './components/UtmReport';
 import ApiUsage from './components/ApiUsage';
 import AdminUsers from './components/AdminUsers';
 import Products from './components/Products';
@@ -63,6 +66,7 @@ export const MODULES = [
     tabs: [
       { id: 'campaigns', label: 'Campaigns', component: Marketing, adminOnly: true, legacy: 'marketing' },
       { id: 'sources', label: 'Sources', component: Sources, adminOnly: true, legacy: 'sources' },
+      { id: 'ad-performance', label: 'Ad Performance', component: AdPerformance, adminOnly: true },
       { id: 'vsl', label: 'VSL Tracking', component: VSLTracking, legacy: 'vsl' },
     ],
   },
@@ -73,6 +77,8 @@ export const MODULES = [
     tabs: [
       { id: 'analytics', label: 'Analytics', component: Analytics, adminOnly: true, legacy: 'analytics' },
       { id: 'scorecard', label: 'Scorecard', repLabel: 'My score', component: Scorecard, legacy: 'scorecard' },
+      { id: 'lifecycle', label: 'Rep Lifecycle', component: RepLifecycle, adminOnly: true },
+      { id: 'utm-report', label: 'UTM Report', component: UtmReport, adminOnly: true },
       { id: 'ai-usage', label: 'AI Usage', component: ApiUsage, adminOnly: true, legacy: 'usage' },
     ],
   },

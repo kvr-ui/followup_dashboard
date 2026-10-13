@@ -25,6 +25,9 @@ const FIELDS = [
   'Owner',
   'Created_Time',
   'Modified_Time',
+  // Meta campaign / ad set ids LeadChain writes into reused address fields — see contactStore.
+  'Mailing_Country',
+  'Description',
 ].join(',');
 
 async function run() {
