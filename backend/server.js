@@ -29,6 +29,7 @@ const adModels = [
   require('./modules/ads/models/MetaLead'),
   require('./modules/ads/models/WebLead'),
   require('./modules/ads/models/AdSyncRun'),
+  require('./modules/ads/models/CapiEvent'),
 ];
 
 const PORT = process.env.PORT || 3000;
@@ -52,6 +53,7 @@ connectDB()
       callJobs.start(); // reconcile polls + transcription worker
       taskJobs.start(); // reconcile poll for Bigin tasks (the webhook's safety net)
       adJobs.start(); // full Meta ads sync on SYNC_INTERVAL_MINUTES
+      require('./modules/ads/services/capiSync').start(); // CRM stages -> Meta CAPI
 
       // Warm the caches at boot. The journeys join takes ~18s cold on Atlas M0;
       // warming it here means a user never waits for it. Outside start() above,

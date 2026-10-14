@@ -99,6 +99,9 @@ const dealSchema = new mongoose.Schema(
     },
 
     modifiedTime: Date,
+    // Bigin's Created_Time — when the deal (our SQL) was opened. Null on deals
+    // stored before this field existed; their mirror createdAt stands in.
+    createdTime: { type: Date, default: null },
     // How we learned about it: the Bigin webhook, or our reconcile poll.
     source: { type: String, enum: ['webhook', 'poll', 'backfill'], default: 'poll' },
   },

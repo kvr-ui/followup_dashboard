@@ -43,6 +43,7 @@ const { LEAD_STATES, leadStatus } = require('../services/leadState');
 const { DEAL_FIELDS, indexDeals } = require('../services/dealJoin');
 const { buildAdPerformance } = require('../services/adPerformance');
 const { buildUtmReport } = require('../services/utmReport');
+const capi = require('../services/capiSync');
 const { NAME_FIELDS, EMAIL_FIELDS, fieldValue } = require('../services/metaFields');
 const { rateLimit } = require('../middleware/rateLimit');
 const { authenticate, requireAdmin } = require('../../../middleware/auth');
@@ -808,6 +809,29 @@ router.post('/sync', syncLimiter, (req, res) => {
     range: range || null,
     message: 'Sync started. Poll /api/ads/sync/history for progress.',
   });
+});
+
+// ---------------------------------------------------------------------------
+// Conversions API (CRM stages -> Meta pixel) — see services/capiSync
+// ---------------------------------------------------------------------------
+
+/** GET /api/ads/capi/status — ledger counts by mode/event/status + recent failures. */
+router.get('/capi/status', async (req, res) => {
+  try {
+    return res.json({ success: true, data: await capi.capiStatus() });
+  } catch (err) {
+    return serverError(res, 'load CAPI status', err);
+  }
+});
+
+/** POST /api/ads/capi/sync — run one sweep now and return its counts. */
+router.post('/capi/sync', syncLimiter, async (req, res) => {
+  if (!capi.isConfigured()) {
+    return fail(res, 503, 'CAPI is not configured (set CAPI_ENABLED=true and META_PIXEL_ID).');
+  }
+  const result = await capi.runSweep();
+  if (!result) return fail(res, 409, 'A CAPI sweep is already running, or it failed — see the server log.');
+  return res.json({ success: true, data: result });
 });
 
 module.exports = router;

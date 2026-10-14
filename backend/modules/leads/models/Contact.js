@@ -20,6 +20,8 @@ const contactSchema = new mongoose.Schema(
     mobile: { type: String, default: null },
     // Strict last-10-digit keys of phone + mobile — the join key to calls.
     phoneKeys: { type: [String], default: [], index: true },
+    // Lowercased. Only used to match the contact to a Meta user (CAPI, hashed).
+    email: { type: String, default: null },
 
     // Contacts.Lead_Source1, verbatim (free text in Bigin).
     leadSource: { type: String, default: null },
