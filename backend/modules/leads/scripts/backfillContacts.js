@@ -21,6 +21,7 @@ const FIELDS = [
   'Last_Name',
   'Phone',
   'Mobile',
+  'Email',
   'Lead_Source1',
   'Owner',
   'Created_Time',

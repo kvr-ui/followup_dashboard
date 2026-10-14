@@ -72,21 +72,32 @@ class MetaClient {
     return paginate((url) => this.run(url), firstUrl);
   }
 
+  /**
+   * POST a JSON body to the Graph API (e.g. Conversions API events). Retried
+   * like reads, so only use it for writes that are idempotent on Meta's side.
+   * @param {string} path
+   * @param {object} body
+   */
+  async post(path, body) {
+    const init = {
+      method: 'POST',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    };
+    return retry(() => this.fetchJson(this.buildUrl(path), init), { retries: this.maxRetries });
+  }
+
   run(url) {
     return retry(() => this.fetchJson(url), { retries: this.maxRetries });
   }
 
-  async fetchJson(url) {
+  async fetchJson(url, init = { method: 'GET', headers: { Accept: 'application/json' } }) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
 
     let response;
     try {
-      response = await fetch(url, {
-        method: 'GET',
-        headers: { Accept: 'application/json' },
-        signal: controller.signal,
-      });
+      response = await fetch(url, { ...init, signal: controller.signal });
     } catch (error) {
       const timedOut = error instanceof Error && error.name === 'AbortError';
       throw new MetaTransientError(

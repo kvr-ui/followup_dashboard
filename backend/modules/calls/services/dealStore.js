@@ -260,6 +260,9 @@ async function upsertDeal(raw, source = 'poll') {
     source,
   };
 
+  // Only when Bigin sent it, so a thin record never blanks a known date.
+  if (raw.Created_Time) doc.createdTime = new Date(raw.Created_Time);
+
   // Spread only when the channel was actually established. Assigning nulls here
   // would let one failed contact read erase an attribution — and this runs on
   // every stage change, so it would erase it repeatedly and invisibly.
