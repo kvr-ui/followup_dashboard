@@ -20,6 +20,7 @@ import {
   statusState,
 } from '../adStats';
 import { statusClass } from '../utils';
+import { formatDateTime } from '../format';
 
 // The Ad Leads tab — every captured web and Meta lead in one list, carrying the
 // three facts the tab exists to answer: which campaign it came from, whether
@@ -332,7 +333,7 @@ function LeadRow({ lead }) {
         <div className="subtle">{dash(lead.phone)}</div>
         <div className="subtle">{dash(lead.email)}</div>
       </td>
-      <td className="subtle">{lead.capturedAt ? new Date(lead.capturedAt).toLocaleString() : '—'}</td>
+      <td className="subtle">{formatDateTime(lead.capturedAt)}</td>
       <td>
         <span className="badge badge-normal">{lead.source}</span>
         <div className="subtle">{dash(lead.source === 'web' ? formLabel(lead.form) : lead.form)}</div>

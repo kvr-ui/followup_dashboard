@@ -15,72 +15,12 @@
 // for `dailyBudget` and `lifetimeBudget`. Nothing else.
 
 // ---------------------------------------------------------------------------
-// Formatting
+// Formatting — lives in format.js; re-exported so existing imports keep working.
+// `formatRupees` for spend / CPC / CPL (major units), `formatPaise` for
+// `dailyBudget` and `lifetimeBudget` (minor units). Nothing else.
 // ---------------------------------------------------------------------------
 
-// Indian digit grouping (2,11,681.84 — lakhs and crores, not thousands), which
-// is what an Indian ad account's figures are read in. Two fraction digits, not
-// zero: the reconciliation panel and the KPI row have to show the SAME number
-// Meta's own account totals carry, and rounding a spend total to whole rupees
-// on screen would make it disagree with Ads Manager by a few paise for no gain.
-const RUPEES = new Intl.NumberFormat('en-IN', {
-  style: 'currency',
-  currency: 'INR',
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
-
-const COUNTS = new Intl.NumberFormat('en-IN');
-
-function finite(value) {
-  if (value == null || value === '') return null;
-  const n = Number(value);
-  return Number.isFinite(n) ? n : null;
-}
-
-/** Money already in MAJOR units (rupees): insight spend, CPC, CPL. */
-export function formatRupees(value) {
-  const n = finite(value);
-  return n == null ? '—' : RUPEES.format(n);
-}
-
-/** Money in MINOR units (paise): campaign and ad-set budgets. Divide by 100. */
-export function formatPaise(value) {
-  const n = finite(value);
-  return n == null ? '—' : RUPEES.format(n / 100);
-}
-
-export function formatCount(value) {
-  const n = finite(value);
-  return n == null ? '0' : COUNTS.format(n);
-}
-
-/** A percentage that already IS a percentage — Meta reports CTR as 1.23, not 0.0123. */
-export function formatPct(value) {
-  const n = finite(value);
-  return n == null ? '—' : `${n.toFixed(2)}%`;
-}
-
-export function formatDay(value) {
-  if (!value) return '—';
-  const d = new Date(String(value).length === 10 ? `${value}T00:00:00` : value);
-  if (Number.isNaN(d.getTime())) return String(value);
-  return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-}
-
-/** "3 hr ago" — for the sync history's "last run" line. */
-export function relativeTime(value) {
-  if (!value) return 'never';
-  const then = new Date(value).getTime();
-  if (Number.isNaN(then)) return 'never';
-  const mins = Math.round((Date.now() - then) / 60000);
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins} min ago`;
-  const hours = Math.round(mins / 60);
-  if (hours < 24) return `${hours} hr ago`;
-  const days = Math.round(hours / 24);
-  return `${days} day${days === 1 ? '' : 's'} ago`;
-}
+export { formatRupees, formatPaise, formatCount, formatPct, formatDay, relativeTime } from './format';
 
 // ---------------------------------------------------------------------------
 // Lead counting

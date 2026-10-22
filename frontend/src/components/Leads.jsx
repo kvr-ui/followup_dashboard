@@ -11,6 +11,8 @@ import { openLead } from '../route';
 import { LEAD_STATES, LEAD_STATUS, formatCount, formatDay, relativeTime } from '../adStats';
 import { parseDueDate, startOfToday } from '../taskStats';
 import { statusClass } from '../utils';
+import { formatDateTime } from '../format';
+import { STAGE, STAGES } from '../labels';
 import '../styles/views/deals.css';
 
 // The Leads tab — every person the dashboard knows about, one row each, whatever
@@ -22,14 +24,6 @@ import '../styles/views/deals.css';
 // many leads there are.
 
 const PAGE_SIZE = 50;
-
-// Funnel stage — derived server-side (leadState.funnelStage).
-const STAGE = {
-  mql: { label: 'MQL', hint: 'Marketing qualified — a form fill, ad lead or task, no call over 30s yet' },
-  sql: { label: 'SQL', hint: 'Sales qualified — a call over 30s, or a deal in Bigin' },
-  closed: { label: 'Closed', hint: 'Closed with sale' },
-};
-const STAGES = Object.keys(STAGE);
 
 const EMPTY_FILTERS = {
   q: '',
@@ -316,7 +310,7 @@ export default function Leads({ isAdmin }) {
                   <FollowUp value={r.nextFollowUp} />
                 </td>
                 <td className="subtle">{formatDay(r.createdAt)}</td>
-                <td className="subtle" title={r.lastActivity ? new Date(r.lastActivity).toLocaleString('en-IN') : ''}>
+                <td className="subtle" title={r.lastActivity ? formatDateTime(r.lastActivity) : ''}>
                   {r.lastActivity ? relativeTime(r.lastActivity) : '—'}
                 </td>
               </tr>

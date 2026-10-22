@@ -1,9 +1,4 @@
-export function formatDateTime(value) {
-  if (!value) return '—';
-  const d = new Date(value);
-  if (isNaN(d.getTime())) return String(value);
-  return d.toLocaleString();
-}
+export { formatDateTime } from './format';
 
 export function priorityClass(priority) {
   const p = (priority || '').toLowerCase();

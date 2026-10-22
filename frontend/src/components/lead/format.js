@@ -1,6 +1,6 @@
 // Small helpers shared by the lead page's parts.
 
-export const SOURCE_LABELS = { meta: 'Meta', web: 'Web' };
+export { SOURCE_LABELS } from '../../labels';
 
 export const DEAL_OUTCOME = {
   won: { label: 'Won', cls: 'status-won' },
@@ -8,14 +8,8 @@ export const DEAL_OUTCOME = {
   open: { label: 'Open', cls: 'status-pipeline' },
 };
 
-/** "25 Sep 2026, 2:01 pm" — the page's one date format. */
-export function shortDateTime(value) {
-  if (!value) return '—';
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return String(value);
-  return `${d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}, ${d
-    .toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })}`;
-}
+/** "25 Sep 2026, 2:01 pm" — the page's one date format, shared with every other tab. */
+export { formatDateTime as shortDateTime } from '../../format';
 
 export function scoreOf(call) {
   return call.grade && Number.isFinite(call.grade.score) ? call.grade.score : null;

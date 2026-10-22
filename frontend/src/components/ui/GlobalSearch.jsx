@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import Icon from './Icon';
 import { api } from '../../api';
 import { openLead, rowPhoneKey } from '../../route';
+import { STAGE_LABEL } from '../../labels';
 
-const STAGE_LABEL = { mql: 'MQL', sql: 'SQL', closed: 'Closed' };
 
 // Find any lead by name or phone from anywhere, and jump to its page. Backed by
 // /api/leads-list?q=, which already scopes a rep to their own and unassigned

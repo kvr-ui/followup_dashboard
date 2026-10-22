@@ -5,6 +5,7 @@ import Section from './ui/Section';
 import DataTable from './ui/DataTable';
 import StatCard, { StatGrid } from './ui/StatCard';
 import Icon from './ui/Icon';
+import { formatCount as fmtNum, formatShortDateTime as fmtDate } from '../format';
 
 // What the AI providers have cost us, and what is left on each account.
 //
@@ -16,10 +17,6 @@ import Icon from './ui/Icon';
 //   OpenAI     — billed per token, in arrears, with no balance endpoint at all. Its
 //                spend is driven by people asking the Ask tab questions rather than by
 //                a worker draining a queue, so it moves in bursts.
-
-function fmtNum(n) {
-  return (n || 0).toLocaleString('en-IN');
-}
 
 /** Compact token counts — 1.24M reads better than 1,238,412 on a stat card. */
 function fmtCompact(n) {
@@ -38,15 +35,6 @@ function fmtDuration(seconds) {
   return `${s}s`;
 }
 
-function fmtDate(iso) {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleString('en-IN', {
-    day: 'numeric',
-    month: 'short',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
-}
 
 function barTone(percentUsed) {
   if (percentUsed >= 90) return 'red';

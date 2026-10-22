@@ -3,13 +3,13 @@ import { classifyDue } from '../taskStats';
 import CopyButton from './CopyButton';
 import DataTable from './ui/DataTable';
 import { formatWatch } from '../vslStats';
+import { SOURCE_LABELS } from '../labels';
 import { openLead, toPhoneKey } from '../route';
 
 // Where the lead came from, read straight off the row. The list response carries
 // a denormalised `leadSource`, so this is a plain lookup in a map — never a fetch
 // or a computation per row. Cost is deliberately absent: it is admin-only, needs
 // the CPL lookup, and lives in the detail drawer.
-const SOURCE_LABELS = { meta: 'Meta', web: 'Web' };
 
 function SourceBadge({ leadSource }) {
   const label = SOURCE_LABELS[leadSource];
