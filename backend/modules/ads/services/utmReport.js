@@ -34,7 +34,7 @@ const { DEAL_FIELDS, indexDeals } = require('./dealJoin');
 const { nextDay, money } = require('./adMetrics');
 const { loadConnectedSets } = require('./connectedCalls');
 const { isJunkReason } = require('../../leads/services/funnel');
-const { PLACEHOLDER_PHONES } = require('../../../utils/phone');
+const { PLACEHOLDER_PHONES, isRealPhoneKey } = require('../../../utils/phone');
 
 // Report tab id -> the WebLead field it groups by.
 const DIMENSIONS = {
@@ -150,7 +150,7 @@ async function buildUtmReport(range) {
   ).lean();
 
   const phoneKeys = [
-    ...new Set(webLeads.map((l) => l.phoneKey).filter((k) => k && !PLACEHOLDER_PHONES.has(k))),
+    ...new Set(webLeads.map((l) => l.phoneKey).filter(isRealPhoneKey)),
   ];
 
   const [deals, { connectedPhones }] = await Promise.all([

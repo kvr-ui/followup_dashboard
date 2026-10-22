@@ -50,7 +50,7 @@ const vslConnection = require('../../vsl/services/connection');
 const { isJunkReason } = require('../../leads/services/funnel');
 const { DEAL_FIELDS, bestDeal } = require('../../ads/services/dealJoin');
 const { nextDay } = require('../../ads/services/adMetrics');
-const { PLACEHOLDER_PHONES, OFFICE_DID, phoneKey } = require('../../../utils/phone');
+const { PLACEHOLDER_PHONES, phoneKey, isRealPhoneKey } = require('../../../utils/phone');
 const { toDate, istParts } = require('../../../utils/dates');
 
 const MIN_MS = 60 * 1000;
@@ -132,8 +132,6 @@ const TOPIC_BUCKETS = [
 ];
 
 const lower = (v) => (v ? String(v).trim().toLowerCase() : '');
-
-const isTestKey = (k) => PLACEHOLDER_PHONES.has(k) || k === OFFICE_DID;
 
 function median(values) {
   const v = values.filter((x) => x != null).sort((a, b) => a - b);
@@ -379,7 +377,7 @@ function analyseLead({
 
   const mins = (t) => (t ? Math.round(((t - leadInAt) / MIN_MS) * 10) / 10 : null);
   const { hour, weekday } = istParts(leadInAt);
-  const keys = (contact.phoneKeys || []).filter((k) => !isTestKey(k));
+  const keys = (contact.phoneKeys || []).filter(isRealPhoneKey);
 
   const lead = {
     contactId: String(contact.zohoId),
@@ -537,12 +535,12 @@ function indexInputs(input) {
   };
   for (const f of input.forms || []) push(idx.forms, f.phoneKey, toDate(f.at));
   for (const c of input.calls || []) {
-    for (const k of c.phoneKeys || []) if (!isTestKey(k)) push(idx.callsByKey, k, c);
+    for (const k of c.phoneKeys || []) if (isRealPhoneKey(k)) push(idx.callsByKey, k, c);
     if (c.biginContactId) push(idx.callsById, String(c.biginContactId), c);
   }
   for (const d of input.deals || []) {
     if (d.contactId) push(idx.dealsById, String(d.contactId), d);
-    if (d.contactPhoneKey && !isTestKey(d.contactPhoneKey)) push(idx.dealsByKey, d.contactPhoneKey, d);
+    if (isRealPhoneKey(d.contactPhoneKey)) push(idx.dealsByKey, d.contactPhoneKey, d);
   }
   for (const t of input.tasks || []) {
     for (const m of t.whatsappLog || []) push(idx.wa, t.phoneKey, m);
@@ -559,7 +557,7 @@ function indexInputs(input) {
 function leadFor(contact, idx, input, extra = {}) {
   const allKeys = contact.phoneKeys || [];
   if (allKeys.some((k) => PLACEHOLDER_PHONES.has(k))) return null;
-  const keys = allKeys.filter((k) => !isTestKey(k));
+  const keys = allKeys.filter(isRealPhoneKey);
   const id = String(contact.zohoId);
 
   const calls = new Set(idx.callsById.get(id) || []);
@@ -784,7 +782,7 @@ async function loadVsl(keys) {
 async function loadInputs(contacts, callsSince) {
   const ids = contacts.map((c) => String(c.zohoId));
   const keys = [
-    ...new Set(contacts.flatMap((c) => c.phoneKeys || []).filter((k) => k && !isTestKey(k))),
+    ...new Set(contacts.flatMap((c) => c.phoneKeys || []).filter(isRealPhoneKey)),
   ];
   if (!ids.length) {
     return { forms: [], calls: [], deals: [], tasks: [], chats: [], vsl: [], vslAvailable: vslConnection.isConfigured() };

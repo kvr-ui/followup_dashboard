@@ -28,7 +28,7 @@ const CapiEvent = require('../models/CapiEvent');
 const { MetaClient } = require('../meta/client/MetaClient');
 const { DEAL_FIELDS } = require('./dealJoin');
 const { MAX_AGE_MS, isTestContact, contactEvents, tooOld, userData, toMetaEvent } = require('./capiEvents');
-const { PLACEHOLDER_PHONES, OFFICE_DID } = require('../../../utils/phone');
+const { isRealPhoneKey } = require('../../../utils/phone');
 
 const INTERVAL_MIN = Number(process.env.CAPI_INTERVAL_MINUTES || 15);
 const FIRST_RUN_DELAY_MS = 150 * 1000; // after the ads sync's 120s
@@ -36,7 +36,6 @@ const MAX_ATTEMPTS = 5;
 const BATCH = 500; // Meta allows 1000 per request
 
 const CONNECTED = { $or: [{ duration: { $gt: 0 } }, { biginDurationSec: { $gt: 0 } }] };
-const realKey = (k) => k && k !== OFFICE_DID && !PLACEHOLDER_PHONES.has(k);
 
 let client = null;
 let running = false;
@@ -74,11 +73,11 @@ async function loadCandidates(since) {
   const keys = new Set();
   for (const d of deals) {
     if (d.contactId) ids.add(String(d.contactId));
-    if (realKey(d.contactPhoneKey)) keys.add(d.contactPhoneKey);
+    if (isRealPhoneKey(d.contactPhoneKey)) keys.add(d.contactPhoneKey);
   }
   for (const c of calls) {
     if (c.biginContactId) ids.add(String(c.biginContactId));
-    for (const k of c.phoneKeys || []) if (realKey(k)) keys.add(k);
+    for (const k of c.phoneKeys || []) if (isRealPhoneKey(k)) keys.add(k);
   }
   if (!ids.size && !keys.size) return [];
 
@@ -88,7 +87,7 @@ async function loadCandidates(since) {
 /** Each contact's deals and first connected call (all time — not just the window). */
 async function loadHistory(contacts) {
   const ids = contacts.map((c) => c.zohoId);
-  const keys = [...new Set(contacts.flatMap((c) => c.phoneKeys || []).filter(realKey))];
+  const keys = [...new Set(contacts.flatMap((c) => c.phoneKeys || []).filter(isRealPhoneKey))];
 
   const [deals, calls] = await Promise.all([
     Deal.find(
@@ -102,7 +101,7 @@ async function loadHistory(contacts) {
   ]);
 
   return (contact) => {
-    const mine = new Set((contact.phoneKeys || []).filter(realKey));
+    const mine = new Set((contact.phoneKeys || []).filter(isRealPhoneKey));
     const owns = (id, phoneKeys) => String(id || '') === contact.zohoId || phoneKeys.some((k) => mine.has(k));
     const myDeals = deals.filter((d) => owns(d.contactId, [d.contactPhoneKey]));
     const firstCall = calls
@@ -160,7 +159,7 @@ async function syncCapi({ now = Date.now() } = {}) {
     const { deals, firstConnectedAt } = historyOf(contact);
     const user = userData(contact, deals);
     if (!user) continue; // nothing Meta could match on
-    const phoneKey = (contact.phoneKeys || []).find(realKey) || null;
+    const phoneKey = (contact.phoneKeys || []).find(isRealPhoneKey) || null;
     for (const e of contactEvents(contact, deals, firstConnectedAt)) {
       planned.push({
         id: `${m}:${contact.zohoId}:${e.event}`,
