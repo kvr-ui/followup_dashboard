@@ -23,8 +23,10 @@ async function syncCreatives() {
               imageUrl: c.imageUrl,
               videoId: c.videoId,
               callToActionType: c.callToActionType,
-              linkUrl: c.linkUrl,
               urlTags: c.urlTags,
+              // Meta no longer returns this (see CreativeService), so don't wipe
+              // the value earlier syncs stored.
+              ...(c.linkUrl ? { linkUrl: c.linkUrl } : {}),
             },
           },
           upsert: true,

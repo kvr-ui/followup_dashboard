@@ -7,7 +7,9 @@ const CREATIVE_FIELDS = [
   'video_id',
   'call_to_action_type',
   'url_tags',
-  'object_story_spec',
+  // No `object_story_spec`: on Advantage+ ("degrees of freedom") creatives Meta
+  // rejects the whole page with "Invalid parameter", which failed every sync from
+  // 2026-10-15. normalizeCreative still reads it when a caller passes it in.
 ];
 
 /** @returns {import('../types').Creative} */
