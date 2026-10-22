@@ -355,11 +355,75 @@ async function fetchDealsModifiedSince(since) {
   return deals;
 }
 
+/**
+ * Every open deal in Bigin that is attached to a contact.
+ *
+ * Reads the whole Deals list (about 45 pages) because Bigin's list endpoint has
+ * no stage filter. Contact-less deals are dropped: nothing can attribute them
+ * to a person, so no screen and no downstream system can use them.
+ */
+async function fetchOpenDealsWithContact() {
+  const open = [];
+  let page = 1;
+  for (;;) {
+    const r = await zoho.apiGet(`/Deals?per_page=200&page=${page}`);
+    if (!r.ok) throw new Error(r.error || `Failed to fetch deals page ${page}`);
+    const rows = (r.json && r.json.data) || [];
+    for (const d of rows) {
+      if (outcomeOf(d.Stage) === 'open' && d.Contact_Name && d.Contact_Name.id) open.push(d);
+    }
+    if (!rows.length || !r.json.info || !r.json.info.more_records) break;
+    page += 1;
+  }
+  return open;
+}
+
+/**
+ * Bring the mirror's OPEN deals level with Bigin.
+ *
+ * The reconcile poll only sees deals modified after its cursor, and the July
+ * backfill imported closed deals only — so an open deal that nobody touched
+ * since before the poll started never arrived. Campaigns Core reads this copy to
+ * decide who is "active in sales", so a missing open deal is a person who can be
+ * messaged while a rep is still working them (79 such deals on 2026-10-22).
+ *
+ * Only deals that are absent, or whose Bigin Modified_Time differs from the
+ * copy, are upserted — a re-run of an up-to-date mirror costs one list read.
+ */
+async function resyncOpenDeals({ dryRun = false, log = () => {} } = {}) {
+  if (!zoho.isConfigured()) return { skipped: true };
+
+  const open = await fetchOpenDealsWithContact();
+  const ids = open.map((d) => String(d.id));
+  const have = await Deal.find({ zohoId: { $in: ids } }, { zohoId: 1, modifiedTime: 1 }).lean();
+  const modifiedById = new Map(have.map((d) => [d.zohoId, d.modifiedTime ? new Date(d.modifiedTime).getTime() : 0]));
+
+  const missing = [];
+  const changed = [];
+  for (const d of open) {
+    const known = modifiedById.get(String(d.id));
+    if (known === undefined) missing.push(d);
+    else if (d.Modified_Time && new Date(d.Modified_Time).getTime() !== known) changed.push(d);
+  }
+  log(`[open deals] Bigin ${open.length} open with a contact — mirror has ${have.length}, missing ${missing.length}, changed ${changed.length}`);
+
+  let upserted = 0;
+  if (!dryRun) {
+    for (const d of [...missing, ...changed]) {
+      await upsertDeal(d, 'poll');
+      upserted += 1;
+    }
+  }
+  return { skipped: false, bigin: open.length, mirror: have.length, missing: missing.length, changed: changed.length, upserted };
+}
+
 module.exports = {
   upsertDeal,
   fetchProducts,
   tagCallsForDeal,
   fetchDealsModifiedSince,
+  fetchOpenDealsWithContact,
+  resyncOpenDeals,
   shouldTranscribe,
   outcomeOf,
   SCOPE,

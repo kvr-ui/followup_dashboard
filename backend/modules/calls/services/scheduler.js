@@ -12,7 +12,7 @@ const Deal = require('../models/Deal');
 const telecmi = require('./telecmi');
 const elevenlabs = require('./elevenlabs');
 const { agentMap, buildLeadIndex, warmLeadIndex, upsertCall, toCallDoc } = require('./callStore');
-const { upsertDeal, fetchDealsModifiedSince, shouldTranscribe } = require('./dealStore');
+const { upsertDeal, fetchDealsModifiedSince, resyncOpenDeals, shouldTranscribe } = require('./dealStore');
 const biginCalls = require('./biginCalls');
 const { runBatch, requeueStale, dueFilter } = require('./transcriptionWorker');
 const grader = require('./grader');
@@ -68,6 +68,7 @@ let running = {
   grade: false,
   audit: false,
   contactPrune: false,
+  openDeals: false,
 };
 
 async function reconcileCalls() {
@@ -382,6 +383,37 @@ async function nightlyContactPrune() {
   }
 }
 
+// Nightly: bring the mirror's open deals level with Bigin. The 15-minute poll
+// only sees deals modified after its cursor, so a deal that stays untouched
+// through an outage longer than RECONCILE_MAX_LOOKBACK_DAYS (or that predates
+// the poll, as the July backfill's open deals did) would otherwise never arrive.
+// Campaigns Core reads this copy to decide who is "active in sales".
+const NIGHTLY_OPEN_DEALS_HOUR_IST = Number(process.env.NIGHTLY_OPEN_DEALS_HOUR_IST || 4);
+
+async function nightlyOpenDealResync() {
+  if (istParts(new Date()).hour !== NIGHTLY_OPEN_DEALS_HOUR_IST || running.openDeals || running.deals) return;
+  const today = istDayKey();
+
+  const SyncState = require('../../../models/SyncState');
+  const state = await SyncState.findOne({ job: 'openDealsNightly' }).lean();
+  const lastDay = state && state.lastRunAt ? istDayKey(state.lastRunAt) : null;
+  if (lastDay === today) return;
+
+  running.openDeals = true;
+  const startedAt = new Date();
+  try {
+    const r = await resyncOpenDeals({ log: console.log });
+    if (r.skipped) return;
+    await commit('openDealsNightly', startedAt);
+    if (r.upserted) require('./journeyCache').invalidate();
+    console.log(`[open deals] ${r.missing} missing + ${r.changed} changed -> ${r.upserted} upserted`);
+  } catch (err) {
+    console.warn('[open deals] failed:', err.message);
+  } finally {
+    running.openDeals = false;
+  }
+}
+
 async function reconcileDeals() {
   if (running.deals) return;
   running.deals = true;
@@ -688,6 +720,7 @@ function start() {
   // Checks every 10 minutes; runs once, inside NIGHTLY_BIGIN_HOUR_IST.
   setInterval(nightlyBiginResync, 10 * 60 * 1000);
   setInterval(nightlyContactPrune, 10 * 60 * 1000);
+  setInterval(nightlyOpenDealResync, 10 * 60 * 1000);
   setInterval(syncRecentChats, WATI_SYNC_MIN * 60 * 1000);
 }
 
@@ -698,6 +731,7 @@ module.exports = {
   reconcileBiginCalls,
   nightlyBiginResync,
   nightlyContactPrune,
+  nightlyOpenDealResync,
   reconcileDeals,
   transcribePending,
   gradePending,

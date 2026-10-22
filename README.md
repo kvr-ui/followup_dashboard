@@ -175,6 +175,7 @@ running two prod replicas would duplicate the paid API calls and the sends.
 | WATI chat sync | same | every `WATI_SYNC_MIN` | `CALL_JOBS_ENABLED` |
 | Nightly Bigin re-sync (last 48 h) | same | 02:00 IST (`NIGHTLY_BIGIN_HOUR_IST`) | `CALL_JOBS_ENABLED` |
 | Nightly prune of contacts deleted in Bigin | same | 03:00 IST (`NIGHTLY_CONTACT_PRUNE_HOUR_IST`) | `CALL_JOBS_ENABLED` |
+| Nightly re-read of open Bigin deals (missing / changed only) | same | 04:00 IST (`NIGHTLY_OPEN_DEALS_HOUR_IST`) | `CALL_JOBS_ENABLED` |
 | Meta Ads sync | `modules/ads/services/scheduler.js` | every `SYNC_INTERVAL_MINUTES` (1440 = daily) | unset/0 = off |
 | Conversions API sweep | `modules/ads/services/capiSync.js` | every `CAPI_INTERVAL_MINUTES` (15) | `CAPI_ENABLED` |
 
@@ -201,7 +202,7 @@ Summary:
 | Public lead ingest | `CORS_ORIGINS`, `WEB_LEAD_RATE_MAX`, `LEAD_INGEST_TOKEN` |
 | VSL watch time | `VSL_MONGO_URI`, `VSL_MONGO_DB`, plus optional cache/timeout tuning |
 | Ask assistant | `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_REASONING_EFFORT`, `OPENAI_MAX_OUTPUT_TOKENS`, `AGENT_MAX_ROUNDS`, `AGENT_RATE_MAX`, `BIGIN_COQL_ENABLED` |
-| Job tuning (optional) | `TASK_POLL_MINUTES`, `CALL_POLL_MINUTES`, `DEAL_POLL_MINUTES`, `TRANSCRIBE_POLL_MINUTES`, `GRADE_POLL_MINUTES`, `PIPELINE_AUDIT_MINUTES`, `NIGHTLY_BIGIN_HOUR_IST`, `NIGHTLY_CONTACT_PRUNE_HOUR_IST`, `NIGHTLY_BIGIN_LOOKBACK_HOURS` |
+| Job tuning (optional) | `TASK_POLL_MINUTES`, `CALL_POLL_MINUTES`, `DEAL_POLL_MINUTES`, `TRANSCRIBE_POLL_MINUTES`, `GRADE_POLL_MINUTES`, `PIPELINE_AUDIT_MINUTES`, `NIGHTLY_BIGIN_HOUR_IST`, `NIGHTLY_CONTACT_PRUNE_HOUR_IST`, `NIGHTLY_OPEN_DEALS_HOUR_IST`, `NIGHTLY_BIGIN_LOOKBACK_HOURS` |
 
 > `TELECMI_APP_ID`, `TELECMI_SECRET`, `TELECMI_AGENTS` and the job-tuning variables
 > are read by the code but not yet listed in `.env.example`. Copy their values from
@@ -342,6 +343,7 @@ Useful maintenance scripts, run from `backend/`:
 | Script | Purpose |
 |---|---|
 | `modules/calls/scripts/backfillCalls.js` | Pull historical TeleCMI calls |
+| `modules/calls/scripts/backfillDeals.js --scope=open` | Re-mirror open Bigin deals that have a contact (`--dry-run` to count first) |
 | `modules/calls/scripts/requeueSkipped.js --apply` | Re-queue calls skipped before a scope/duration change |
 | `modules/calls/scripts/retryFailedTranscriptions.js` | Retry failed transcriptions |
 | `modules/calls/scripts/resetGradeAttempts.js` | Let calls that hit the grading retry limit be graded again |
