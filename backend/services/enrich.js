@@ -1,4 +1,5 @@
 const zoho = require('../services/zoho');
+const { cleanCategory } = require('./taskCategory');
 
 // Cache contact lookups by id so re-processing many tasks (import/backfill)
 // doesn't refetch the same contact repeatedly.
@@ -77,29 +78,8 @@ async function enrichTaskFields(task) {
   return true;
 }
 
-/** Bigin writes an unset picklist as the literal "-None-". That isn't a category. */
-function cleanCategory(v) {
-  if (!v) return null;
-  const s = String(v).trim();
-  return !s || s === '-None-' ? null : s;
-}
-
-// Enrich every task inside a stored document body (single object or array).
-async function enrichBody(body) {
-  const tasks = Array.isArray(body) ? body : [body];
-  let changed = false;
-  for (const t of tasks) {
-    const a = await enrichContact(t);
-    const b = await enrichTaskFields(t);
-    if (a || b) changed = true;
-  }
-  return changed;
-}
-
 module.exports = {
   enrichContact,
   enrichTaskFields,
-  enrichBody,
   normalizeContact,
-  cleanCategory,
 };

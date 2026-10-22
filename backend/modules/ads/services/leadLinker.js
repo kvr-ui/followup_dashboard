@@ -27,6 +27,7 @@ const Task = require('../../../models/Task');
 const WebLead = require('../models/WebLead');
 const MetaLead = require('../models/MetaLead');
 const { phoneKey } = require('../../../utils/phone'); // the one normaliser — do not add another
+const { entryName, entryValues } = require('./fieldData');
 
 // ---------------------------------------------------------------------------
 // Meta lead form field extraction
@@ -66,28 +67,6 @@ const PHONE_FIELD_NAMES = [
 // substring test. Kept narrow — anything matching these words in a lead form is
 // a phone.
 const PHONE_NAME_HINTS = ['phonenumber', 'mobilenumber', 'contactnumber', 'whatsapp', 'phone', 'mobile', 'telephone'];
-
-/** Field names are compared with the same shape-insensitive rule as campaign names. */
-function normalizeFieldName(value) {
-  return String(value == null ? '' : value)
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, '');
-}
-
-function entryName(entry) {
-  if (!entry || typeof entry !== 'object') return '';
-  return normalizeFieldName(entry.name != null ? entry.name : entry.key != null ? entry.key : entry.field);
-}
-
-/** Meta sends `values: []`; migrated/hand-made rows sometimes carry a bare `value`. */
-function entryValues(entry) {
-  if (!entry || typeof entry !== 'object') return [];
-  if (Array.isArray(entry.values)) return entry.values;
-  if (entry.values != null) return [entry.values];
-  if (Array.isArray(entry.value)) return entry.value;
-  if (entry.value != null) return [entry.value];
-  return [];
-}
 
 /** First value in the list that normalises to a usable 10-digit key. */
 function firstUsableKey(values) {

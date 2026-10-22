@@ -30,6 +30,7 @@ const { toDate } = require('../../../utils/dates');
 const MetaLead = require('../models/MetaLead');
 const WebLead = require('../models/WebLead');
 const cplCache = require('./cplCache');
+const { entryName, entryValues } = require('./fieldData');
 
 // ---------------------------------------------------------------------------
 // Campaign names
@@ -99,28 +100,6 @@ const QUALIFICATION_FIELDS = {
   city: { names: ['city', 'yourcity', 'currentcity', 'town'], hints: ['city'] },
   state: { names: ['state', 'yourstate', 'currentstate'], hints: ['state'] },
 };
-
-/** Same shape-insensitive comparison the linker and the campaign resolver use. */
-function normalizeFieldName(value) {
-  return String(value == null ? '' : value)
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, '');
-}
-
-function entryName(entry) {
-  if (!entry || typeof entry !== 'object') return '';
-  return normalizeFieldName(entry.name != null ? entry.name : entry.key != null ? entry.key : entry.field);
-}
-
-/** Meta sends `values: []`; migrated rows sometimes carry a bare `value`. */
-function entryValues(entry) {
-  if (!entry || typeof entry !== 'object') return [];
-  if (Array.isArray(entry.values)) return entry.values;
-  if (entry.values != null) return [entry.values];
-  if (Array.isArray(entry.value)) return entry.value;
-  if (entry.value != null) return [entry.value];
-  return [];
-}
 
 function firstAnswer(entry) {
   for (const value of entryValues(entry)) {
