@@ -39,7 +39,7 @@ const { buildAcquisition } = require('../../ads/services/acquisitionView');
 const { buildVslBlock, contactPhoneOf } = require('../../vsl/services/vslView');
 const { leadState } = require('../../ads/services/leadState');
 const { NAME_FIELDS, fieldValue } = require('../../ads/services/metaFields');
-const { taskOwnerEmails } = require('../../../utils/owner');
+const { taskOwnerEmails, isAdmin: userIsAdmin } = require('../../../utils/owner');
 
 const PHONE_KEY_RE = /^\d{10}$/;
 
@@ -395,7 +395,7 @@ async function buildLeadProfile(phoneKey, user) {
     return fail(400, 'phoneKey must be exactly 10 digits');
   }
 
-  const isAdmin = Boolean(user && user.role === 'admin');
+  const isAdmin = userIsAdmin(user);
   const failed = new Set();
 
   // ---- every source, in flight at once ------------------------------------

@@ -7,11 +7,11 @@ const { peekPhoneWatchMap } = require('../modules/vsl/services/watchIndex');
 // Shared with the VSL tracking tab, which drops any row the logged-in rep does
 // not own. Two owner-matchers that drift mean a rep sees a colleague's lead in
 // one view and a 403 in the other — see utils/owner.js.
-const { ownerEmailOf } = require('../utils/owner');
+const { ownerEmailOf, isAdmin } = require('../utils/owner');
 
 // Sales users may only touch tasks they own; admins may touch any.
 function canAccess(user, taskDoc) {
-  if (user.role === 'admin') return true;
+  if (isAdmin(user)) return true;
   const mine = (user.ownerEmail || '').toLowerCase();
   const body = taskDoc.body;
   const bodies = Array.isArray(body) ? body : [body];
@@ -64,7 +64,7 @@ async function detailFor(doc, user) {
   // its own catch: a VSL cluster timeout must not cost the acquisition panel, and
   // neither may cost the lead.
   const [acquisition, vsl] = await Promise.all([
-    buildAcquisition(doc, { includeCost: user && user.role === 'admin' }).catch((err) => {
+    buildAcquisition(doc, { includeCost: isAdmin(user) }).catch((err) => {
       console.warn('Failed to build acquisition block:', err.message);
       return null;
     }),
@@ -202,7 +202,7 @@ async function getTasks(req, res) {
   try {
     let records = await getCachedTasks();
 
-    if (req.user.role !== 'admin') {
+    if (!isAdmin(req.user)) {
       const mine = (req.user.ownerEmail || '').toLowerCase();
       records = records
         .map((r) => {

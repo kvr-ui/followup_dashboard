@@ -27,7 +27,7 @@ const MetaCampaign = require('../../ads/models/MetaCampaign');
 const Deal = require('../../calls/models/Deal');
 const Call = require('../../calls/models/Call');
 const Contact = require('../models/Contact');
-const { taskOwnerEmails } = require('../../../utils/owner');
+const { taskOwnerEmails, isAdmin: userIsAdmin } = require('../../../utils/owner');
 const { getCachedTasks } = require('../../../controllers/taskController');
 const {
   buildHeader,
@@ -260,7 +260,7 @@ function groupLeads({ tasks, webLeads, metaLeads, deals, calls, campaigns, conta
 // ---------------------------------------------------------------------------
 
 function inScope(row, user) {
-  if (user && user.role === 'admin') return true;
+  if (userIsAdmin(user)) return true;
   const mine = lower(user && user.ownerEmail);
   return row.unassigned || (Boolean(mine) && row._owners.has(mine));
 }
@@ -303,7 +303,7 @@ function ownerFacet(owners, isAdmin) {
  * needs. Exported so the tests can drive it without a database.
  */
 function selectRows(allRows, query, user) {
-  const isAdmin = Boolean(user && user.role === 'admin');
+  const isAdmin = userIsAdmin(user);
   const q = String(query.q || '').trim().toLowerCase();
   const qDigits = q.replace(/\D/g, '');
   const status = STATES.includes(query.status) ? query.status : '';

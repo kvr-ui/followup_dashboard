@@ -12,8 +12,10 @@
  *                   the entire pipeline. Callers must treat null as "empty result",
  *                   not as "no filter".
  */
+const { isAdmin } = require('../../../utils/owner');
+
 function ownerScope(req) {
-  if (req.user.role === 'admin') {
+  if (isAdmin(req.user)) {
     return req.query.owner ? { ownerEmail: String(req.query.owner).toLowerCase() } : {};
   }
   const mine = (req.user.ownerEmail || '').toLowerCase();

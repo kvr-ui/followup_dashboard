@@ -17,6 +17,7 @@
 const Deal = require('../../calls/models/Deal');
 const { parseRange, nextDay } = require('../../ads/services/adMetrics');
 const { phoneKey } = require('../../../utils/phone');
+const { isAdmin } = require('../../../utils/owner');
 const { isConfigured, DB_NAME } = require('../services/connection');
 const { getPeakMap, stats: watchStats } = require('../services/watchIndex');
 const { getTaskIndex, newestOf } = require('../services/taskIndex');
@@ -42,7 +43,7 @@ const DEFAULT_LIMIT = 500;
  * owner test happens in JS against the task index (see services/taskIndex.js).
  */
 function vslOwnerScope(req) {
-  if (req.user && req.user.role === 'admin') {
+  if (isAdmin(req.user)) {
     return {
       mode: 'admin',
       ownerEmail: req.query.owner ? String(req.query.owner).toLowerCase() : null,
@@ -224,7 +225,7 @@ async function vslStatus(req, res) {
     body.db = DB_NAME;
     // Collection sizes are account-wide diagnostics. Omitted — not nulled — for
     // a rep, so there is nothing in the raw response to find.
-    if (req.user && req.user.role === 'admin') body.peaks = watchStats();
+    if (isAdmin(req.user)) body.peaks = watchStats();
   }
   res.json(body);
 }

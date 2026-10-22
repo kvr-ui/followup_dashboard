@@ -42,6 +42,7 @@ const Contact = require('../models/Contact');
 const Call = require('../../calls/models/Call');
 const Deal = require('../../calls/models/Deal');
 const { SQL_MIN_CALL_SEC } = require('../../ads/services/leadState');
+const { isAdmin: userIsAdmin } = require('../../../utils/owner');
 
 const MONTH_CHOICES = [3, 4, 6, 12];
 const DEFAULT_MONTHS = 3;
@@ -122,7 +123,7 @@ function monthStart(month) {
  * @param {Date} now
  */
 function classifyContacts({ contacts, calls, deals }, query, user, now) {
-  const isAdmin = Boolean(user && user.role === 'admin');
+  const isAdmin = userIsAdmin(user);
   const count = MONTH_CHOICES.includes(Number(query.months)) ? Number(query.months) : DEFAULT_MONTHS;
   const months = monthWindow(now, count);
   const inWindow = new Set(months);

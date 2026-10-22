@@ -4,6 +4,7 @@ const telecmi = require('../services/telecmi');
 const audio = require('../services/audio');
 const { agentMap, buildLeadIndex, upsertCall } = require('../services/callStore');
 const { getJourneys } = require('../services/journeyCache');
+const { isAdmin } = require('../../../utils/owner');
 
 const MIN_DURATION = Number(process.env.TELECMI_MIN_DURATION_SEC || 30);
 
@@ -13,7 +14,7 @@ const MIN_DURATION = Number(process.env.TELECMI_MIN_DURATION_SEC || 30);
 // A rep with no ownerEmail is pinned to a sentinel that matches nothing, so a
 // misconfigured account sees zero calls rather than every unmapped (ownerEmail:null) one.
 function ownerScope(req) {
-  if (req.user && req.user.role === 'admin') {
+  if (isAdmin(req.user)) {
     return req.query.owner ? { ownerEmail: String(req.query.owner).toLowerCase() } : {};
   }
   const mine = ((req.user && req.user.ownerEmail) || '').toLowerCase();
@@ -23,7 +24,7 @@ function ownerScope(req) {
 /** True when the logged-in user is allowed to open this specific call. */
 function canSeeCall(req, call) {
   if (!call) return false;
-  if (req.user && req.user.role === 'admin') return true;
+  if (isAdmin(req.user)) return true;
   const mine = ((req.user && req.user.ownerEmail) || '').toLowerCase();
   return Boolean(mine) && (call.ownerEmail || '').toLowerCase() === mine;
 }

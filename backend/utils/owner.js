@@ -24,4 +24,9 @@ function taskOwnerEmails(doc) {
   return bodies.map(ownerEmailOf).filter(Boolean);
 }
 
-module.exports = { ownerEmailOf, taskOwnerEmails };
+/** True for an admin user object; false for a rep, null or undefined. */
+function isAdmin(user) {
+  return Boolean(user && user.role === 'admin');
+}
+
+module.exports = { ownerEmailOf, taskOwnerEmails, isAdmin };
