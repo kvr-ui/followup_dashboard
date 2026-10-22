@@ -218,7 +218,7 @@ async function current() {
   try {
     return await cache.get();
   } catch (err) {
-    return cache.peek(); // the failure is already logged and in stats().error
+    return cache.value(); // the failure is already logged and in stats().error
   }
 }
 
@@ -262,7 +262,7 @@ async function warm() {
 /** Diagnostics for GET /api/vsl/status. */
 function stats() {
   const s = cache.stats();
-  const state = cache.peek();
+  const state = cache.value(); // no refresh kicked by a status read
   return {
     leads: state && state.peaks ? state.peaks.size : 0,
     phoneKeys: state && state.byPhoneKey ? state.byPhoneKey.size : 0,

@@ -108,6 +108,19 @@ test('peek never awaits and kicks a refresh when stale; load receives prev', asy
   assert.deepEqual(seen, [null, 1]);
 });
 
+test('value() reads without side effects, even when stale or cold', async () => {
+  let loads = 0;
+  const c = createSwrCache({ name: 't', ttlMs: 20, load: async () => ++loads });
+  assert.equal(c.value(), null);
+  await sleep(0);
+  assert.equal(loads, 0);
+  await c.get();
+  await sleep(30);
+  assert.equal(c.value(), 1);
+  await sleep(0);
+  assert.equal(loads, 1);
+});
+
 test('refresh forces a load and is shared while in flight', async () => {
   let loads = 0;
   const c = createSwrCache({ name: 't', ttlMs: 1000, load: async () => { loads += 1; await sleep(5); return loads; } });

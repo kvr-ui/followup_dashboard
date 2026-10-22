@@ -11,7 +11,9 @@
 //   const cache = createSwrCache({ name: 'tasks', ttlMs: 30000, load: loadTaskList });
 //   await cache.get()      // fresh -> value; stale -> old value now, refresh behind;
 //                          // cold  -> waits for the first load (rejects if it fails)
-//   cache.peek()           // never awaits, never throws: the value we have, or null
+//   cache.peek()           // never awaits, never throws: the value we have, or null;
+//                          // kicks a refresh behind if it is stale
+//   cache.value()          // the value we have, or null — no side effects at all
 //   cache.invalidate()     // after a write: the next read reloads and sees it
 //   await cache.refresh()  // force a load now (one in flight at a time, shared)
 //
@@ -70,6 +72,8 @@ function createSwrCache({ name, ttlMs, load }) {
     return value;
   }
 
+  const current = () => value;
+
   function invalidate() {
     at = 0;
     gen += 1;
@@ -79,7 +83,7 @@ function createSwrCache({ name, ttlMs, load }) {
     return { name, at, stale: !fresh(), refreshing: Boolean(inflight), error: lastError, loadMs };
   }
 
-  return { get, peek, refresh, invalidate, stats };
+  return { get, peek, value: current, refresh, invalidate, stats };
 }
 
 module.exports = { createSwrCache };
