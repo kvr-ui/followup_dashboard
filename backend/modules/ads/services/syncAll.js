@@ -129,7 +129,14 @@ function isSyncing() {
 
 async function runSyncAll(range) {
   const campaigns = await runTracked('campaigns', syncCampaigns);
-  const creatives = await runTracked('creatives', syncCreatives);
+  // Best-effort: a creatives failure costs MetaAd.creativeId on new ads, not the
+  // spend data below. Letting it throw is what froze every stage after it.
+  let creatives = 0;
+  try {
+    creatives = await runTracked('creatives', syncCreatives);
+  } catch (err) {
+    console.warn('[ads sync] creatives stage failed, continuing:', err.message);
+  }
   const adsets = await runTracked('adsets', syncAdsets);
   const ads = await runTracked('ads', syncAds);
 
