@@ -26,6 +26,7 @@
 // never written at all — grep the raw response body and there is nothing to find.
 
 const MetaCampaign = require('../models/MetaCampaign');
+const { toDate } = require('../../../utils/dates');
 const MetaLead = require('../models/MetaLead');
 const WebLead = require('../models/WebLead');
 const cplCache = require('./cplCache');
@@ -231,12 +232,6 @@ async function loadLead(task) {
   if (!isObjectIdLike(id)) return null;
   const lead = await WebLead.findOne({ _id: id }, WEB_FIELDS).lean();
   return lead ? { lead, kind: 'web' } : null;
-}
-
-function toDate(value) {
-  if (!value) return null;
-  const date = value instanceof Date ? value : new Date(value);
-  return Number.isFinite(date.getTime()) ? date : null;
 }
 
 // ---------------------------------------------------------------------------

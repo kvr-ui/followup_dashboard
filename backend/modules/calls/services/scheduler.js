@@ -320,19 +320,16 @@ async function reconcileBiginCalls() {
 // so re-reading is free of side effects.
 const NIGHTLY_BIGIN_HOUR_IST = Number(process.env.NIGHTLY_BIGIN_HOUR_IST || 2);
 const NIGHTLY_BIGIN_LOOKBACK_HOURS = Number(process.env.NIGHTLY_BIGIN_LOOKBACK_HOURS || 48);
-const istNow = () => new Date(Date.now() + 330 * 60000);
+const { istDayKey, istParts } = require('../../../utils/dates');
 
 async function nightlyBiginResync() {
-  const now = istNow();
-  if (now.getUTCHours() !== NIGHTLY_BIGIN_HOUR_IST || running.bigin) return;
-  const today = now.toISOString().slice(0, 10);
+  if (istParts(new Date()).hour !== NIGHTLY_BIGIN_HOUR_IST || running.bigin) return;
+  const today = istDayKey();
 
   // The last run is kept in SyncState so a restart inside the hour doesn't run it twice.
   const SyncState = require('../../../models/SyncState');
   const state = await SyncState.findOne({ job: 'biginCallsNightly' }).lean();
-  const lastDay = state && state.lastRunAt
-    ? new Date(new Date(state.lastRunAt).getTime() + 330 * 60000).toISOString().slice(0, 10)
-    : null;
+  const lastDay = state && state.lastRunAt ? istDayKey(state.lastRunAt) : null;
   if (lastDay === today) return;
 
   running.bigin = true;
@@ -359,15 +356,12 @@ async function nightlyBiginResync() {
 const NIGHTLY_CONTACT_PRUNE_HOUR_IST = Number(process.env.NIGHTLY_CONTACT_PRUNE_HOUR_IST || 3);
 
 async function nightlyContactPrune() {
-  const now = istNow();
-  if (now.getUTCHours() !== NIGHTLY_CONTACT_PRUNE_HOUR_IST || running.contactPrune) return;
-  const today = now.toISOString().slice(0, 10);
+  if (istParts(new Date()).hour !== NIGHTLY_CONTACT_PRUNE_HOUR_IST || running.contactPrune) return;
+  const today = istDayKey();
 
   const SyncState = require('../../../models/SyncState');
   const state = await SyncState.findOne({ job: 'contactPruneNightly' }).lean();
-  const lastDay = state && state.lastRunAt
-    ? new Date(new Date(state.lastRunAt).getTime() + 330 * 60000).toISOString().slice(0, 10)
-    : null;
+  const lastDay = state && state.lastRunAt ? istDayKey(state.lastRunAt) : null;
   if (lastDay === today) return;
 
   running.contactPrune = true;

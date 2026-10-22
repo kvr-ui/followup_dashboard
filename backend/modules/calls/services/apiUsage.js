@@ -10,6 +10,7 @@
 // and swallows its own errors; a metering failure is a missing number, not a lost call.
 
 const ApiUsage = require('../models/ApiUsage');
+const { istDayKey } = require('../../../utils/dates');
 const Call = require('../models/Call');
 
 // ElevenLabs is the only one of the two with a balance endpoint. Sarvam has none —
@@ -20,12 +21,8 @@ const BALANCE_TTL_MS = 5 * 60 * 1000;
 
 let balanceCache = { at: 0, data: null };
 
-/** Local (IST) 'YYYY-MM-DD' — the day boundary the rest of the dashboard uses. */
-function dayKey(d = new Date()) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
-    d.getDate()
-  ).padStart(2, '0')}`;
-}
+/** IST 'YYYY-MM-DD' — the day boundary the rest of the dashboard uses. */
+const dayKey = (d = new Date()) => istDayKey(d);
 
 function daysAgoKey(n) {
   const d = new Date();

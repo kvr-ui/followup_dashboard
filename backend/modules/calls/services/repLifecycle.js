@@ -51,13 +51,13 @@ const { isJunkReason } = require('../../leads/services/funnel');
 const { DEAL_FIELDS, bestDeal } = require('../../ads/services/dealJoin');
 const { nextDay } = require('../../ads/services/adMetrics');
 const { PLACEHOLDER_PHONES, OFFICE_DID, phoneKey } = require('../../../utils/phone');
+const { toDate, istParts } = require('../../../utils/dates');
 
 const MIN_MS = 60 * 1000;
 const DAY_MS = 24 * 60 * MIN_MS;
 const FORM_LOOKBACK_MS = 7 * DAY_MS;
 // A TeleCMI row and its Bigin twin start within seconds of each other.
 const TWIN_WINDOW_MS = 90 * 1000;
-const IST_OFFSET_MS = 330 * MIN_MS;
 const VSL_TIMEOUT_MS = 10000;
 const TIMELINE_MAX = 120;
 
@@ -133,20 +133,7 @@ const TOPIC_BUCKETS = [
 
 const lower = (v) => (v ? String(v).trim().toLowerCase() : '');
 
-/** Meta's createdTime is '2026-10-01T10:00:00+0530'; give the offset its colon. */
-function toDate(value) {
-  if (!value) return null;
-  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
-  const d = new Date(String(value).replace(/([+-]\d\d)(\d\d)$/, '$1:$2'));
-  return Number.isNaN(d.getTime()) ? null : d;
-}
-
 const isTestKey = (k) => PLACEHOLDER_PHONES.has(k) || k === OFFICE_DID;
-
-function istParts(date) {
-  const d = new Date(date.getTime() + IST_OFFSET_MS);
-  return { hour: d.getUTCHours(), weekday: d.getUTCDay() };
-}
 
 function median(values) {
   const v = values.filter((x) => x != null).sort((a, b) => a - b);

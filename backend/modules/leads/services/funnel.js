@@ -43,11 +43,11 @@ const Call = require('../../calls/models/Call');
 const Deal = require('../../calls/models/Deal');
 const { SQL_MIN_CALL_SEC } = require('../../ads/services/leadState');
 const { isAdmin: userIsAdmin } = require('../../../utils/owner');
+const { IST_OFFSET_MS, istMonth } = require('../../../utils/dates');
 
 const MONTH_CHOICES = [3, 4, 6, 12];
 const DEFAULT_MONTHS = 3;
 const MAX_MONTHS = Math.max(...MONTH_CHOICES);
-const IST_OFFSET_MS = 330 * 60000;
 const NOT_SET = 'Not set';
 const UNASSIGNED = 'Unassigned';
 const NO_REASON = 'No reason';
@@ -83,14 +83,6 @@ function funnelSourceName(raw) {
   const text = String(raw == null ? '' : raw).replace(/_/g, ' ').trim().replace(/\s+/g, ' ');
   if (!text) return NOT_SET;
   return SOURCE_ALIASES[text.toLowerCase()] || text;
-}
-
-/** 'YYYY-MM' in IST, or null. */
-function istMonth(value) {
-  if (!value) return null;
-  const d = new Date(value);
-  if (!Number.isFinite(d.getTime())) return null;
-  return new Date(d.getTime() + IST_OFFSET_MS).toISOString().slice(0, 7);
 }
 
 /** The last `count` IST months, oldest first, ending with the current one. */
@@ -398,6 +390,6 @@ module.exports = {
   selectFunnel,
   selectWonLeads,
   funnelSourceName,
-  istMonth,
+  istMonth, // re-exported from utils/dates for the funnel tests
   isJunkReason,
 };

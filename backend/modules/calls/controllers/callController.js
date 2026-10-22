@@ -5,6 +5,7 @@ const audio = require('../services/audio');
 const { agentMap, buildLeadIndex, upsertCall } = require('../services/callStore');
 const { getJourneys } = require('../services/journeyCache');
 const { isAdmin } = require('../../../utils/owner');
+const { istDayKey } = require('../../../utils/dates');
 
 const MIN_DURATION = Number(process.env.TELECMI_MIN_DURATION_SEC || 30);
 
@@ -638,11 +639,8 @@ async function gradeAnalytics(req, res) {
     const ranked = [...gradeable].sort((a, b) => b.grade.score - a.grade.score);
 
     // --- Day-by-day (last 14 days) -----------------------------------------------
-    // Local-date key so a call at 11pm IST lands on the right day, not the UTC next day.
-    const dayKey = (d) => {
-      const x = new Date(d);
-      return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
-    };
+    // IST day key so a call at 11pm IST lands on the right day, not the UTC next day.
+    const dayKey = istDayKey;
     const dayMap = new Map();
     recentRaw
       .filter((c) => c.grade.breakdown && c.grade.breakdown.callType !== 'not_gradeable')

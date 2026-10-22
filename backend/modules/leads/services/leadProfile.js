@@ -40,6 +40,7 @@ const { buildVslBlock, contactPhoneOf } = require('../../vsl/services/vslView');
 const { leadState } = require('../../ads/services/leadState');
 const { NAME_FIELDS, fieldValue } = require('../../ads/services/metaFields');
 const { taskOwnerEmails, isAdmin: userIsAdmin } = require('../../../utils/owner');
+const { toDate } = require('../../../utils/dates');
 
 const PHONE_KEY_RE = /^\d{10}$/;
 
@@ -56,12 +57,6 @@ function fail(status, message) {
   return { status, body: { success: false, message } };
 }
 
-/** A real Date, or null — never an Invalid Date that would poison a sort. */
-function toDate(value) {
-  if (value == null || value === '') return null;
-  const date = value instanceof Date ? value : new Date(value);
-  return Number.isFinite(date.getTime()) ? date : null;
-}
 
 function timeOf(value) {
   const date = toDate(value);
@@ -549,7 +544,7 @@ module.exports = {
   // Shared with the Leads list (leadList.js), so a row and its profile agree.
   mergeForms,
   bodiesOf,
-  toDate,
+  toDate, // utils/dates, re-exported so leadList and the profile agree
   lower,
   taskAt,
   dealAt,

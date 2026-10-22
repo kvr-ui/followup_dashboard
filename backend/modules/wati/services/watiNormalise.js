@@ -14,11 +14,7 @@ const TEXT_MAX = 500;
 
 const clip = (s) => (s ? String(s).slice(0, TEXT_MAX) : null);
 
-function toDate(value) {
-  if (!value) return null;
-  const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? null : d;
-}
+const { toDate } = require('../../../utils/dates');
 
 function senderOf(m) {
   if (!m.owner) return 'lead';

@@ -17,6 +17,7 @@
 
 const MetaInsight = require('../models/MetaInsight');
 const cplCache = require('./cplCache');
+const { istDayKey } = require('../../../utils/dates');
 
 // ---------------------------------------------------------------------------
 // Date ranges
@@ -33,12 +34,8 @@ const cplCache = require('./cplCache');
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const DEFAULT_RANGE_DAYS = 30;
 
-/** Format a Date as local 'YYYY-MM-DD'. */
-function localIso(d) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
-    d.getDate()
-  ).padStart(2, '0')}`;
-}
+/** Format a Date as an IST 'YYYY-MM-DD'. */
+const localIso = (d) => istDayKey(d);
 
 function daysAgo(n) {
   const d = new Date();

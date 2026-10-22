@@ -28,6 +28,7 @@ const Deal = require('../../calls/models/Deal');
 const Call = require('../../calls/models/Call');
 const Contact = require('../models/Contact');
 const { taskOwnerEmails, isAdmin: userIsAdmin } = require('../../../utils/owner');
+const { istDayStart } = require('../../../utils/dates');
 const { getCachedTasks } = require('../../../controllers/taskController');
 const {
   buildHeader,
@@ -44,7 +45,6 @@ const HAS_KEY = { $nin: [null, ''] };
 const STATES = ['won', 'lost', 'pipeline', 'followup', 'none'];
 const SORTS = ['lastActivity', 'created', 'nextFollowUp', 'name'];
 const MAX_LIMIT = 200;
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 const SOURCE_LABELS = { web: 'Web form', meta: 'Meta form' };
 
@@ -267,9 +267,8 @@ function inScope(row, user) {
 
 /** A YYYY-MM-DD bound as an IST day edge — the team works in IST. */
 function dayEdge(value, endOfDay) {
-  if (!DATE_RE.test(value || '')) return null;
-  const d = new Date(`${value}T00:00:00+05:30`);
-  if (!Number.isFinite(d.getTime())) return null;
+  const d = istDayStart(value);
+  if (!d) return null;
   return endOfDay ? new Date(d.getTime() + 86400000) : d;
 }
 
