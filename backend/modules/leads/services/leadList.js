@@ -29,6 +29,7 @@ const Call = require('../../calls/models/Call');
 const Contact = require('../models/Contact');
 const { taskOwnerEmails, isAdmin: userIsAdmin } = require('../../../utils/owner');
 const { istDayStart } = require('../../../utils/dates');
+const { createSwrCache } = require('../../../utils/swrCache');
 const { getCachedTasks } = require('../../../controllers/taskController');
 const {
   buildHeader,
@@ -383,30 +384,16 @@ function selectRows(allRows, query, user) {
 // way the follow-ups list is. A rep's status change shows up within one TTL.
 
 const LIST_CACHE_TTL_MS = Number(process.env.LEAD_LIST_CACHE_TTL_MS || 60000);
-let listCache = null;
-let listCacheAt = 0;
-let listRefreshing = null;
+const listCache = createSwrCache({
+  name: 'leadList',
+  ttlMs: LIST_CACHE_TTL_MS,
+  load: async () => groupLeads(await loadSources()),
+});
 
-function getCachedLeads() {
-  if (listCache && Date.now() - listCacheAt < LIST_CACHE_TTL_MS) return listCache;
-  if (!listRefreshing) {
-    listRefreshing = loadSources()
-      .then((sources) => {
-        listCache = groupLeads(sources);
-        listCacheAt = Date.now();
-        return listCache;
-      })
-      .finally(() => {
-        listRefreshing = null;
-      });
-  }
-  return listCache || listRefreshing;
-}
+const getCachedLeads = () => listCache.get();
 
 /** Drop the cache so the next read reloads — the contact webhook calls this. */
-function invalidateLeadListCache() {
-  listCacheAt = 0;
-}
+const invalidateLeadListCache = () => listCache.invalidate();
 
 /** Warm at boot, after the task cache, so the first Leads tab isn't the slow one. */
 async function warmLeadListCache() {

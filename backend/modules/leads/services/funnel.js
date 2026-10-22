@@ -44,6 +44,7 @@ const Deal = require('../../calls/models/Deal');
 const { SQL_MIN_CALL_SEC } = require('../../ads/services/leadState');
 const { isAdmin: userIsAdmin } = require('../../../utils/owner');
 const { IST_OFFSET_MS, istMonth } = require('../../../utils/dates');
+const { createSwrCache } = require('../../../utils/swrCache');
 
 const MONTH_CHOICES = [3, 4, 6, 12];
 const DEFAULT_MONTHS = 3;
@@ -336,30 +337,12 @@ async function loadFunnelSources(now = new Date()) {
 }
 
 const CACHE_TTL_MS = Number(process.env.FUNNEL_CACHE_TTL_MS || 60000);
-let cache = null;
-let cacheAt = 0;
-let refreshing = null;
+const cache = createSwrCache({ name: 'funnel', ttlMs: CACHE_TTL_MS, load: () => loadFunnelSources() });
 
-function getCachedSources() {
-  if (cache && Date.now() - cacheAt < CACHE_TTL_MS) return cache;
-  if (!refreshing) {
-    refreshing = loadFunnelSources()
-      .then((src) => {
-        cache = src;
-        cacheAt = Date.now();
-        return src;
-      })
-      .finally(() => {
-        refreshing = null;
-      });
-  }
-  return cache || refreshing;
-}
+const getCachedSources = () => cache.get();
 
 /** Drop the cache so the next read reloads — the contact webhook calls this. */
-function invalidateFunnelCache() {
-  cacheAt = 0;
-}
+const invalidateFunnelCache = () => cache.invalidate();
 
 async function buildFunnel(query, user) {
   let src;

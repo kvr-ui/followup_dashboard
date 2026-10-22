@@ -38,6 +38,7 @@
 const { Types } = require('mongoose');
 const { isConfigured } = require('./connection');
 const { phoneKey } = require('../../../utils/phone');
+const { createSwrCache } = require('../../../utils/swrCache');
 
 const TTL_MS = Number(process.env.VSL_WATCH_TTL_MS || 60000);
 
@@ -84,16 +85,8 @@ function peakStages(countFrom) {
 }
 
 // ---------------------------------------------------------------------------
-// State
+// State — one swrCache holding { peaks, byPhoneKey, watermark }
 // ---------------------------------------------------------------------------
-
-let peaks = null; // Map<leadId, peak>
-let byPhoneKey = null; // Map<phoneKey, { leadId, seconds, minutes, percentage }>
-let watermark = null; // highest vsl_events _id folded in so far
-let builtAt = 0;
-let buildMs = 0;
-let refreshing = null;
-let lastError = null;
 
 /** Fold one aggregation row into the map. Max on every value, min on the first date. */
 function fold(map, row) {
@@ -163,71 +156,71 @@ async function buildPhoneIndex(peakMap) {
   return map;
 }
 
-/** Full scan, or an indexed range scan when we already have a watermark. */
-async function rebuild() {
+/**
+ * Full scan, or an indexed range scan when `prev` already carries a watermark.
+ * Returns the next { peaks, byPhoneKey, watermark }; `prev` when the VSL cluster
+ * is not configured.
+ */
+async function rebuild(prev) {
   const VslEvent = require('../models/VslEvent')();
-  if (!VslEvent) return;
+  if (!VslEvent) return prev;
 
   const t0 = Date.now();
-  const incremental = Boolean(peaks && watermark);
+  const incremental = Boolean(prev && prev.peaks && prev.watermark);
 
   const pipeline = [];
   let countFrom = ZERO_ID;
   if (incremental) {
-    countFrom = watermark;
+    countFrom = prev.watermark;
     const rewound = Types.ObjectId.createFromTime(
-      Math.floor((watermark.getTimestamp().getTime() - REWIND_MS) / 1000)
+      Math.floor((prev.watermark.getTimestamp().getTime() - REWIND_MS) / 1000)
     );
     pipeline.push({ $match: { _id: { $gt: rewound } } });
   }
   pipeline.push(...peakStages(countFrom));
 
-  const rows = await VslEvent.aggregate(pipeline).exec();
+  let rows;
+  try {
+    rows = await VslEvent.aggregate(pipeline).exec();
+  } catch (err) {
+    console.warn('[vsl] peak map refresh failed:', err.message);
+    throw err;
+  }
 
-  const map = incremental ? peaks : new Map();
-  let highest = watermark;
+  const map = incremental ? prev.peaks : new Map();
+  let highest = incremental ? prev.watermark : null;
   for (const row of rows) {
     if (row._id == null) continue; // an event with no leadId is not a lead
     fold(map, row);
     if (row.maxId && (!highest || row.maxId > highest)) highest = row.maxId;
   }
 
-  peaks = map;
-  watermark = highest;
-  byPhoneKey = await buildPhoneIndex(map);
-  builtAt = Date.now();
-  buildMs = builtAt - t0;
-  lastError = null;
+  const byPhoneKey = await buildPhoneIndex(map);
 
   // The tripwire. If a refresh ever takes about as long as the cold build, the
   // watermark is not being applied and it is scanning the whole log every minute.
   console.log(
     `[vsl] peak map ${incremental ? 'refreshed' : 'built'}: ${map.size} leads, ` +
-      `${rows.length} changed, ${byPhoneKey.size} phone keys in ${buildMs}ms`
+      `${rows.length} changed, ${byPhoneKey.size} phone keys in ${Date.now() - t0}ms`
   );
+
+  return { peaks: map, byPhoneKey, watermark: highest };
 }
 
-/** One rebuild at a time; concurrent callers share it. */
-function startRefresh() {
-  if (refreshing) return refreshing;
-  refreshing = rebuild()
-    .catch((err) => {
-      lastError = err.message;
-      console.warn('[vsl] peak map refresh failed:', err.message);
-    })
-    .finally(() => {
-      refreshing = null;
-    });
-  return refreshing;
-}
-
-function isStale() {
-  return !peaks || Date.now() - builtAt >= TTL_MS;
-}
+const cache = createSwrCache({ name: 'vslWatch', ttlMs: TTL_MS, load: rebuild });
 
 // ---------------------------------------------------------------------------
 // Accessors — the difference between these two is load-bearing
 // ---------------------------------------------------------------------------
+
+/** The current state, awaiting a cold build if there isn't one. Never throws. */
+async function current() {
+  try {
+    return await cache.get();
+  } catch (err) {
+    return cache.peek(); // the failure is already logged and in stats().error
+  }
+}
 
 /**
  * The map, awaiting a cold build if there isn't one yet.
@@ -235,19 +228,15 @@ function isStale() {
  */
 async function getPeakMap() {
   if (!isConfigured()) return new Map();
-  if (!peaks) {
-    await startRefresh();
-    return peaks || new Map();
-  }
-  if (isStale()) startRefresh(); // stale-while-revalidate: serve now, refresh behind
-  return peaks;
+  const state = await current();
+  return (state && state.peaks) || new Map();
 }
 
 /** Same, for the phoneKey-keyed view. */
 async function getPhoneWatchMap() {
   if (!isConfigured()) return new Map();
-  await getPeakMap();
-  return byPhoneKey || new Map();
+  const state = await current();
+  return (state && state.byPhoneKey) || new Map();
 }
 
 /**
@@ -260,25 +249,27 @@ async function getPhoneWatchMap() {
  */
 function peekPhoneWatchMap() {
   if (!isConfigured()) return null;
-  if (isStale()) startRefresh(); // kicked, never awaited
-  return byPhoneKey;
+  const state = cache.peek(); // kicks a refresh when stale, never awaited
+  return state ? state.byPhoneKey : null;
 }
 
 /** Warmed at boot so the first tab open isn't the slow one. */
 async function warm() {
   if (!isConfigured()) return;
-  await startRefresh();
+  await cache.refresh().catch(() => {});
 }
 
 /** Diagnostics for GET /api/vsl/status. */
 function stats() {
+  const s = cache.stats();
+  const state = cache.peek();
   return {
-    leads: peaks ? peaks.size : 0,
-    phoneKeys: byPhoneKey ? byPhoneKey.size : 0,
-    builtAt: builtAt ? new Date(builtAt).toISOString() : null,
-    buildMs,
-    stale: isStale(),
-    error: lastError,
+    leads: state && state.peaks ? state.peaks.size : 0,
+    phoneKeys: state && state.byPhoneKey ? state.byPhoneKey.size : 0,
+    builtAt: s.at ? new Date(s.at).toISOString() : null,
+    buildMs: s.loadMs,
+    stale: s.stale,
+    error: s.error,
   };
 }
 

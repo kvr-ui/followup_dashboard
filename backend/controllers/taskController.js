@@ -8,6 +8,7 @@ const { peekPhoneWatchMap } = require('../modules/vsl/services/watchIndex');
 // not own. Two owner-matchers that drift mean a rep sees a colleague's lead in
 // one view and a 403 in the other — see utils/owner.js.
 const { ownerEmailOf, isAdmin } = require('../utils/owner');
+const { createSwrCache } = require('../utils/swrCache');
 
 // Sales users may only touch tasks they own; admins may touch any.
 function canAccess(user, taskDoc) {
@@ -133,15 +134,6 @@ function serializeList(doc) {
 // We serve from an in-memory cache and refresh it in the background, so the UI
 // is instant and slow Atlas reads never block a request.
 const TASK_CACHE_TTL_MS = Number(process.env.TASK_CACHE_TTL_MS || 30000);
-let taskCache = null;
-let taskCacheAt = 0;
-let taskRefreshing = null;
-// Bumped on every write-invalidation. A refresh captures the generation when it
-// starts; if a write lands mid-load, the generation moves and the just-loaded
-// (pre-write) data is kept stale instead of being marked fresh — otherwise a
-// slow read that began before the write could overwrite the cache with old data
-// and hide the write for a full TTL.
-let taskCacheGen = 0;
 
 async function loadTaskList() {
   const docs = await Task.find(
@@ -163,34 +155,12 @@ async function loadTaskList() {
   return docs.map(serializeList);
 }
 
-async function getCachedTasks() {
-  const fresh = taskCache && Date.now() - taskCacheAt < TASK_CACHE_TTL_MS;
-  if (fresh) return taskCache;
+const taskCache = createSwrCache({ name: 'tasks', ttlMs: TASK_CACHE_TTL_MS, load: loadTaskList });
 
-  if (!taskRefreshing) {
-    const startGen = taskCacheGen;
-    taskRefreshing = loadTaskList()
-      .then((rows) => {
-        taskCache = rows;
-        // Only mark fresh if no write invalidated us mid-load; otherwise leave it
-        // stale so the very next read refreshes again, this time seeing the write.
-        taskCacheAt = taskCacheGen === startGen ? Date.now() : 0;
-        return rows;
-      })
-      .finally(() => {
-        taskRefreshing = null;
-      });
-  }
-
-  // Stale-while-revalidate: hand back the old copy instantly if we have one.
-  return taskCache || taskRefreshing;
-}
+const getCachedTasks = () => taskCache.get();
 
 /** Called after any write so the next read reflects it immediately. */
-function invalidateTaskCache() {
-  taskCacheAt = 0;
-  taskCacheGen += 1;
-}
+const invalidateTaskCache = () => taskCache.invalidate();
 
 /** Warm at boot so the first dashboard load isn't the slow one. */
 async function warmTaskCache() {
