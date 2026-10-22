@@ -15,6 +15,7 @@
 
 require('dotenv').config();
 const mongoose = require('mongoose');
+const { MONGO_URI } = require('../../../config/env');
 
 const openai = require('../services/openai');
 const { chat } = require('../controllers/agentController');
@@ -82,7 +83,7 @@ function call(user, body) {
 }
 
 (async () => {
-  await mongoose.connect(process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/followup_dashboard');
+  await mongoose.connect(MONGO_URI);
 
   const admin = await User.findOne({ role: 'admin' }).lean();
   const rep = await User.findOne({ role: { $ne: 'admin' }, ownerEmail: { $ne: null } }).lean();

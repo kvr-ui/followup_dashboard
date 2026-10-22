@@ -21,7 +21,7 @@ const API_KEY = process.env.SARVAM_API_KEY;
 // output at 4096 tokens (8192 is rejected outright), so reasoning_effort:'low' in
 // gradeOne is what keeps 105b from spending that whole budget "thinking" and truncating
 // the JSON. Measured: a 24-min call lands at ~3.3k completion tokens, inside the cap.
-const MODEL = process.env.SARVAM_MODEL || 'sarvam-105b';
+const { SARVAM_MODEL: MODEL } = require('../../../config/env');
 
 // A won call that fails this many times stops being retried (usually a transcript too
 // long to fit the token budget). It stays ungraded rather than costing credits forever.

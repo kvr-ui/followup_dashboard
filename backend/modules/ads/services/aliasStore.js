@@ -16,11 +16,12 @@
 
 const CampaignAlias = require('../models/CampaignAlias');
 const { normalizeName } = require('./normalizeName');
+const { num, CAMPAIGN_INDEX_TTL_MS } = require('../../../config/env');
 
 // Same TTL as the resolver's campaign index, and for the same reason: long enough
 // that a backfill is not re-reading the collection per lead, short enough that a
 // change made elsewhere (another process, a script) shows up without a restart.
-const TTL_MS = Number(process.env.CAMPAIGN_ALIAS_TTL_MS || process.env.CAMPAIGN_INDEX_TTL_MS || 60000);
+const TTL_MS = num('CAMPAIGN_ALIAS_TTL_MS', CAMPAIGN_INDEX_TTL_MS);
 
 let index = null;
 let indexedAt = 0;

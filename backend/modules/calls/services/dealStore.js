@@ -4,16 +4,17 @@ const Deal = require('../models/Deal');
 const Call = require('../models/Call');
 const { phoneKey } = require('../../../utils/phone');
 const { canonicalSource, metaLeadId } = require('../../ads/services/leadSourceName');
+const env = require('../../../config/env');
 
-const WON_STAGE = process.env.BIGIN_WON_STAGE || 'Closed with Sale';
+const WON_STAGE = env.BIGIN_WON_STAGE;
 const LOST_STAGE = process.env.BIGIN_LOST_STAGE || 'Closed without Sale';
 
 // Which calls do we spend money transcribing?
 //   won    -> only calls on deals that closed with a sale   (cheapest)
 //   closed -> won + lost                                     (enables comparison)
 //   all    -> every recorded call                            (full coverage)
-const SCOPE = (process.env.TRANSCRIBE_SCOPE || 'won').toLowerCase();
-const MIN_DURATION = Number(process.env.TELECMI_MIN_DURATION_SEC || 30);
+const SCOPE = env.TRANSCRIBE_SCOPE;
+const MIN_DURATION = env.TELECMI_MIN_DURATION_SEC;
 
 function outcomeOf(stage) {
   if (stage === WON_STAGE) return 'won';

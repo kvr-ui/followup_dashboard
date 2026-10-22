@@ -31,6 +31,7 @@ const MetaLead = require('../models/MetaLead');
 const WebLead = require('../models/WebLead');
 const cplCache = require('./cplCache');
 const { entryName, entryValues } = require('./fieldData');
+const { CAMPAIGN_INDEX_TTL_MS } = require('../../../config/env');
 
 // ---------------------------------------------------------------------------
 // Campaign names
@@ -40,7 +41,7 @@ const { entryName, entryValues } = require('./fieldData');
 // about it we display. Cached with the same short TTL as the campaign resolver's
 // index so a campaign the sync created minutes ago starts naming itself without a
 // restart, and so the detail endpoint stays at one database read.
-const NAME_TTL_MS = Number(process.env.CAMPAIGN_INDEX_TTL_MS || 60000);
+const NAME_TTL_MS = CAMPAIGN_INDEX_TTL_MS;
 
 let names = null;
 let namesAt = 0;

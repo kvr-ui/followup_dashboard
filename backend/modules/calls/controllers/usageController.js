@@ -1,4 +1,5 @@
 const usage = require('../services/apiUsage');
+const { SARVAM_MODEL, ELEVENLABS_MODEL } = require('../../../config/env');
 
 /**
  * GET /api/calls/usage — what the AI pipeline has spent, and what is left.
@@ -30,7 +31,7 @@ async function apiUsage(req, res) {
           label: 'Sarvam AI',
           purpose: 'Call grading (LLM)',
           configured: Boolean(process.env.SARVAM_API_KEY),
-          model: process.env.SARVAM_MODEL || 'sarvam-105b',
+          model: SARVAM_MODEL,
           unit: 'tokens',
           ...sarvam,
           balance: usage.sarvamBalance(sarvam.totals.allTime.totalTokens),
@@ -40,7 +41,7 @@ async function apiUsage(req, res) {
           label: 'ElevenLabs',
           purpose: 'Call transcription (speech-to-text)',
           configured: Boolean(process.env.ELEVENLABS_API_KEY),
-          model: process.env.ELEVENLABS_MODEL || 'scribe_v2',
+          model: ELEVENLABS_MODEL,
           unit: 'audio',
           ...elevenlabs,
           balance: elevenBalance,

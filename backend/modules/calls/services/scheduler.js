@@ -18,12 +18,13 @@ const { runBatch, requeueStale, dueFilter } = require('./transcriptionWorker');
 const grader = require('./grader');
 const { sinceFor, commit, fmtWindow } = require('../../../services/lookback');
 const { syncRecent } = require('../../wati/services/watiSync');
+const env = require('../../../config/env');
 
 const CALL_POLL_MIN = Number(process.env.CALL_POLL_MINUTES || 15);
 const BIGIN_POLL_MIN = Number(process.env.BIGIN_CALL_POLL_MINUTES || 10);
 const DEAL_POLL_MIN = Number(process.env.DEAL_POLL_MINUTES || 15);
-const TRANSCRIBE_EVERY_MIN = Number(process.env.TRANSCRIBE_POLL_MINUTES || 10);
-const TRANSCRIBE_BATCH = Number(process.env.TRANSCRIBE_BATCH || 10);
+const TRANSCRIBE_EVERY_MIN = env.TRANSCRIBE_POLL_MINUTES;
+const TRANSCRIBE_BATCH = env.TRANSCRIBE_BATCH;
 const GRADE_EVERY_MIN = Number(process.env.GRADE_POLL_MINUTES || 10);
 const GRADE_BATCH = Number(process.env.GRADE_BATCH || 10);
 
@@ -293,7 +294,7 @@ async function reconcileBiginCalls() {
     console.log(`[reconcile bigin] window ${fmtWindow(since)}`);
 
     const t = await biginCalls.syncSince(since, {
-      minDurationSec: Number(process.env.TELECMI_MIN_DURATION_SEC || 30),
+      minDurationSec: env.TELECMI_MIN_DURATION_SEC,
     });
     if (t.skipped) return;
 
@@ -638,7 +639,7 @@ async function auditPipeline() {
   }
 }
 
-const WATI_SYNC_MIN = Number(process.env.WATI_SYNC_MIN || 30);
+const WATI_SYNC_MIN = env.WATI_SYNC_MIN;
 
 function syncRecentChats() {
   return syncRecent().catch((e) => console.warn('[wati sync] failed:', e.message));

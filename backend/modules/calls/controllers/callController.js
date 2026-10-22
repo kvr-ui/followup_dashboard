@@ -7,7 +7,7 @@ const { getJourneys } = require('../services/journeyCache');
 const { isAdmin } = require('../../../utils/owner');
 const { istDayKey } = require('../../../utils/dates');
 
-const MIN_DURATION = Number(process.env.TELECMI_MIN_DURATION_SEC || 30);
+const { TELECMI_MIN_DURATION_SEC: MIN_DURATION } = require('../../../config/env');
 
 // A sales rep may only ever see their OWN calls/scores. This resolves the owner filter
 // for any list/analytics query: an admin may narrow by ?owner=<email> or see everyone;

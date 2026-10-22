@@ -31,12 +31,13 @@
 const MetaCampaign = require('../models/MetaCampaign');
 const aliasStore = require('./aliasStore');
 const { normalizeName } = require('./normalizeName');
+const { CAMPAIGN_INDEX_TTL_MS } = require('../../../config/env');
 
 // The campaign list is tiny (tens of rows) but this is called once per lead by
 // the backfill, so it is cached rather than re-queried thousands of times. Short
 // TTL: a campaign created by the sync minutes ago must start resolving without a
 // restart, and a 60s window is cheap insurance against a stale miss.
-const TTL_MS = Number(process.env.CAMPAIGN_INDEX_TTL_MS || 60000);
+const TTL_MS = CAMPAIGN_INDEX_TTL_MS;
 
 let index = null;
 let indexedAt = 0;

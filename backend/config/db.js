@@ -1,7 +1,6 @@
 const mongoose = require('mongoose');
 
-const MONGO_URI =
-  process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/followup_dashboard';
+const { MONGO_URI } = require('./env');
 
 async function connectDB() {
   mongoose.connection.on('connected', () => {
