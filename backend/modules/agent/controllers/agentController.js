@@ -19,6 +19,7 @@
 const openai = require('../services/openai');
 const { systemPrompt } = require('../services/prompt');
 const { toolSchemas, dispatch } = require('../services/tools');
+const { isAdmin } = require('../../../utils/owner');
 
 // How many tool rounds one question may take. Enough for "ad spend → the leads it
 // bought → the deals they closed → the calls on those deals", which is four, with
@@ -113,7 +114,7 @@ async function chat(req, res) {
   // Everything the tools are allowed to see, derived from the authenticated user
   // and nothing else.
   const scope = {
-    isAdmin: req.user.role === 'admin',
+    isAdmin: isAdmin(req.user),
     ownerEmail: (req.user.ownerEmail || '').toLowerCase(),
   };
   const ctx = { scope, user: req.user };
@@ -232,9 +233,9 @@ function status(req, res) {
     success: true,
     configured: openai.isConfigured(),
     model: openai.model,
-    isAdmin: req.user.role === 'admin',
+    isAdmin: isAdmin(req.user),
     tools: toolSchemas({
-      isAdmin: req.user.role === 'admin',
+      isAdmin: isAdmin(req.user),
       ownerEmail: req.user.ownerEmail,
     }).map((t) => t.function.name),
   });

@@ -9,7 +9,7 @@ const usage = require('./apiUsage');
 const API_URL = 'https://api.elevenlabs.io/v1/speech-to-text';
 
 const API_KEY = process.env.ELEVENLABS_API_KEY;
-const MODEL = process.env.ELEVENLABS_MODEL || 'scribe_v2';
+const { ELEVENLABS_MODEL: MODEL } = require('../../../config/env');
 const FALLBACK_MODEL = 'scribe_v1';
 
 function isConfigured() {

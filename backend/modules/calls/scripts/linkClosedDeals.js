@@ -17,7 +17,7 @@ const Call = require('../models/Call');
 const { key10 } = require('../../../utils/phone');
 const { buildWonPhoneMap } = require('../services/dealSync');
 
-const MIN_DURATION = Number(process.env.TELECMI_MIN_DURATION_SEC || 30);
+const { TELECMI_MIN_DURATION_SEC: MIN_DURATION } = require('../../../config/env');
 
 async function run() {
   await connectDB();

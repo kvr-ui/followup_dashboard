@@ -22,12 +22,5 @@ export function upsoldFrom(upScale) {
   return m ? m[1] : null;
 }
 
-/** ₹ short-form — lakhs read better than 9,19,000. */
-export function inr(n) {
-  const v = Math.round(n || 0);
-  const sign = v < 0 ? '-' : '';
-  const a = Math.abs(v);
-  if (a >= 1e7) return `${sign}₹${(a / 1e7).toFixed(2)}Cr`;
-  if (a >= 1e5) return `${sign}₹${(a / 1e5).toFixed(2)}L`;
-  return `${sign}₹${a.toLocaleString('en-IN')}`;
-}
+/** ₹ short-form — lakhs read better than 9,19,000. Shared; see format.js. */
+export { formatRupeesShort as inr } from './format';

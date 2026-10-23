@@ -10,36 +10,17 @@ const mongoose = require('mongoose');
 const connectDB = require('../config/db');
 const Task = require('../models/Task');
 const { upsertTask } = require('../services/taskStore');
-
-const {
-  ZOHO_CLIENT_ID,
-  ZOHO_CLIENT_SECRET,
-  ZOHO_REFRESH_TOKEN,
-  ZOHO_ACCOUNTS = 'https://accounts.zoho.in',
-  ZOHO_API = 'https://www.zohoapis.in',
-} = process.env;
-
-async function getToken() {
-  const params = new URLSearchParams({
-    refresh_token: ZOHO_REFRESH_TOKEN,
-    client_id: ZOHO_CLIENT_ID,
-    client_secret: ZOHO_CLIENT_SECRET,
-    grant_type: 'refresh_token',
-  });
-  const res = await fetch(`${ZOHO_ACCOUNTS}/oauth/v2/token`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: params.toString(),
-  });
-  const json = await res.json();
-  if (!json.access_token) throw new Error('token failed: ' + JSON.stringify(json));
-  return json.access_token;
-}
+// The app's Bigin client: ZOHO_* credentials, region/product base URL, cached
+// token, throttle and retry. (This script used to carry its own token refresh
+// with stale env names — ZOHO_ACCOUNTS / ZOHO_API — that nothing else read.)
+const zoho = require('../services/zoho');
 
 async function run() {
+  if (!zoho.isConfigured()) {
+    throw new Error('ZOHO_CLIENT_ID / ZOHO_CLIENT_SECRET / ZOHO_REFRESH_TOKEN are not set — check backend/.env');
+  }
   await connectDB();
   await Task.syncIndexes(); // apply the phone/dedupeKey unique index
-  const token = await getToken();
 
   // Import oldest-first so the newest task ends up as the visible row.
   let page = 1;
@@ -47,11 +28,9 @@ async function run() {
   let more = true;
 
   while (more) {
-    const res = await fetch(
-      `${ZOHO_API}/bigin/v1/Tasks?per_page=200&page=${page}&sort_by=Created_Time&sort_order=asc`,
-      { headers: { Authorization: `Zoho-oauthtoken ${token}` } }
-    );
-    const json = await res.json();
+    const r = await zoho.apiGet(`/Tasks?per_page=200&page=${page}&sort_by=Created_Time&sort_order=asc`);
+    if (!r.ok) throw new Error(r.error || `Tasks page ${page} failed`);
+    const json = r.json || {};
     const tasks = json.data || [];
 
     for (const rec of tasks) {

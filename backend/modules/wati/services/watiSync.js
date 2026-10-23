@@ -17,7 +17,8 @@ const Contact = require('../../leads/models/Contact');
 const WatiChat = require('../models/WatiChat');
 const wati = require('../../../services/wati');
 const { normaliseItems } = require('./watiNormalise');
-const { PLACEHOLDER_PHONES, OFFICE_DID } = require('../../../utils/phone');
+const { isRealPhoneKey } = require('../../../utils/phone');
+const { WATI_SYNC_MIN } = require('../../../config/env');
 
 const PAGE_SIZE = 100;
 const MAX_PAGES = 5;
@@ -61,7 +62,7 @@ async function syncPhone(phoneKey) {
 }
 
 const usableKeys = (c) =>
-  (c.phoneKeys || []).filter((k) => k && !PLACEHOLDER_PHONES.has(k) && k !== OFFICE_DID);
+  (c.phoneKeys || []).filter(isRealPhoneKey);
 
 /**
  * Sync a list of phone keys in order, stopping at the cap or a rate limit.
@@ -106,7 +107,7 @@ async function dueKeys(now = Date.now()) {
 
   const chats = await WatiChat.find({ phoneKey: { $in: keys } }, { phoneKey: 1, fetchedAt: 1 }).lean();
   const fetched = new Map(chats.map((c) => [c.phoneKey, c.fetchedAt ? new Date(c.fetchedAt).getTime() : 0]));
-  const everyMin = Number(process.env.WATI_SYNC_MIN || 30);
+  const everyMin = WATI_SYNC_MIN;
 
   return keys
     .filter((k) => {

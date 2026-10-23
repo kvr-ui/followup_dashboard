@@ -27,7 +27,9 @@ const MetaCampaign = require('../../ads/models/MetaCampaign');
 const Deal = require('../../calls/models/Deal');
 const Call = require('../../calls/models/Call');
 const Contact = require('../models/Contact');
-const { taskOwnerEmails } = require('../../../utils/owner');
+const { taskOwnerEmails, isAdmin: userIsAdmin } = require('../../../utils/owner');
+const { istDayStart } = require('../../../utils/dates');
+const { createSwrCache } = require('../../../utils/swrCache');
 const { getCachedTasks } = require('../../../controllers/taskController');
 const {
   buildHeader,
@@ -44,7 +46,6 @@ const HAS_KEY = { $nin: [null, ''] };
 const STATES = ['won', 'lost', 'pipeline', 'followup', 'none'];
 const SORTS = ['lastActivity', 'created', 'nextFollowUp', 'name'];
 const MAX_LIMIT = 200;
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 const SOURCE_LABELS = { web: 'Web form', meta: 'Meta form' };
 
@@ -260,16 +261,15 @@ function groupLeads({ tasks, webLeads, metaLeads, deals, calls, campaigns, conta
 // ---------------------------------------------------------------------------
 
 function inScope(row, user) {
-  if (user && user.role === 'admin') return true;
+  if (userIsAdmin(user)) return true;
   const mine = lower(user && user.ownerEmail);
   return row.unassigned || (Boolean(mine) && row._owners.has(mine));
 }
 
 /** A YYYY-MM-DD bound as an IST day edge — the team works in IST. */
 function dayEdge(value, endOfDay) {
-  if (!DATE_RE.test(value || '')) return null;
-  const d = new Date(`${value}T00:00:00+05:30`);
-  if (!Number.isFinite(d.getTime())) return null;
+  const d = istDayStart(value);
+  if (!d) return null;
   return endOfDay ? new Date(d.getTime() + 86400000) : d;
 }
 
@@ -303,7 +303,7 @@ function ownerFacet(owners, isAdmin) {
  * needs. Exported so the tests can drive it without a database.
  */
 function selectRows(allRows, query, user) {
-  const isAdmin = Boolean(user && user.role === 'admin');
+  const isAdmin = userIsAdmin(user);
   const q = String(query.q || '').trim().toLowerCase();
   const qDigits = q.replace(/\D/g, '');
   const status = STATES.includes(query.status) ? query.status : '';
@@ -384,30 +384,16 @@ function selectRows(allRows, query, user) {
 // way the follow-ups list is. A rep's status change shows up within one TTL.
 
 const LIST_CACHE_TTL_MS = Number(process.env.LEAD_LIST_CACHE_TTL_MS || 60000);
-let listCache = null;
-let listCacheAt = 0;
-let listRefreshing = null;
+const listCache = createSwrCache({
+  name: 'leadList',
+  ttlMs: LIST_CACHE_TTL_MS,
+  load: async () => groupLeads(await loadSources()),
+});
 
-function getCachedLeads() {
-  if (listCache && Date.now() - listCacheAt < LIST_CACHE_TTL_MS) return listCache;
-  if (!listRefreshing) {
-    listRefreshing = loadSources()
-      .then((sources) => {
-        listCache = groupLeads(sources);
-        listCacheAt = Date.now();
-        return listCache;
-      })
-      .finally(() => {
-        listRefreshing = null;
-      });
-  }
-  return listCache || listRefreshing;
-}
+const getCachedLeads = () => listCache.get();
 
 /** Drop the cache so the next read reloads — the contact webhook calls this. */
-function invalidateLeadListCache() {
-  listCacheAt = 0;
-}
+const invalidateLeadListCache = () => listCache.invalidate();
 
 /** Warm at boot, after the task cache, so the first Leads tab isn't the slow one. */
 async function warmLeadListCache() {

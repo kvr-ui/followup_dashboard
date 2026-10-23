@@ -11,6 +11,7 @@
 // the only way to answer "why is yesterday missing" after the fact.
 const AdSyncRun = require('../models/AdSyncRun');
 const meta = require('./metaClient');
+const { istDayKey } = require('../../../utils/dates');
 const { syncCampaigns } = require('./syncCampaigns');
 const { syncCreatives } = require('./syncCreatives');
 const { syncAdsets } = require('./syncAdsets');
@@ -89,16 +90,12 @@ async function runTracked(resource, fn, options = {}) {
   }
 }
 
-/** Default insights window: the last 30 days, as LOCAL calendar dates. */
+/** Default insights window: the last 30 days, as IST calendar dates. */
 function defaultInsightRange() {
-  const to = new Date();
-  const from = new Date();
-  from.setDate(from.getDate() - INSIGHT_LOOKBACK_DAYS);
-  // Local YYYY-MM-DD, not UTC. The container runs in IST, so a UTC date shifts
-  // the day boundary and the synced window stops matching what the UI filters on.
-  const fmt = (d) =>
-    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  return { from: fmt(from), to: fmt(to) };
+  const now = Date.now();
+  // IST YYYY-MM-DD, not UTC: a UTC date shifts the day boundary and the synced
+  // window stops matching what the UI filters on.
+  return { from: istDayKey(now - INSIGHT_LOOKBACK_DAYS * 86400000), to: istDayKey(now) };
 }
 
 /**

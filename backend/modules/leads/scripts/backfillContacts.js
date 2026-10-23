@@ -13,23 +13,7 @@ require('dotenv').config({ path: require('path').join(__dirname, '..', '..', '..
 const mongoose = require('mongoose');
 const { apiGet, isConfigured } = require('../../../services/zoho');
 const Contact = require('../models/Contact');
-const { fromBiginRecord } = require('../services/contactStore');
-
-const FIELDS = [
-  'Full_Name',
-  'First_Name',
-  'Last_Name',
-  'Phone',
-  'Mobile',
-  'Email',
-  'Lead_Source1',
-  'Owner',
-  'Created_Time',
-  'Modified_Time',
-  // Meta campaign / ad set ids LeadChain writes into reused address fields — see contactStore.
-  'Mailing_Country',
-  'Description',
-].join(',');
+const { fromBiginRecord, CONTACT_FIELDS: FIELDS } = require('../services/contactStore');
 
 async function run() {
   if (!isConfigured()) throw new Error('Zoho is not configured — check backend/.env');

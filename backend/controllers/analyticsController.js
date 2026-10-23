@@ -1,5 +1,6 @@
 const Task = require('../models/Task');
 const User = require('../models/User');
+const { createSwrCache } = require('../utils/swrCache');
 
 function isCompleted(t) {
   return (t.Status || '').toLowerCase() === 'completed';
@@ -24,11 +25,10 @@ function dueBucket(t) {
 }
 
 // Atlas M0 throttles to ~20ms/doc, so scanning every lead takes ~25s.
-// Analytics changes slowly — cache the computed result.
+// Analytics changes slowly — cache the computed result and serve the previous
+// one while a rebuild runs behind the request.
 const ANALYTICS_TTL_MS = Number(process.env.ANALYTICS_CACHE_TTL_MS || 60000);
-let cached = null;
-let cachedAt = 0;
-let building = null;
+const cache = createSwrCache({ name: 'analytics', ttlMs: ANALYTICS_TTL_MS, load: () => buildAnalytics() });
 
 /**
  * Per-salesperson performance, aggregated from all tasks.
@@ -36,26 +36,7 @@ let building = null;
  */
 async function getAnalytics(req, res) {
   try {
-    if (cached && Date.now() - cachedAt < ANALYTICS_TTL_MS) {
-      return res.json(cached);
-    }
-    if (building) {
-      // Another request is already computing it — serve stale rather than queue.
-      if (cached) return res.json(cached);
-      return res.json(await building);
-    }
-
-    building = buildAnalytics()
-      .then((payload) => {
-        cached = payload;
-        cachedAt = Date.now();
-        return payload;
-      })
-      .finally(() => {
-        building = null;
-      });
-
-    return res.json(await building);
+    return res.json(await cache.get());
   } catch (err) {
     console.error('Analytics failed:', err.message);
     return res.status(500).json({ success: false, message: 'Failed to build analytics' });

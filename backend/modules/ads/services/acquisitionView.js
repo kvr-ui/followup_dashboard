@@ -26,9 +26,12 @@
 // never written at all — grep the raw response body and there is nothing to find.
 
 const MetaCampaign = require('../models/MetaCampaign');
+const { toDate } = require('../../../utils/dates');
 const MetaLead = require('../models/MetaLead');
 const WebLead = require('../models/WebLead');
 const cplCache = require('./cplCache');
+const { entryName, entryValues } = require('./fieldData');
+const { CAMPAIGN_INDEX_TTL_MS } = require('../../../config/env');
 
 // ---------------------------------------------------------------------------
 // Campaign names
@@ -38,7 +41,7 @@ const cplCache = require('./cplCache');
 // about it we display. Cached with the same short TTL as the campaign resolver's
 // index so a campaign the sync created minutes ago starts naming itself without a
 // restart, and so the detail endpoint stays at one database read.
-const NAME_TTL_MS = Number(process.env.CAMPAIGN_INDEX_TTL_MS || 60000);
+const NAME_TTL_MS = CAMPAIGN_INDEX_TTL_MS;
 
 let names = null;
 let namesAt = 0;
@@ -98,28 +101,6 @@ const QUALIFICATION_FIELDS = {
   city: { names: ['city', 'yourcity', 'currentcity', 'town'], hints: ['city'] },
   state: { names: ['state', 'yourstate', 'currentstate'], hints: ['state'] },
 };
-
-/** Same shape-insensitive comparison the linker and the campaign resolver use. */
-function normalizeFieldName(value) {
-  return String(value == null ? '' : value)
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, '');
-}
-
-function entryName(entry) {
-  if (!entry || typeof entry !== 'object') return '';
-  return normalizeFieldName(entry.name != null ? entry.name : entry.key != null ? entry.key : entry.field);
-}
-
-/** Meta sends `values: []`; migrated rows sometimes carry a bare `value`. */
-function entryValues(entry) {
-  if (!entry || typeof entry !== 'object') return [];
-  if (Array.isArray(entry.values)) return entry.values;
-  if (entry.values != null) return [entry.values];
-  if (Array.isArray(entry.value)) return entry.value;
-  if (entry.value != null) return [entry.value];
-  return [];
-}
 
 function firstAnswer(entry) {
   for (const value of entryValues(entry)) {
@@ -231,12 +212,6 @@ async function loadLead(task) {
   if (!isObjectIdLike(id)) return null;
   const lead = await WebLead.findOne({ _id: id }, WEB_FIELDS).lean();
   return lead ? { lead, kind: 'web' } : null;
-}
-
-function toDate(value) {
-  if (!value) return null;
-  const date = value instanceof Date ? value : new Date(value);
-  return Number.isFinite(date.getTime()) ? date : null;
 }
 
 // ---------------------------------------------------------------------------

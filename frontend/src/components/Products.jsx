@@ -7,13 +7,7 @@ import StatCard, { StatGrid } from './ui/StatCard';
 import EmptyState from './ui/EmptyState';
 import Icon from './ui/Icon';
 import '../styles/views/deals.css';
-
-function inr(n) {
-  const v = Math.round(n || 0);
-  if (v >= 1e7) return `₹${(v / 1e7).toFixed(2)}Cr`;
-  if (v >= 1e5) return `₹${(v / 1e5).toFixed(2)}L`; // lakhs read better than 9,19,000
-  return `₹${v.toLocaleString('en-IN')}`;
-}
+import { formatRupeesShort as inr } from '../format';
 
 /**
  * What actually sells.

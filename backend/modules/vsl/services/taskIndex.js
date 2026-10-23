@@ -16,11 +16,12 @@
 // canAccess(), so the tab and the drawer can never disagree about whose lead it
 // is.
 //
-// Same cache shape as controllers/taskController.js and journeyCache:
-// TTL + stale-while-revalidate + one in-flight rebuild shared by all callers.
+// Same cache as controllers/taskController.js: utils/swrCache — TTL +
+// stale-while-revalidate + one in-flight rebuild shared by all callers.
 
 const Task = require('../../../models/Task');
 const { taskOwnerEmails } = require('../../../utils/owner');
+const { createSwrCache } = require('../../../utils/swrCache');
 
 const TTL_MS = Number(process.env.VSL_TASK_INDEX_TTL_MS || 60000);
 
@@ -38,10 +39,6 @@ const FIELDS = {
   'body.Owner': 1,
   'body.Status': 1,
 };
-
-let cache = null; // Map<phoneKey, row[]>
-let cachedAt = 0;
-let refreshing = null;
 
 function rowOf(doc) {
   const body = Array.isArray(doc.body) ? doc.body[0] : doc.body;
@@ -71,25 +68,11 @@ async function load() {
   return map;
 }
 
-async function getTaskIndex() {
-  if (cache && Date.now() - cachedAt < TTL_MS) return cache;
+// Map<phoneKey, row[]>. A stale copy is handed back instantly rather than
+// making every concurrent tab open wait on the same query.
+const cache = createSwrCache({ name: 'vslTaskIndex', ttlMs: TTL_MS, load: () => load() });
 
-  if (!refreshing) {
-    refreshing = load()
-      .then((map) => {
-        cache = map;
-        cachedAt = Date.now();
-        return map;
-      })
-      .finally(() => {
-        refreshing = null;
-      });
-  }
-
-  // Hand back the stale copy instantly if we have one, rather than making every
-  // concurrent tab open wait on the same query.
-  return cache || refreshing;
-}
+const getTaskIndex = () => cache.get();
 
 /** The newest follow-up for a phone key, or null. */
 function newestOf(rows) {

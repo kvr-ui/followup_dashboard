@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import Section from '../ui/Section';
+import { formatDate, formatTime } from '../../format';
 
 const TIMELINE_LABELS = {
   form: 'Form',
@@ -11,8 +12,6 @@ const TIMELINE_LABELS = {
   deal: 'Deal',
 };
 
-const TIME_FMT = { hour: 'numeric', minute: '2-digit' };
-
 /** "Today", "Yesterday", "25 Sep" — or "25 Sep 2025" outside this year. */
 function dayLabel(date) {
   const today = new Date();
@@ -22,11 +21,7 @@ function dayLabel(date) {
   const diff = Math.round((today - day) / 86400000);
   if (diff === 0) return 'Today';
   if (diff === 1) return 'Yesterday';
-  return day.toLocaleDateString('en-IN', {
-    day: 'numeric',
-    month: 'short',
-    ...(day.getFullYear() === today.getFullYear() ? {} : { year: 'numeric' }),
-  });
+  return formatDate(day, { year: day.getFullYear() !== today.getFullYear() });
 }
 
 export default function LeadTimeline({ events }) {
@@ -78,7 +73,7 @@ export default function LeadTimeline({ events }) {
                 <div className="lp-ev-body">
                   <div className="lp-ev-text">{ev.text}</div>
                   <div className="lp-ev-meta">
-                    {new Date(ev.at).toLocaleTimeString('en-IN', TIME_FMT)}
+                    {formatTime(ev.at)}
                     {ev.by && <> · {ev.by}</>}
                   </div>
                 </div>

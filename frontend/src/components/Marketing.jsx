@@ -20,6 +20,8 @@ import {
   sortRows,
   utmBreakdown,
 } from '../adStats';
+import { formatDateTime } from '../format';
+import { SYNC_STATUS_CLASS as STATUS_CLASS } from '../labels';
 
 // The Marketing tab — what the retired CRM's dashboard showed, rebuilt on the
 // admin ads API. Spend, campaign performance, where the leads came from,
@@ -50,12 +52,6 @@ const COLUMNS = [
   { key: 'leads', label: 'Leads', render: (r) => formatCount(r.leads) },
   { key: 'cpl', label: 'CPL', render: (r) => formatRupees(r.cpl) },
 ];
-
-const STATUS_CLASS = {
-  success: 'badge badge-low',
-  error: 'badge badge-high',
-  running: 'badge badge-normal',
-};
 
 const q = (range) => `from=${range.from}&to=${range.to}`;
 
@@ -461,9 +457,9 @@ export default function Marketing() {
                         {r.error && <div className="subtle">{r.error}</div>}
                       </td>
                       <td className="num">{formatCount(r.recordsUpserted)}</td>
-                      <td className="subtle">{new Date(r.startedAt).toLocaleString()}</td>
+                      <td className="subtle">{formatDateTime(r.startedAt)}</td>
                       <td className="subtle">
-                        {r.finishedAt ? new Date(r.finishedAt).toLocaleString() : '—'}
+                        {formatDateTime(r.finishedAt)}
                       </td>
                     </tr>
                   ))}

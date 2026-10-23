@@ -23,6 +23,7 @@ const mongoose = require('mongoose');
 const connectDB = require('../../../config/db');
 const Call = require('../models/Call');
 const { shouldTranscribe } = require('../services/dealStore');
+const env = require('../../../config/env');
 
 const APPLY = process.argv.includes('--apply');
 const LIMIT = Number(process.env.LIMIT || 0); // 0 = all
@@ -39,8 +40,8 @@ async function run() {
   const eligible = skipped.filter((c) => shouldTranscribe(c));
   const capped = LIMIT ? eligible.slice(0, LIMIT) : eligible;
 
-  console.log(`${APPLY ? 'APPLY' : 'DRY RUN'} | scope=${process.env.TRANSCRIBE_SCOPE || 'won'} ` +
-    `min=${process.env.TELECMI_MIN_DURATION_SEC || 30}s`);
+  console.log(`${APPLY ? 'APPLY' : 'DRY RUN'} | scope=${env.TRANSCRIBE_SCOPE} ` +
+    `min=${env.TELECMI_MIN_DURATION_SEC}s`);
   console.log(`  skipped calls:       ${skipped.length}`);
   console.log(`  now eligible:        ${eligible.length}`);
   console.log(`  still rightly skipped: ${skipped.length - eligible.length}`);
@@ -68,8 +69,8 @@ async function run() {
   );
 
   console.log(`\nQueued ${res.modifiedCount} call(s). The transcribe poll works through ` +
-    `TRANSCRIBE_BATCH (${process.env.TRANSCRIBE_BATCH || 10}) every ` +
-    `${process.env.TRANSCRIBE_POLL_MINUTES || 10} min, then grading follows automatically.`);
+    `TRANSCRIBE_BATCH (${env.TRANSCRIBE_BATCH}) every ` +
+    `${env.TRANSCRIBE_POLL_MINUTES} min, then grading follows automatically.`);
 }
 
 run()

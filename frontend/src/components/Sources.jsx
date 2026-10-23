@@ -6,7 +6,8 @@ import Section from './ui/Section';
 import DataTable from './ui/DataTable';
 import StatCard, { StatGrid } from './ui/StatCard';
 import Icon from './ui/Icon';
-import { formatCount, formatDay, formatPct, formatRupees, localIso } from '../adStats';
+import { formatCount, formatDay, formatPct, localIso } from '../adStats';
+import { formatRupeesShort as inr } from '../format';
 
 // The Sources tab — which lead source actually closes the deal, and for the ones
 // that came from an ad, which campaign paid for them.
@@ -38,18 +39,9 @@ import { formatCount, formatDay, formatPct, formatRupees, localIso } from '../ad
 /** The all-time window: the server treats "no range" as the whole history. */
 const ALL_TIME = { from: '', to: '', label: 'All time' };
 
-function inr(value) {
-  // `null` is the server's word for "this cannot be computed" — an average sale
-  // for a channel that has never sold, a cost per sale with no spend behind it.
-  // Number(null) is 0, so without this guard every one of those renders as a
-  // confident ₹0.
-  if (value == null) return '—';
-  const n = Number(value);
-  if (!Number.isFinite(n)) return '—';
-  if (Math.abs(n) >= 1e7) return `₹${(n / 1e7).toFixed(2)}Cr`;
-  if (Math.abs(n) >= 1e5) return `₹${(n / 1e5).toFixed(2)}L`;
-  return formatRupees(n);
-}
+// `null` is the server's word for "this cannot be computed" — an average sale
+// for a channel that has never sold, a cost per sale with no spend behind it.
+// formatRupeesShort renders those as a dash, never as a confident ₹0.
 
 export default function Sources() {
   const [range, setRange] = useState(ALL_TIME);

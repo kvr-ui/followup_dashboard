@@ -3,6 +3,7 @@
 //  1. Reconcile calls  — poll TeleCMI for recent calls (catches missed webhooks)
 //  2. Reconcile deals  — poll Bigin for recently-changed deals (won/lost)
 //  3. Transcribe       — work through pending calls
+//  4. Reconcile contacts — poll Bigin for recently-changed contacts (MQLs)
 //
 // Webhooks are the fast path; these polls are the safety net. We learned in v1
 // that webhooks can silently miss events, so we never rely on them alone.
@@ -12,18 +13,20 @@ const Deal = require('../models/Deal');
 const telecmi = require('./telecmi');
 const elevenlabs = require('./elevenlabs');
 const { agentMap, buildLeadIndex, warmLeadIndex, upsertCall, toCallDoc } = require('./callStore');
-const { upsertDeal, fetchDealsModifiedSince, shouldTranscribe } = require('./dealStore');
+const { upsertDeal, fetchDealsModifiedSince, resyncOpenDeals, shouldTranscribe } = require('./dealStore');
 const biginCalls = require('./biginCalls');
 const { runBatch, requeueStale, dueFilter } = require('./transcriptionWorker');
 const grader = require('./grader');
 const { sinceFor, commit, fmtWindow } = require('../../../services/lookback');
 const { syncRecent } = require('../../wati/services/watiSync');
+const env = require('../../../config/env');
 
 const CALL_POLL_MIN = Number(process.env.CALL_POLL_MINUTES || 15);
 const BIGIN_POLL_MIN = Number(process.env.BIGIN_CALL_POLL_MINUTES || 10);
 const DEAL_POLL_MIN = Number(process.env.DEAL_POLL_MINUTES || 15);
-const TRANSCRIBE_EVERY_MIN = Number(process.env.TRANSCRIBE_POLL_MINUTES || 10);
-const TRANSCRIBE_BATCH = Number(process.env.TRANSCRIBE_BATCH || 10);
+const CONTACT_POLL_MIN = Number(process.env.CONTACT_POLL_MINUTES || 15);
+const TRANSCRIBE_EVERY_MIN = env.TRANSCRIBE_POLL_MINUTES;
+const TRANSCRIBE_BATCH = env.TRANSCRIBE_BATCH;
 const GRADE_EVERY_MIN = Number(process.env.GRADE_POLL_MINUTES || 10);
 const GRADE_BATCH = Number(process.env.GRADE_BATCH || 10);
 
@@ -39,6 +42,14 @@ const seedFromNewestCall = async () => {
 const seedFromNewestDeal = async () => {
   const d = await Deal.findOne({}, { modifiedTime: 1 }).sort({ modifiedTime: -1 }).lean();
   return d && d.modifiedTime ? new Date(d.modifiedTime).getTime() : null;
+};
+
+const seedFromNewestContact = async () => {
+  const Contact = require('../../leads/models/Contact');
+  const c = await Contact.findOne({ modifiedTime: { $ne: null } }, { modifiedTime: 1 })
+    .sort({ modifiedTime: -1 })
+    .lean();
+  return c && c.modifiedTime ? new Date(c.modifiedTime).getTime() : null;
 };
 
 // If ElevenLabs says we're out of credits, stop hammering it for a while.
@@ -62,11 +73,13 @@ let running = {
   calls: false,
   outgoing: false,
   deals: false,
+  contacts: false,
   bigin: false,
   transcribe: false,
   grade: false,
   audit: false,
   contactPrune: false,
+  openDeals: false,
 };
 
 async function reconcileCalls() {
@@ -293,7 +306,7 @@ async function reconcileBiginCalls() {
     console.log(`[reconcile bigin] window ${fmtWindow(since)}`);
 
     const t = await biginCalls.syncSince(since, {
-      minDurationSec: Number(process.env.TELECMI_MIN_DURATION_SEC || 30),
+      minDurationSec: env.TELECMI_MIN_DURATION_SEC,
     });
     if (t.skipped) return;
 
@@ -320,19 +333,16 @@ async function reconcileBiginCalls() {
 // so re-reading is free of side effects.
 const NIGHTLY_BIGIN_HOUR_IST = Number(process.env.NIGHTLY_BIGIN_HOUR_IST || 2);
 const NIGHTLY_BIGIN_LOOKBACK_HOURS = Number(process.env.NIGHTLY_BIGIN_LOOKBACK_HOURS || 48);
-const istNow = () => new Date(Date.now() + 330 * 60000);
+const { istDayKey, istParts } = require('../../../utils/dates');
 
 async function nightlyBiginResync() {
-  const now = istNow();
-  if (now.getUTCHours() !== NIGHTLY_BIGIN_HOUR_IST || running.bigin) return;
-  const today = now.toISOString().slice(0, 10);
+  if (istParts(new Date()).hour !== NIGHTLY_BIGIN_HOUR_IST || running.bigin) return;
+  const today = istDayKey();
 
   // The last run is kept in SyncState so a restart inside the hour doesn't run it twice.
   const SyncState = require('../../../models/SyncState');
   const state = await SyncState.findOne({ job: 'biginCallsNightly' }).lean();
-  const lastDay = state && state.lastRunAt
-    ? new Date(new Date(state.lastRunAt).getTime() + 330 * 60000).toISOString().slice(0, 10)
-    : null;
+  const lastDay = state && state.lastRunAt ? istDayKey(state.lastRunAt) : null;
   if (lastDay === today) return;
 
   running.bigin = true;
@@ -359,15 +369,12 @@ async function nightlyBiginResync() {
 const NIGHTLY_CONTACT_PRUNE_HOUR_IST = Number(process.env.NIGHTLY_CONTACT_PRUNE_HOUR_IST || 3);
 
 async function nightlyContactPrune() {
-  const now = istNow();
-  if (now.getUTCHours() !== NIGHTLY_CONTACT_PRUNE_HOUR_IST || running.contactPrune) return;
-  const today = now.toISOString().slice(0, 10);
+  if (istParts(new Date()).hour !== NIGHTLY_CONTACT_PRUNE_HOUR_IST || running.contactPrune) return;
+  const today = istDayKey();
 
   const SyncState = require('../../../models/SyncState');
   const state = await SyncState.findOne({ job: 'contactPruneNightly' }).lean();
-  const lastDay = state && state.lastRunAt
-    ? new Date(new Date(state.lastRunAt).getTime() + 330 * 60000).toISOString().slice(0, 10)
-    : null;
+  const lastDay = state && state.lastRunAt ? istDayKey(state.lastRunAt) : null;
   if (lastDay === today) return;
 
   running.contactPrune = true;
@@ -384,6 +391,93 @@ async function nightlyContactPrune() {
     console.warn('[contact prune] failed:', err.message);
   } finally {
     running.contactPrune = false;
+  }
+}
+
+// Nightly: bring the mirror's open deals level with Bigin. The 15-minute poll
+// only sees deals modified after its cursor, so a deal that stays untouched
+// through an outage longer than RECONCILE_MAX_LOOKBACK_DAYS (or that predates
+// the poll, as the July backfill's open deals did) would otherwise never arrive.
+// Campaigns Core reads this copy to decide who is "active in sales".
+const NIGHTLY_OPEN_DEALS_HOUR_IST = Number(process.env.NIGHTLY_OPEN_DEALS_HOUR_IST || 4);
+
+async function nightlyOpenDealResync() {
+  if (istParts(new Date()).hour !== NIGHTLY_OPEN_DEALS_HOUR_IST || running.openDeals || running.deals) return;
+  const today = istDayKey();
+
+  const SyncState = require('../../../models/SyncState');
+  const state = await SyncState.findOne({ job: 'openDealsNightly' }).lean();
+  const lastDay = state && state.lastRunAt ? istDayKey(state.lastRunAt) : null;
+  if (lastDay === today) return;
+
+  running.openDeals = true;
+  const startedAt = new Date();
+  try {
+    const r = await resyncOpenDeals({ log: console.log });
+    if (r.skipped) return;
+    await commit('openDealsNightly', startedAt);
+    if (r.upserted) require('./journeyCache').invalidate();
+    console.log(`[open deals] ${r.missing} missing + ${r.changed} changed -> ${r.upserted} upserted`);
+  } catch (err) {
+    console.warn('[open deals] failed:', err.message);
+  } finally {
+    running.openDeals = false;
+  }
+}
+
+// The contact webhook comes through Zoho Flow, which drops deliveries (a whole
+// egress host went dark on 2026-10-22). Same cursor pattern as deals, so a missed
+// contact lands within CONTACT_POLL_MIN instead of never.
+async function reconcileContacts() {
+  if (running.contacts) return;
+  running.contacts = true;
+
+  const startedAt = new Date();
+
+  try {
+    const Contact = require('../../leads/models/Contact');
+    const {
+      fetchContactsModifiedSince,
+      fromBiginRecord,
+      upsertContact,
+    } = require('../../leads/services/contactStore');
+
+    const since = await sinceFor('contacts', seedFromNewestContact);
+    console.log(`[reconcile contacts] window ${fmtWindow(since)}`);
+
+    const rows = (await fetchContactsModifiedSince(since)).map(fromBiginRecord).filter(Boolean);
+    // Skip what the webhook already stored at this exact Bigin version, so the
+    // log counts real catches and the poll doesn't rewrite every row it re-reads.
+    const have = await Contact.find(
+      { zohoId: { $in: rows.map((c) => c.zohoId) } },
+      { zohoId: 1, modifiedTime: 1 }
+    ).lean();
+    const storedAt = new Map(have.map((c) => [c.zohoId, c.modifiedTime ? c.modifiedTime.getTime() : 0]));
+
+    let created = 0;
+    let updated = 0;
+    for (const c of rows) {
+      const prev = storedAt.get(c.zohoId);
+      const mt = c.modifiedTime ? c.modifiedTime.getTime() : 0;
+      if (prev !== undefined && prev >= mt) continue;
+      await upsertContact(c, 'poll');
+      if (prev === undefined) created += 1;
+      else updated += 1;
+    }
+
+    await commit('contacts', startedAt);
+
+    if (created || updated) {
+      require('../../leads/services/leadList').invalidateLeadListCache();
+      require('../../leads/services/funnel').invalidateFunnelCache();
+      console.log(
+        `[reconcile contacts] ${rows.length} seen — ${created} missed by the webhook, ${updated} refreshed`
+      );
+    }
+  } catch (err) {
+    console.warn('[reconcile contacts] failed:', err.message);
+  } finally {
+    running.contacts = false;
   }
 }
 
@@ -644,7 +738,7 @@ async function auditPipeline() {
   }
 }
 
-const WATI_SYNC_MIN = Number(process.env.WATI_SYNC_MIN || 30);
+const WATI_SYNC_MIN = env.WATI_SYNC_MIN;
 
 function syncRecentChats() {
   return syncRecent().catch((e) => console.warn('[wati sync] failed:', e.message));
@@ -658,6 +752,7 @@ function start() {
 
   console.log(
     `Call jobs: calls/${CALL_POLL_MIN}m, bigin/${BIGIN_POLL_MIN}m, deals/${DEAL_POLL_MIN}m, ` +
+      `contacts/${CONTACT_POLL_MIN}m, ` +
       `transcribe/${TRANSCRIBE_EVERY_MIN}m, grade/${GRADE_EVERY_MIN}m, audit/${AUDIT_EVERY_MIN}m`
   );
 
@@ -671,6 +766,7 @@ function start() {
   setTimeout(reconcileOutgoingCalls, 35 * 1000);
   setTimeout(reconcileBiginCalls, 45 * 1000);
   setTimeout(reconcileDeals, 60 * 1000);
+  setTimeout(reconcileContacts, 65 * 1000);
   // Grade runs after transcribe in the stagger — a call must be transcribed before it
   // can be graded, so there's no point racing them on boot. Transcribe was missing from
   // this list, so anything left `pending` across a restart sat idle for a full
@@ -687,12 +783,14 @@ function start() {
   setInterval(reconcileOutgoingCalls, CALL_POLL_MIN * 60 * 1000);
   setInterval(reconcileBiginCalls, BIGIN_POLL_MIN * 60 * 1000);
   setInterval(reconcileDeals, DEAL_POLL_MIN * 60 * 1000);
+  setInterval(reconcileContacts, CONTACT_POLL_MIN * 60 * 1000);
   setInterval(transcribePending, TRANSCRIBE_EVERY_MIN * 60 * 1000);
   setInterval(gradePending, GRADE_EVERY_MIN * 60 * 1000);
   setInterval(auditPipeline, AUDIT_EVERY_MIN * 60 * 1000);
   // Checks every 10 minutes; runs once, inside NIGHTLY_BIGIN_HOUR_IST.
   setInterval(nightlyBiginResync, 10 * 60 * 1000);
   setInterval(nightlyContactPrune, 10 * 60 * 1000);
+  setInterval(nightlyOpenDealResync, 10 * 60 * 1000);
   setInterval(syncRecentChats, WATI_SYNC_MIN * 60 * 1000);
 }
 
@@ -703,7 +801,9 @@ module.exports = {
   reconcileBiginCalls,
   nightlyBiginResync,
   nightlyContactPrune,
+  nightlyOpenDealResync,
   reconcileDeals,
+  reconcileContacts,
   transcribePending,
   gradePending,
   auditPipeline,

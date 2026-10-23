@@ -4,8 +4,10 @@ const telecmi = require('../services/telecmi');
 const audio = require('../services/audio');
 const { agentMap, buildLeadIndex, upsertCall } = require('../services/callStore');
 const { getJourneys } = require('../services/journeyCache');
+const { isAdmin } = require('../../../utils/owner');
+const { istDayKey } = require('../../../utils/dates');
 
-const MIN_DURATION = Number(process.env.TELECMI_MIN_DURATION_SEC || 30);
+const { TELECMI_MIN_DURATION_SEC: MIN_DURATION } = require('../../../config/env');
 
 // A sales rep may only ever see their OWN calls/scores. This resolves the owner filter
 // for any list/analytics query: an admin may narrow by ?owner=<email> or see everyone;
@@ -13,7 +15,7 @@ const MIN_DURATION = Number(process.env.TELECMI_MIN_DURATION_SEC || 30);
 // A rep with no ownerEmail is pinned to a sentinel that matches nothing, so a
 // misconfigured account sees zero calls rather than every unmapped (ownerEmail:null) one.
 function ownerScope(req) {
-  if (req.user && req.user.role === 'admin') {
+  if (isAdmin(req.user)) {
     return req.query.owner ? { ownerEmail: String(req.query.owner).toLowerCase() } : {};
   }
   const mine = ((req.user && req.user.ownerEmail) || '').toLowerCase();
@@ -23,7 +25,7 @@ function ownerScope(req) {
 /** True when the logged-in user is allowed to open this specific call. */
 function canSeeCall(req, call) {
   if (!call) return false;
-  if (req.user && req.user.role === 'admin') return true;
+  if (isAdmin(req.user)) return true;
   const mine = ((req.user && req.user.ownerEmail) || '').toLowerCase();
   return Boolean(mine) && (call.ownerEmail || '').toLowerCase() === mine;
 }
@@ -637,11 +639,8 @@ async function gradeAnalytics(req, res) {
     const ranked = [...gradeable].sort((a, b) => b.grade.score - a.grade.score);
 
     // --- Day-by-day (last 14 days) -----------------------------------------------
-    // Local-date key so a call at 11pm IST lands on the right day, not the UTC next day.
-    const dayKey = (d) => {
-      const x = new Date(d);
-      return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
-    };
+    // IST day key so a call at 11pm IST lands on the right day, not the UTC next day.
+    const dayKey = istDayKey;
     const dayMap = new Map();
     recentRaw
       .filter((c) => c.grade.breakdown && c.grade.breakdown.callType !== 'not_gradeable')

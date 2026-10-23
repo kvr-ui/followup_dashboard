@@ -13,14 +13,10 @@
 //      guessable from field names.
 
 const { describeSchema } = require('./schemaDoc');
+const { istDayKey } = require('../../../utils/dates');
 
-/** Local 'YYYY-MM-DD'. The container runs in IST and every date in the data is local. */
-function today() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
-    d.getDate()
-  ).padStart(2, '0')}`;
-}
+/** IST 'YYYY-MM-DD'. Every date in the data is an IST calendar day. */
+const today = () => istDayKey();
 
 function systemPrompt(scope, user) {
   const role = scope.isAdmin ? 'an administrator' : 'a sales representative';

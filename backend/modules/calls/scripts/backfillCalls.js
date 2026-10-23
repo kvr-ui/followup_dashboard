@@ -11,7 +11,7 @@ const Call = require('../models/Call');
 const telecmi = require('../services/telecmi');
 const { agentMap, buildLeadIndex, upsertCall } = require('../services/callStore');
 
-const MIN_DURATION = Number(process.env.TELECMI_MIN_DURATION_SEC || 30);
+const { TELECMI_MIN_DURATION_SEC: MIN_DURATION } = require('../../../config/env');
 
 async function run() {
   if (!telecmi.isConfigured()) throw new Error('TELECMI_APP_ID / TELECMI_SECRET not set');

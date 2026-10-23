@@ -9,6 +9,8 @@ import Section from './ui/Section';
 import EmptyState from './ui/EmptyState';
 import { rowPhoneKey } from '../route';
 import { formatDateTime } from '../utils';
+import { formatDate } from '../format';
+import { TRANSCRIPT_STATUS } from '../labels';
 
 function mmss(sec) {
   const s = Math.round(sec || 0);
@@ -16,11 +18,7 @@ function mmss(sec) {
   return `${m}m ${String(s % 60).padStart(2, '0')}s`;
 }
 
-function shortDate(d) {
-  if (!d) return '—';
-  const x = new Date(d);
-  return x.toLocaleDateString(undefined, { day: '2-digit', month: 'short' });
-}
+const shortDate = (d) => formatDate(d, { year: false });
 
 // Bigin's Up_Scale values are long and repeat the stage:
 //   "Inter G1 - Closed with Sale - (Upsell - Inter G2)"
@@ -31,9 +29,8 @@ function upsellLabel(v) {
 }
 
 function statusBadge(s) {
-  if (s === 'done') return <span className="badge badge-low">transcribed</span>;
-  if (s === 'pending') return <span className="badge status-in-progress">pending</span>;
-  if (s === 'failed') return <span className="badge badge-high">failed</span>;
+  const t = TRANSCRIPT_STATUS[s];
+  if (t) return <span className={t.cls}>{t.label}</span>;
   return <span className="badge status-not-started">{s}</span>;
 }
 

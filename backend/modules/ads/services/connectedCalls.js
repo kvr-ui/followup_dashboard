@@ -2,7 +2,7 @@
 // Report (its "demo completed"), so the two tabs agree on what "connected" means.
 
 const Call = require('../../calls/models/Call');
-const { PLACEHOLDER_PHONES, OFFICE_DID } = require('../../../utils/phone');
+const { isRealPhoneKey } = require('../../../utils/phone');
 
 const talkSeconds = (c) => Math.max(Number(c.duration) || 0, Number(c.biginDurationSec) || 0);
 
@@ -37,7 +37,7 @@ async function loadConnectedSets({ phoneKeys = [], contactIds = [] }) {
   for (const call of calls) {
     if (!(talkSeconds(call) > 0)) continue;
     for (const k of call.phoneKeys || []) {
-      if (k && k !== OFFICE_DID && !PLACEHOLDER_PHONES.has(k)) connectedPhones.add(k);
+      if (isRealPhoneKey(k)) connectedPhones.add(k);
     }
     if (call.biginContactId) connectedContactIds.add(String(call.biginContactId));
   }

@@ -2,7 +2,7 @@ const zoho = require('../../../services/zoho');
 const Task = require('../../../models/Task');
 const { key10 } = require('../../../utils/phone');
 
-const WON_STAGE = process.env.BIGIN_WON_STAGE || 'Closed with Sale';
+const { BIGIN_WON_STAGE: WON_STAGE } = require('../../../config/env');
 
 /** Every deal in Bigin at the "Closed with Sale" stage. */
 async function fetchWonDeals() {

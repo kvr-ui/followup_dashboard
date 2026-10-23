@@ -1,6 +1,7 @@
 import { Fragment, useCallback, useEffect, useState } from 'react';
 import { api } from '../api';
 import { formatCount } from '../adStats';
+import { formatDate, formatRupeesWhole, monthLabel as fmtMonth } from '../format';
 import LeadLink from './LeadLink';
 import FilterBar from './ui/FilterBar';
 import DataTable from './ui/DataTable';
@@ -22,16 +23,11 @@ import Icon from './ui/Icon';
 
 const EMPTY_FILTERS = { months: '3', owner: '' };
 
-const MONTH_LABEL = new Intl.DateTimeFormat('en-IN', { month: 'short', year: 'numeric', timeZone: 'UTC' });
-
-// Deal amounts are whole rupees; paise would only add noise across a table.
-const RUPEES = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 });
-const CREATED = new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short', timeZone: 'Asia/Kolkata' });
+// Deal amounts are whole rupees (formatRupeesWhole); paise would only add noise across a table.
 
 /** 'Sep 2026', or 'Sep 2026 (1–25)' for the month still running. */
 function monthLabel(key, asOf) {
-  const [y, m] = key.split('-').map(Number);
-  const label = MONTH_LABEL.format(new Date(Date.UTC(y, m - 1, 1)));
+  const label = fmtMonth(key);
   if (!asOf) return label;
   const ist = new Date(new Date(asOf).getTime() + 330 * 60000);
   const current = ist.toISOString().slice(0, 7) === key;
@@ -44,7 +40,7 @@ function pct(part, whole) {
 
 const dot = <span className="subtle">·</span>;
 const num = (n) => (n ? formatCount(n) : dot);
-const money = (n) => (n ? RUPEES.format(n) : dot);
+const money = (n) => (n ? formatRupeesWhole(n) : dot);
 
 // The two column sets a month group can show. Each column reads one count
 // bucket; `pct` columns are styled as the accent percentage.
@@ -205,7 +201,7 @@ function WonDrawer({ cell, filters, asOf, onClose }) {
         </div>
         <p className="subtle funnel-drawer-meta">
           {title}
-          {res && ` — ${formatCount(res.leads.length)} leads · ${RUPEES.format(res.revenue)}`}
+          {res && ` — ${formatCount(res.leads.length)} leads · ${formatRupeesWhole(res.revenue)}`}
         </p>
         {error && <div className="error">{error}</div>}
         {!res && !error && <p className="subtle">Loading…</p>}
@@ -219,12 +215,12 @@ function WonDrawer({ cell, filters, asOf, onClose }) {
               {l.phone ? <a href={`tel:${l.phone}`}>{l.phone}</a> : <span className="subtle">No phone</span>}
             </div>
             <div className="subtle">
-              Created {CREATED.format(new Date(l.createdTime))} · {l.source}
+              Created {formatDate(l.createdTime, { year: false })} · {l.source}
               {l.ownerName ? ` · ${l.ownerName}` : ''}
             </div>
             {l.deals.map((d, j) => (
               <div key={j} className="subtle">
-                {d.name || 'Deal'} · <b>{RUPEES.format(d.amount)}</b>
+                {d.name || 'Deal'} · <b>{formatRupeesWhole(d.amount)}</b>
                 {d.closingDate ? ` · closed ${d.closingDate}` : ''}
                 {d.ownerName && d.ownerName !== l.ownerName ? ` · deal owner ${d.ownerName}` : ''}
               </div>
@@ -302,7 +298,7 @@ export default function Funnel({ isAdmin }) {
                     {c.lateSql ? ` · ${formatCount(c.lateSql)} late` : ''}
                   </div>
                   <div className="subtle">
-                    <WonCount n={c.won} onOpen={() => setWonCell({ month: m })} /> won · <b>{pct(c.won, c.mql) || '—'}</b> · {c.revenue ? RUPEES.format(c.revenue) : '₹0'}
+                    <WonCount n={c.won} onOpen={() => setWonCell({ month: m })} /> won · <b>{pct(c.won, c.mql) || '—'}</b> · {c.revenue ? formatRupeesWhole(c.revenue) : '₹0'}
                     {' · '}
                     {formatCount(c.lost)} lost
                   </div>

@@ -30,4 +30,9 @@ const PLACEHOLDER_PHONES = new Set(['9999999999', '9876543210']);
 // such call to whichever lead happened to carry it.
 const OFFICE_DID = '7943447443';
 
-module.exports = { key10, phoneKey, PLACEHOLDER_PHONES, OFFICE_DID };
+/** A key that may take part in a phone join: present, not a test contact, not the DID. */
+function isRealPhoneKey(key) {
+  return Boolean(key) && !PLACEHOLDER_PHONES.has(key) && key !== OFFICE_DID;
+}
+
+module.exports = { key10, phoneKey, PLACEHOLDER_PHONES, OFFICE_DID, isRealPhoneKey };

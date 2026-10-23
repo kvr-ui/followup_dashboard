@@ -68,7 +68,7 @@ const { isJunkReason } = require('../../leads/services/funnel');
 const { DEAL_FIELDS, indexDeals } = require('./dealJoin');
 const { rangeFilter, nextDay, money } = require('./adMetrics');
 const { canonicalSource } = require('./leadSourceName');
-const { PLACEHOLDER_PHONES } = require('../../../utils/phone');
+const { PLACEHOLDER_PHONES, isRealPhoneKey } = require('../../../utils/phone');
 const { loadConnectedSets } = require('./connectedCalls');
 
 const UNKNOWN = 'unknown';
@@ -601,7 +601,7 @@ async function buildAdPerformance(range) {
     ...new Set(
       [...metaLeads, ...webLeads, ...contacts.map((c) => ({ phoneKey: (c.phoneKeys || [])[0] }))]
         .map((l) => l.phoneKey)
-        .filter((k) => k && !PLACEHOLDER_PHONES.has(k))
+        .filter(isRealPhoneKey)
     ),
   ];
   const adIds = [

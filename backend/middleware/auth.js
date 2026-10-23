@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const { isAdmin } = require('../utils/owner');
 
 const SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
 
@@ -27,7 +28,7 @@ async function authenticate(req, res, next) {
 
 // Allow only admins past this point.
 function requireAdmin(req, res, next) {
-  if (!req.user || req.user.role !== 'admin') {
+  if (!isAdmin(req.user)) {
     return res.status(403).json({ success: false, message: 'Admin access required' });
   }
   next();

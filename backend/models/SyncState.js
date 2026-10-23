@@ -9,7 +9,7 @@ const mongoose = require('mongoose');
 // recoverable no matter how long we were down.
 const syncStateSchema = new mongoose.Schema(
   {
-    job: { type: String, required: true, unique: true, index: true }, // 'calls' | 'deals' | 'tasks'
+    job: { type: String, required: true, unique: true, index: true }, // 'calls' | 'deals' | 'tasks' | 'contacts'
     lastModified: { type: Date, default: null },
     lastRunAt: { type: Date, default: null },
   },

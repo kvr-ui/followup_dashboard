@@ -10,6 +10,7 @@ import StatCard, { StatGrid } from './ui/StatCard';
 import EmptyState from './ui/EmptyState';
 import Icon from './ui/Icon';
 import { formatCount, formatDay, formatPct, formatRupees, localIso } from '../adStats';
+import { formatShortDateTime as formatTime } from '../format';
 
 // The Rep Lifecycle tab: what happens between a lead arriving and its first
 // call, for one rep's leads, split by how they ended (won / lost / junk / open).
@@ -79,16 +80,6 @@ function formatMins(m) {
   if (m < 24 * 60) return `${(m / 60).toFixed(1)} hr`;
   return `${(m / 1440).toFixed(1)} days`;
 }
-
-const formatTime = (v) =>
-  v
-    ? new Date(v).toLocaleString('en-IN', {
-        day: '2-digit',
-        month: 'short',
-        hour: '2-digit',
-        minute: '2-digit',
-      })
-    : '—';
 
 function SignalTable({ rows }) {
   const best = rows

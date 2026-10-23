@@ -1,234 +1,381 @@
 # FOCAS Sales Dashboard
 
 Lead-followup and sales-intelligence dashboard for Focas. Node/Express + MongoDB
-backend, React (Vite) frontend, built as one Docker image and deployed as a single
-container on port `7007` (behind a reverse proxy for TLS).
+backend, React (Vite) frontend, shipped as one Docker image that runs as a single
+container.
 
-It ingests Bigin CRM tasks, syncs and transcribes TeleCMI call recordings, grades
-sales calls, runs WhatsApp campaigns via WATI — and, since the `crm-integration`
-plan (see `plans/crm-integration/`), it also **owns public lead capture and Meta
-Ads sync**, both of which used to live in a separate, now-retired service
-(`focas-crm`). See `plans/crm-integration/CUTOVER.md` for the cutover that made
-this the case, and `plans/crm-integration/FOCAS_CRM_RETIREMENT.md` for what that
-service was and where its data went.
+What it does:
 
-## Structure
+- Mirrors **Bigin** (Zoho) follow-up tasks, contacts and deals into Mongo and shows
+  them as a follow-up board, funnel, sources and analytics.
+- Syncs **TeleCMI** call recordings, transcribes them (**ElevenLabs** Scribe) and
+  grades the sales calls (**Sarvam**).
+- Syncs **WATI** WhatsApp chats for the Rep Lifecycle tab.
+- Owns **public lead capture** (`POST /api/leads/web`) and **Meta Ads sync**, and
+  sends CRM funnel stages back to Meta through the **Conversions API**. These used to
+  live in a separate, now-retired service, `focas-crm` (see
+  `plans/crm-integration/`).
+- Reads **VSL** watch time from a second, read-only Atlas cluster.
+- Has an **Ask** tab: an OpenAI-backed, read-only assistant over all of the above.
+
+---
+
+## Contents
+
+1. [Repo layout](#repo-layout)
+2. [Local development](#local-development)
+3. [Production: servers and deploys](#production-servers-and-deploys)
+4. [Background jobs](#background-jobs)
+5. [Environment variables](#environment-variables)
+6. [Feature notes](#feature-notes)
+7. [Known gotchas](#known-gotchas)
+8. [Tests and scripts](#tests-and-scripts)
+9. [Handover checklist](#handover-checklist)
+10. [More documentation](#more-documentation)
+
+---
+
+## Repo layout
 
 ```
-backend/    Express API + Mongo models (CommonJS, no build step)
-frontend/   React (Vite) SPA, built to frontend/dist and served by the backend
+backend/               Express API + Mongo models (CommonJS, no build step)
+  server.js            Boot: DB → seed admin → syncIndexes() → start schedulers
+  app.js               Express app and route mounting
+  routes/ controllers/ services/ models/   original flat MVC (tasks, users, auth, analytics)
+  modules/             self-contained feature modules:
+    ads/               Meta Ads sync, Conversions API, public lead ingest
+    agent/             the Ask tab (OpenAI tool-calling, read-only)
+    calls/             TeleCMI/Bigin calls, deals, transcription, grading, nightly jobs
+    leads/             lead list, lead profile, funnel, Bigin contacts
+    vsl/               VSL watch time (second, read-only Mongo connection)
+    wati/              WhatsApp chat sync
+  scripts/             one-off reports and backfills
+frontend/              React (Vite) SPA, built to frontend/dist and served by the backend
+  src/components/      one file per tab (FollowUps, Calls, Scorecard, Marketing, …)
+  src/apiDocs.js       source of truth for the API docs
+docs/API.md            generated API reference (do not hand-edit)
+plans/                 design records for larger features (crm-integration, google-oauth, lead-profile)
+TODO.md                open security/correctness items, ordered by severity
+fix.md, IMPROVEMENTS.md  older full-codebase audits (Jul/Aug 2026), kept for context;
+                         some items in them have since been fixed
+grading-results/       output of a call-grading test run, not used by the app
 ```
 
-`backend/modules/` holds the self-contained feature modules (`calls/`, `campaigns/`,
-`ads/`); everything else is the original flat MVC layout (`routes/` → `controllers/`
-→ `services/` → `models/`).
+## Local development
 
-## API
+Requirements: Node 22 (what the Docker image uses), a local MongoDB (`mongod`).
 
-Every endpoint is documented in [`docs/API.md`](docs/API.md) — auth level, query
-params, request/response examples and error codes.
+```bash
+# Backend
+cd backend
+cp .env.example .env        # fill in values — see Environment variables
+npm install
+npm run dev                 # nodemon, http://localhost:3000
 
-The same reference is in the dashboard itself, under the **API Docs** tab, where
-every GET endpoint has a **Run** button that fires the real request with your
-session token. That tab is the source of truth: both it and the markdown file are
-generated from `frontend/src/apiDocs.js`, so they cannot drift apart. After editing
-that table, regenerate the file:
+# Frontend (second terminal)
+cd frontend
+npm install
+npm run dev                 # Vite dev server, http://localhost:5173
+```
+
+`MONGO_URI` defaults to `mongodb://127.0.0.1:27017/followup_dashboard`. On first
+boot an admin user is created from `ADMIN_USERNAME` / `ADMIN_PASSWORD`.
+
+> **Careful:** if your local `.env` points `MONGO_URI` at the production Atlas
+> database, local runs read **and write** live data, and the background jobs will
+> run against it. Set `CALL_JOBS_ENABLED=false` and `TASK_JOBS_ENABLED=false`
+> locally unless you mean it, and leave `CAPI_ENABLED` off.
+
+## Production: servers and deploys
+
+### Where things run
+
+Everything lives on the **`focas`** server (SSH host alias `focas`), managed by
+**Coolify** (v4). Host nginx + certbot terminate TLS in front of it; the Coolify
+proxy is not used.
+
+| What | Domain | Branch | Port (localhost) | Coolify app |
+|---|---|---|---|---|
+| Dashboard — **prod** | https://followup.focasedu.online | `main` | 7008 | `iiwluohdnhtcozrsmw8iohy3` |
+| Dashboard — **beta** | https://beta.focasedu.online | `beta` | 7009 | `nhtopdpksmilzbrldy5ax3vj` |
+| Lead server (`kvr-ui/utm` repo) | leads.focasedu.online | `main` | 7010 | `eay8iovfebqqxa2atfiockjd` |
+
+- Repo: `github.com/kvr-ui/followup_dashboard`.
+- **Database:** MongoDB Atlas, database `followup_dashboard`. **Beta and prod share
+  the same database.** Beta therefore has its own `JWT_SECRET` but has
+  `CALL_JOBS_ENABLED=false`, `TASK_JOBS_ENABLED=false`, no `SYNC_INTERVAL_MINUTES` and
+  no CAPI settings, so the background jobs run only once (on prod).
+- **Lead server:** takes the website's `/focas` and `/workout-batch` form posts and
+  forwards them to Bigin and to this dashboard's `/api/leads/web`. Failed posts
+  are kept in `/app/data/failed-leads.jsonl` (Coolify volume). An older copy still
+  runs in Docker on the Hostinger VPS that serves focasedu.com (31.97.228.184).
+  Nobody has SSH access to that box.
+
+### How to deploy
+
+```
+feature work → push to `beta` → auto-deploys to beta.focasedu.online → test
+            → merge `beta` into `main` → auto-deploys to followup.focasedu.online
+```
+
+There is no GitHub webhook, because the deploying account has push rights but not
+admin rights on the repo. Instead, a poller on the `focas` server checks the
+branches every minute and triggers a Coolify deploy when a branch moves:
+
+- script: `/usr/local/bin/coolify-autodeploy`
+- systemd timer: `coolify-autodeploy.timer`
+- targets (app ↔ branch): `/etc/coolify-autodeploy/targets`
+- token: `/etc/coolify-autodeploy/env` (`COOLIFY_TOKEN`)
+
+To redeploy by hand, either use the Coolify UI or run
+`POST /api/v1/deploy?uuid=<app uuid>` with that token.
+
+### Changing env vars on the server
+
+Each app's env vars are Coolify app environment variables (one app per branch).
+Change them in the Coolify UI, then redeploy. The poller's `COOLIFY_TOKEN` can only
+deploy: API calls that edit env vars return 403. Past edits were made with
+`docker exec -i coolify php artisan tinker` on the server.
+
+### Health check
+
+```bash
+curl https://followup.focasedu.online/health      # {"status":"ok"}
+```
+
+### Running the Docker image yourself
+
+```bash
+cp backend/.env.example backend/.env   # fill in
+docker compose build && docker compose up -d
+curl http://127.0.0.1:7007/health
+```
+
+`docker-compose.yml` builds a two-stage image (frontend build → backend runtime),
+publishes port `7007` and sets `TZ=Asia/Kolkata`. **Keep `TZ` set to IST.** The
+overdue / today / upcoming task buckets use server-local midnight, so with the wrong
+timezone, tasks due in the evening (IST) land in the wrong bucket. The container serves plain HTTP only; put a
+TLS-terminating proxy in front.
+
+## Background jobs
+
+All jobs are in-process timers started from `server.js`. There is no external cron.
+The code assumes **a single instance**: locks and caches are held in memory, so
+running two prod replicas would duplicate the paid API calls and the sends.
+
+| Job | Where | Default schedule | Switch |
+|---|---|---|---|
+| Bigin task reconcile | `services/taskSync.js` | every `TASK_POLL_MINUTES` | `TASK_JOBS_ENABLED` |
+| TeleCMI inbound + outbound call reconcile | `modules/calls/services/scheduler.js` | every `CALL_POLL_MINUTES` | `CALL_JOBS_ENABLED` |
+| Bigin call cross-check | same | every `BIGIN_CALL_POLL_MINUTES` (10) | `CALL_JOBS_ENABLED` |
+| Bigin deal reconcile | same | every `DEAL_POLL_MINUTES` | `CALL_JOBS_ENABLED` |
+| Transcribe pending calls (ElevenLabs) | same | every `TRANSCRIBE_POLL_MINUTES` | `CALL_JOBS_ENABLED` |
+| Grade transcribed calls (Sarvam) | same | every `GRADE_POLL_MINUTES` | `CALL_JOBS_ENABLED` |
+| Pipeline audit | same | every `PIPELINE_AUDIT_MINUTES` | `CALL_JOBS_ENABLED` |
+| WATI chat sync | same | every `WATI_SYNC_MIN` | `CALL_JOBS_ENABLED` |
+| Nightly Bigin re-sync (last 48 h) | same | 02:00 IST (`NIGHTLY_BIGIN_HOUR_IST`) | `CALL_JOBS_ENABLED` |
+| Nightly prune of contacts deleted in Bigin | same | 03:00 IST (`NIGHTLY_CONTACT_PRUNE_HOUR_IST`) | `CALL_JOBS_ENABLED` |
+| Nightly re-read of open Bigin deals (missing / changed only) | same | 04:00 IST (`NIGHTLY_OPEN_DEALS_HOUR_IST`) | `CALL_JOBS_ENABLED` |
+| Meta Ads sync | `modules/ads/services/scheduler.js` | every `SYNC_INTERVAL_MINUTES` (1440 = daily) | unset/0 = off |
+| Conversions API sweep | `modules/ads/services/capiSync.js` | every `CAPI_INTERVAL_MINUTES` (15) | `CAPI_ENABLED` |
+
+On boot the call jobs start one after another over the first three minutes,
+because a call must be transcribed before it can be graded. If ElevenLabs reports
+its quota is used up, transcription pauses for an hour.
+
+## Environment variables
+
+`backend/.env.example` is the reference, with comments explaining each variable.
+Summary:
+
+| Area | Variables |
+|---|---|
+| Core | `PORT`, `MONGO_URI`, `JWT_SECRET`, `ADMIN_NAME` / `ADMIN_USERNAME` / `ADMIN_PASSWORD` / `ADMIN_EMAIL` |
+| Job switches | `CALL_JOBS_ENABLED`, `TASK_JOBS_ENABLED` (set `false` on beta and usually locally) |
+| Google sign-in (optional) | `GOOGLE_CLIENT_ID`, `GOOGLE_ALLOWED_DOMAIN` |
+| WhatsApp / WATI | `WATI_API_URL`, `WATI_TOKEN`, `WATI_SYNC_MIN` |
+| Zoho / Bigin | `ZOHO_CLIENT_ID`, `ZOHO_CLIENT_SECRET`, `ZOHO_REFRESH_TOKEN`, `ZOHO_ACCOUNTS_URL`, `ZOHO_API_URL`, `ZOHO_MODULE`, `BIGIN_CALL_POLL_MINUTES` |
+| TeleCMI | `TELECMI_APP_ID`, `TELECMI_SECRET`, `TELECMI_AGENTS`, `TELECMI_USER_PASSWORD`, `TELECMI_MIN_DURATION_SEC` |
+| Transcription / grading | `ELEVENLABS_API_KEY`, `ELEVENLABS_MODEL`, `TRANSCRIBE_SCOPE`, `SARVAM_API_KEY`, `SARVAM_MODEL`, `SARVAM_TOKEN_ALLOWANCE`, `GRADE_MAX_ATTEMPTS` |
+| Meta Ads sync | `META_ACCESS_TOKEN`, `META_AD_ACCOUNT_ID`, `META_API_VERSION`, `SYNC_INTERVAL_MINUTES`, `META_LEAD_FORM_IDS`, `META_PAGE_ID`, `AD_INSIGHT_LOOKBACK_DAYS`, `AD_SYNC_FIRST_RUN_DELAY_MS` |
+| Meta Conversions API | `CAPI_ENABLED`, `META_PIXEL_ID`, `META_CAPI_TOKEN`, `META_TEST_EVENT_CODE`, `CAPI_INTERVAL_MINUTES` |
+| Public lead ingest | `CORS_ORIGINS`, `WEB_LEAD_RATE_MAX`, `LEAD_INGEST_TOKEN` |
+| VSL watch time | `VSL_MONGO_URI`, `VSL_MONGO_DB`, plus optional cache/timeout tuning |
+| Ask assistant | `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_REASONING_EFFORT`, `OPENAI_MAX_OUTPUT_TOKENS`, `AGENT_MAX_ROUNDS`, `AGENT_RATE_MAX`, `BIGIN_COQL_ENABLED` |
+| Job tuning (optional) | `TASK_POLL_MINUTES`, `CALL_POLL_MINUTES`, `DEAL_POLL_MINUTES`, `TRANSCRIBE_POLL_MINUTES`, `GRADE_POLL_MINUTES`, `PIPELINE_AUDIT_MINUTES`, `NIGHTLY_BIGIN_HOUR_IST`, `NIGHTLY_CONTACT_PRUNE_HOUR_IST`, `NIGHTLY_OPEN_DEALS_HOUR_IST`, `NIGHTLY_BIGIN_LOOKBACK_HOURS` |
+
+> `TELECMI_APP_ID`, `TELECMI_SECRET`, `TELECMI_AGENTS` and the job-tuning variables
+> are read by the code but not yet listed in `.env.example`. Copy their values from
+> the prod Coolify app. `TELECMI_AGENTS` maps TeleCMI extensions to reps; run
+> `node modules/calls/scripts/linkClosedDeals.js` to generate it.
+
+Every optional integration fails safe: if its keys are unset, that feature is
+switched off and the rest of the app keeps working.
+
+## Feature notes
+
+### API docs
+
+Every endpoint is in [`docs/API.md`](docs/API.md) (auth level, params, examples,
+errors) and in the dashboard's **API Docs** tab, where each GET endpoint has a
+**Run** button. Both are generated from `frontend/src/apiDocs.js`. After editing it,
+run:
 
 ```bash
 npm --prefix frontend run docs
 ```
 
-## Local development
+Auth: everything except the webhooks and `POST /api/leads/web` needs a JWT
+(`Authorization: Bearer …`, 30-day tokens). Roles are **admin** and **rep**; reps
+only see their own rows, and the server enforces this, not the client.
 
-```bash
-# Backend
-cd backend
-cp .env.example .env        # fill in real values — see below
-npm install
-npm run dev                 # nodemon, http://localhost:3000 by default
+### Inbound webhooks
 
-# Frontend
-cd frontend
-npm install
-npm run dev                 # Vite dev server
-```
-
-A local MongoDB (`mongod`) is required; `MONGO_URI` in `.env` defaults to
-`mongodb://127.0.0.1:27017/followup_dashboard`.
-
-## Production deployment (Docker)
-
-```bash
-docker compose build
-cp backend/.env.example backend/.env   # fill in real values — see below
-docker compose up -d
-curl http://127.0.0.1:7007/health      # {"status":"ok"}
-```
-
-`docker-compose.yml` builds a two-stage image (frontend build → backend runtime,
-see `Dockerfile`), publishes port `7007`, sets `TZ=Asia/Kolkata` (the "overdue /
-today / upcoming" task buckets use server-local midnight — get this wrong and
-evening-IST tasks land in the wrong bucket), and reads runtime config from
-`backend/.env` via `env_file`. Front it with a TLS-terminating reverse proxy
-(nginx/Caddy/Traefik) — the container itself only serves plain HTTP.
-
-### Meta Marketing API connector
-
-The Meta connector lives in the repo at `backend/modules/ads/meta/` (ported from the
-former `@santhosh785/meta-ads` package). It's plain CommonJS with no runtime
-dependencies, so no registry token is needed to build. Its tests run with
-`cd backend && npm test`.
-
-## Environment variables
-
-Full reference with inline comments: `backend/.env.example`. Summary by area:
-
-| Area | Variables |
+| Endpoint | Sender |
 |---|---|
-| Core | `PORT`, `MONGO_URI`, `JWT_SECRET`, `ADMIN_NAME`/`ADMIN_USERNAME`/`ADMIN_PASSWORD`/`ADMIN_EMAIL` |
-| WhatsApp / WATI | `WATI_API_URL`, `WATI_TOKEN` |
-| Zoho/Bigin write-back (optional) | `ZOHO_CLIENT_ID`, `ZOHO_CLIENT_SECRET`, `ZOHO_REFRESH_TOKEN`, `ZOHO_ACCOUNTS_URL`, `ZOHO_API_URL`, `ZOHO_MODULE` |
-| **Meta Ads sync** (new — see below) | `META_ACCESS_TOKEN`, `META_AD_ACCOUNT_ID`, `META_API_VERSION`, `SYNC_INTERVAL_MINUTES`, `META_LEAD_FORM_IDS`, `META_PAGE_ID`, `AD_INSIGHT_LOOKBACK_DAYS`, `AD_SYNC_FIRST_RUN_DELAY_MS` |
-| **Public lead ingest** (new — see below) | `CORS_ORIGINS`, `WEB_LEAD_RATE_MAX`, `LEAD_INGEST_TOKEN` |
-| **VSL watch time** (new — see below) | `VSL_MONGO_URI`, `VSL_MONGO_DB`, `VSL_WATCH_TTL_MS`, `VSL_TASK_INDEX_TTL_MS`, `VSL_PHONE_CC` |
-| **Ask assistant** (new — see below) | `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_REASONING_EFFORT`, `OPENAI_MAX_OUTPUT_TOKENS`, `AGENT_MAX_ROUNDS`, `AGENT_RATE_MAX`, `BIGIN_COQL_ENABLED` |
-| Google sign-in (optional) | `GOOGLE_CLIENT_ID`, `GOOGLE_ALLOWED_DOMAIN` |
+| `POST /webhook` | Zoho Flow — follow-up tasks |
+| `POST /webhook/call` | TeleCMI — finished calls |
+| `POST /webhook/deal` | Bigin — deal create/update (marks a call journey won or lost) |
+| `POST /webhook/contact` | Bigin — contacts (the Funnel's MQL list) |
 
-### VSL watch time reads a second, read-only cluster
+If you move the domain, update these URLs in Zoho Flow, Bigin and TeleCMI.
 
-The VSL landing page is a separate project with its own MongoDB Atlas cluster. It
-records how long each lead watches the video into `vsl_leads` / `vsl_events`
-there. The **VSL Tracking** tab and the watch-time panel in the lead drawer read
-those collections directly, over a second Mongoose connection that never writes.
+### Public lead capture
 
-Set `VSL_MONGO_URI` (and `VSL_MONGO_DB`, default `focas`) to switch it on. Leave
-it unset and the feature is absent rather than broken: the tab says so, the drawer
-section does not render, and the follow-ups table's Watched column shows a dash.
+`POST /api/leads/web` receives leads from the lead server, not from browsers
+directly.
 
-Two things worth knowing before changing anything in `backend/modules/vsl/`:
+- `CORS_ORIGINS` — browser origin allowlist; prod value `https://focasedu.com`. It
+  doesn't apply to the lead server's server-to-server posts, because those send no
+  `Origin` header.
+- `LEAD_INGEST_TOKEN` — shared secret sent as `X-Lead-Ingest-Token`. **It is unset in prod
+  on purpose** (see [Known gotchas](#known-gotchas)).
+- `WEB_LEAD_RATE_MAX` — requests/minute per IP (default 60). All traffic comes from
+  the lead server's single IP, so this caps the total, not each visitor.
 
-- **Its models must never be added to `server.js`'s `syncIndexes()` chain.**
-  `syncIndexes()` drops indexes it does not know about; against that cluster it
-  would delete `phone_unique`, which the VSL project relies on to avoid sending
-  the same lead its link twice.
+`GET /api/leads/web` (full lead PII) is admin-only.
+
+### Meta Ads sync and Conversions API
+
+- The connector is in-repo at `backend/modules/ads/meta/` (plain CommonJS, no
+  registry token needed). The sync runs **on prod only**. If beta and prod ran it
+  at the same time against the shared DB, they would hit Meta's ad-account rate limit.
+- **Instant-form leads are not synced yet:** neither `META_PAGE_ID` nor
+  `META_LEAD_FORM_IDS` is set, so the `MetaLead` collection stays empty and
+  ad-level lead counts look near zero. To fix this, set one of them; the token also
+  needs `leads_retrieval` and a page token.
+- **Conversions API** (`capiSync.js`) sends every Bigin contact's funnel stages
+  (Lead, MQL, SQL, Purchase) to the Focas Website Pixel. It's enabled **on prod only**.
+  Don't enable it on beta: a stale `META_TEST_EVENT_CODE` sends **real** events.
+  Use it on beta only for a supervised test while a Test Events session is open in
+  Events Manager.
+
+### VSL watch time (second, read-only cluster)
+
+The VSL landing page (a separate project, `focasvsl`) writes `vsl_leads` /
+`vsl_events` into its own Atlas cluster. The **VSL Tracking** tab and the lead
+drawer read them through a second Mongoose connection that never writes. If
+`VSL_MONGO_URI` is unset, the feature is hidden and nothing breaks.
+
+Before changing `backend/modules/vsl/`:
+
+- **Never add its models to the `syncIndexes()` chain in `server.js`.** That call would
+  drop the VSL project's `phone_unique` index, which stops leads from being sent their link twice.
 - **Minutes watched is the peak from the event log, not `vsl_leads.watchedSeconds`.**
-  The VSL overwrites that field on every beacon, so it *falls* when a lead reopens
-  the video. Reporting it would show the most engaged leads as the coldest.
+  That field is overwritten on every beacon and *falls* when a lead reopens the video.
 
-### This service now owns public lead capture
+### The Ask tab
 
-`POST /api/leads/web` is the endpoint the Focas landing pages' lead-capture forms
-post to (via a server-side lead forwarder, not directly from the browser). It
-replaced `crm.focasedu.online`'s equivalent route. Before pointing real traffic at
-it, set:
+`backend/modules/agent/` answers cross-tab questions by querying this dashboard's
+data and, for admins, Bigin live. It needs `OPENAI_API_KEY`; without it, the tab
+shows a "not configured" message.
 
-- `CORS_ORIGINS` — comma-separated allowlist of browser origins allowed to call it
-  directly. Production value: `https://focasedu.com` (the real landing-page
-  origin — this is not a placeholder, it's what the retired CRM's own production
-  config used). Note this does **not** gate the server-to-server lead-forwarder
-  traffic, which carries no browser `Origin` header at all — see
-  `plans/crm-integration/CUTOVER.md` for why.
-- `LEAD_INGEST_TOKEN` — shared secret the lead forwarder must send as
-  `X-Lead-Ingest-Token`. This is new hardening the retired CRM never had. Unset =
-  the check is skipped (fine for local dev only) and the server logs a boot
-  warning.
-- `WEB_LEAD_RATE_MAX` — per-IP requests/minute on the endpoint (default 60).
-  Since real traffic arrives via a single-IP forwarder rather than individual
-  browsers, this caps the forwarder's aggregate rate, not each visitor's.
+- **Read-only.** No tool it can call writes anywhere.
+- **Reps get scoped access.** Each tool injects the rep's `ownerEmail` on the server;
+  `run_aggregation` prepends that filter, refuses write/JS stages and can't read
+  `users`. Ad spend, lead PII, billing and live-Bigin lookups are admin-only.
+- Every answer carries a trace of the tools and pipelines that produced it, and the
+  token spend shows on the **AI Usage** tab.
+- `BIGIN_COQL_ENABLED` is off because the Zoho refresh token lacks
+  `ZohoBigin.coql.READ`. To turn it on, re-authorise with that scope and then set it to `1`.
 
-`GET /api/leads/web` (the read side, full lead PII) is admin-JWT-gated — the CRM
-served this openly, which was a defect this port fixed.
+### Google sign-in
 
-The full go-live sequence (verification before traffic, the repoint itself, a
-dual-running verification window, and retiring the old service) is
-`plans/crm-integration/CUTOVER.md`.
+1. In Google Cloud (FOCAS Workspace org): OAuth consent screen → **Internal**, app
+   name **FOCAS Sales CRM**.
+2. Credentials → OAuth client ID → **Web application**. Authorized JavaScript
+   origins: `https://beta.focasedu.online`, `https://followup.focasedu.online`,
+   `http://localhost:5173`, `http://localhost:7007`. No redirect URIs.
+3. Set `GOOGLE_CLIENT_ID` and `GOOGLE_ALLOWED_DOMAIN` on both Coolify apps (and
+   locally), then redeploy.
 
-### The ad sync scheduler now runs here too
+The client ID is public; there is no secret. An empty `GOOGLE_CLIENT_ID` hides the
+button. Only existing users can sign in this way: their login email (Admin → Users)
+must match their Google account.
 
-`backend/modules/ads/services/scheduler.js` polls the Meta Marketing API on
-`SYNC_INTERVAL_MINUTES` (1440 = daily; unset or 0 disables it — a sync can still be
-triggered manually via the admin API) to keep campaigns/ad sets/ads/creatives/daily
-insights/instant-form leads in sync. This used to run inside `focas-crm`; Meta
-credentials (`META_ACCESS_TOKEN`, `META_AD_ACCOUNT_ID`) now live in **this**
-service's environment, not that one's — that service no longer exists.
+## Known gotchas
 
-### The Ask tab — a data assistant over everything above
+- **Lead ingest is unauthenticated on purpose.** `LEAD_INGEST_TOKEN` is unset in
+  prod. Setting it would break the lead server and website forms until they send the
+  same header. If you decide to set it, change both sides at the same time.
+- **Test phone numbers distort reports.** When joining calls to leads by phone,
+  exclude `9999999999` (the "focas test" contact, ~277 unrelated calls),
+  `9876543210` (webhook test contact) and `7943447443` (the office DID, which appears
+  on every outbound TeleCMI call). If a single lead has a huge call count, check these numbers first.
+- **Shared DB between beta and prod.** Anything you test on beta changes prod data.
+- **Default admin password.** `admin` / `admin123` comes from `.env.example`. Make sure
+  prod uses a different one.
+- **Known security debt** is listed in `TODO.md`: unsigned webhooks and the open
+  `GET /webhook`. Read it before exposing anything new.
+- **Phone keys:** call/deal `phoneKey` is the last 10 digits; WATI numbers carry a
+  `91` prefix. Normalise before joining.
 
-`backend/modules/agent/` backs the **Ask** tab: a chat box that answers questions
-about the business by querying this dashboard's own data, and — for admins — Bigin
-live when the local mirror doesn't carry the answer. It exists because the useful
-questions cross tabs. "Which campaign produced the cheapest closed deal last month,
-and how did those reps' calls score?" spans Marketing, Sources, Analytics and
-Scorecard, so in practice nobody asks it.
-
-Set `OPENAI_API_KEY` to switch it on. Without a key the tab loads and says it is
-unconfigured; nothing else in the dashboard depends on it.
-
-**It is read-only.** No tool it can call writes to Mongo, to Bigin, or anywhere
-else. The only outbound writes in the module are the HTTP POSTs that carry the
-question to OpenAI and (when enabled) a COQL SELECT to Bigin.
-
-**Reps get it too, scoped.** Access control is applied per *tool*, not at the
-router:
-
-- Tools over owned data (`query_calls`, `query_deals`, `list_installments`, …)
-  inject the rep's `ownerEmail` server-side. The model cannot pass it, override
-  it, or ask for someone else's.
-- `run_aggregation` — the escape hatch that runs a model-written aggregation —
-  prepends that filter to the pipeline, refuses every stage that writes or
-  executes JavaScript, and cannot reach the `users` collection at all.
-- Ad spend, lead PII, provider billing and the live-Bigin lookups are admin-only.
-  The last of those is not because Bigin holds management data, but because a
-  live CRM search takes criteria the *model* wrote, and there is no owner filter
-  we can reliably impose on it.
-
-Every answer carries a trace of the tools that produced it — and for a
-hand-written aggregation, the exact pipeline that ran, owner filter included. A
-figure on a sales dashboard that nobody can check is a figure nobody will act on.
-
-Two things worth knowing before trusting a number from it: the model is instructed
-never to answer from memory (every figure must come from a tool result in that
-conversation), and tool results say when they were truncated. Its token spend
-appears on the **AI Usage** tab next to Sarvam and ElevenLabs.
-
-Guard tests, which need no API key:
+## Tests and scripts
 
 ```bash
 cd backend
-node modules/agent/scripts/testMongoQuery.js   # the aggregation guard — no DB needed
-node modules/agent/scripts/testChatLoop.js     # the tool-calling loop, model stubbed
+npm test        # unit tests + agent guard + lead profile/list/funnel checks (no API keys needed)
+node modules/agent/scripts/testChatLoop.js   # Ask tool loop with the model stubbed
 ```
 
-`BIGIN_COQL_ENABLED` is off because the deployed Zoho refresh token lacks the
-`ZohoBigin.coql.READ` scope. Re-authorise with it and set the flag to give the
-agent one-query CRM access; until then it uses per-module search/get/fields calls,
-which the current scopes allow.
+Useful maintenance scripts, run from `backend/`:
 
-## Google sign-in setup
+| Script | Purpose |
+|---|---|
+| `modules/calls/scripts/backfillCalls.js` | Pull historical TeleCMI calls |
+| `modules/calls/scripts/backfillDeals.js --scope=open` | Re-mirror open Bigin deals that have a contact (`--dry-run` to count first) |
+| `modules/calls/scripts/requeueSkipped.js --apply` | Re-queue calls skipped before a scope/duration change |
+| `modules/calls/scripts/retryFailedTranscriptions.js` | Retry failed transcriptions |
+| `modules/calls/scripts/resetGradeAttempts.js` | Let calls that hit the grading retry limit be graded again |
+| `modules/leads/scripts/backfillContacts.js` | Re-mirror Bigin contacts |
+| `modules/leads/scripts/pruneDeletedContacts.js` | Manual version of the nightly prune |
+| `modules/wati/scripts/backfillWatiChats.js` | Backfill WhatsApp chats |
+| `scripts/importFromBigin.js` | Import tasks from Bigin |
 
-1. Open the Google Cloud console and create or pick a project under the FOCAS Google Workspace organisation.
-2. APIs & Services -> OAuth consent screen: set User type to **Internal** and App name to **FOCAS Sales CRM**. Fill in the support and developer contact emails and save.
-3. APIs & Services -> Credentials -> Create credentials -> **OAuth client ID** -> Application type **Web application**.
-4. Under **Authorized JavaScript origins** add all four:
-   - `https://beta.focasedu.online`
-   - `https://followup.focasedu.online`
-   - `http://localhost:5173` (Vite dev server)
-   - `http://localhost:7007` (Docker / backend-served build)
-5. Leave **Authorized redirect URIs** empty. The ID-token flow needs no redirect URIs.
-6. Copy the Client ID. Set `GOOGLE_CLIENT_ID=<that client id>` and `GOOGLE_ALLOWED_DOMAIN=<workspace domain>` in the environment of both the beta and prod apps (on the servers these are Coolify app environment variables, one app per branch), and in local `backend/.env` for development. Then redeploy/restart so the new values are read.
+Read the top of each script before running it. They connect to whatever
+`MONGO_URI` points at.
 
-Notes:
+## Handover checklist
 
-- The client ID is public; there is no client secret to configure.
-- Leaving `GOOGLE_CLIENT_ID` empty disables Google sign-in and hides the button.
-- Google sign-in only works for users who already exist: each user must have a login email set (Admin -> Users) that matches their Google account email. Anyone without a matching user is rejected.
+Do these before the previous developer leaves. **Don't put secrets in this repo.**
+
+- [ ] GitHub: give the new developer access to `kvr-ui/followup_dashboard` and
+      `kvr-ui/utm`.
+- [ ] SSH access to the `focas` server and a Coolify login.
+- [ ] MongoDB Atlas access (main cluster, plus the VSL cluster for read-only).
+- [ ] Account owners and logins for each service: Zoho/Bigin, TeleCMI, WATI, Meta Business (ad
+      account, pixel, page), ElevenLabs, Sarvam, OpenAI, Google Cloud (OAuth client),
+      DNS registrar for `focasedu.online`.
+- [ ] Where secrets are stored (Coolify env vars are the live copy). Note any
+      password manager or vault here: `______________`.
+- [ ] Hostinger VPS (focasedu.com, old lead server): who has access: `______________`.
 
 ## More documentation
 
-- `plans/crm-integration/main-plan.md` — why the CRM was folded into this
-  dashboard, and every alternative that was considered and rejected
-- `plans/crm-integration/MIGRATION.md` — the one-time Atlas data migration and
-  attribution backfill
-- `plans/crm-integration/CUTOVER.md` — moving live lead-capture traffic and
-  retiring `focas-crm`
-- `TODO.md` — open security/correctness/feature items, ordered by severity
+- `docs/API.md` — full API reference
+- `plans/crm-integration/main-plan.md` — why the CRM was folded into this dashboard
+- `plans/crm-integration/MIGRATION.md` — one-time Atlas migration and attribution backfill
+- `plans/crm-integration/CUTOVER.md` — moving lead capture here and retiring `focas-crm`
+- `plans/crm-integration/FOCAS_CRM_RETIREMENT.md` — what `focas-crm` was and where its data went
+- `plans/google-oauth/`, `plans/lead-profile/` — design records for those features
+- `TODO.md` — open security/correctness/feature items

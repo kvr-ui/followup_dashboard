@@ -17,6 +17,7 @@
 // a lead would be wrong by tomorrow.
 
 const MetaInsight = require('../models/MetaInsight');
+const { istMonth } = require('../../../utils/dates');
 
 // Which Meta `actions` count as a "lead". Ported verbatim from the retired CRM's
 // frontend/src/lib/insights.ts, and the reason is worth keeping: Meta's generic
@@ -68,10 +69,7 @@ const key = (campaignId, month) => `${campaignId}|${month}`;
  */
 function monthOf(value) {
   if (!value) return null;
-  if (value instanceof Date) {
-    if (!Number.isFinite(value.getTime())) return null;
-    return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}`;
-  }
+  if (value instanceof Date) return istMonth(value);
   const text = String(value);
   return /^\d{4}-\d{2}/.test(text) ? text.slice(0, 7) : null;
 }

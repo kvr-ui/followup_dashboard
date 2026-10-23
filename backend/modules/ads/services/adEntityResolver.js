@@ -24,11 +24,12 @@
 const MetaAdset = require('../models/MetaAdset');
 const MetaAd = require('../models/MetaAd');
 const { normalizeName } = require('./normalizeName');
+const { CAMPAIGN_INDEX_TTL_MS } = require('../../../config/env');
 
 // Same caching story as campaignResolver: tiny collections, but resolved once
 // per lead by the backfill, so indexed in memory with a short TTL — an ad set
 // created by the sync minutes ago must start resolving without a restart.
-const TTL_MS = Number(process.env.CAMPAIGN_INDEX_TTL_MS || 60000);
+const TTL_MS = CAMPAIGN_INDEX_TTL_MS;
 
 let index = null;
 let indexedAt = 0;

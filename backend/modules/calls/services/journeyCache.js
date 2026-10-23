@@ -15,7 +15,7 @@ const TTL_MS = Number(process.env.JOURNEY_CACHE_TTL_MS || 60000);
 let cache = null;
 let cachedAt = 0;
 let refreshing = null;
-// See taskController's taskCacheGen: guards against a refresh that began before a
+// See utils/swrCache's generation guard: guards against a refresh that began before a
 // deal/call write completing after invalidate() and re-marking stale data fresh.
 let generation = 0;
 
