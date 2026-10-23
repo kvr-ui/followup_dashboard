@@ -3,6 +3,7 @@
 //  1. Reconcile calls  — poll TeleCMI for recent calls (catches missed webhooks)
 //  2. Reconcile deals  — poll Bigin for recently-changed deals (won/lost)
 //  3. Transcribe       — work through pending calls
+//  4. Reconcile contacts — poll Bigin for recently-changed contacts (MQLs)
 //
 // Webhooks are the fast path; these polls are the safety net. We learned in v1
 // that webhooks can silently miss events, so we never rely on them alone.
@@ -23,6 +24,7 @@ const env = require('../../../config/env');
 const CALL_POLL_MIN = Number(process.env.CALL_POLL_MINUTES || 15);
 const BIGIN_POLL_MIN = Number(process.env.BIGIN_CALL_POLL_MINUTES || 10);
 const DEAL_POLL_MIN = Number(process.env.DEAL_POLL_MINUTES || 15);
+const CONTACT_POLL_MIN = Number(process.env.CONTACT_POLL_MINUTES || 15);
 const TRANSCRIBE_EVERY_MIN = env.TRANSCRIBE_POLL_MINUTES;
 const TRANSCRIBE_BATCH = env.TRANSCRIBE_BATCH;
 const GRADE_EVERY_MIN = Number(process.env.GRADE_POLL_MINUTES || 10);
@@ -40,6 +42,14 @@ const seedFromNewestCall = async () => {
 const seedFromNewestDeal = async () => {
   const d = await Deal.findOne({}, { modifiedTime: 1 }).sort({ modifiedTime: -1 }).lean();
   return d && d.modifiedTime ? new Date(d.modifiedTime).getTime() : null;
+};
+
+const seedFromNewestContact = async () => {
+  const Contact = require('../../leads/models/Contact');
+  const c = await Contact.findOne({ modifiedTime: { $ne: null } }, { modifiedTime: 1 })
+    .sort({ modifiedTime: -1 })
+    .lean();
+  return c && c.modifiedTime ? new Date(c.modifiedTime).getTime() : null;
 };
 
 // If ElevenLabs says we're out of credits, stop hammering it for a while.
@@ -63,6 +73,7 @@ let running = {
   calls: false,
   outgoing: false,
   deals: false,
+  contacts: false,
   bigin: false,
   transcribe: false,
   grade: false,
@@ -414,6 +425,62 @@ async function nightlyOpenDealResync() {
   }
 }
 
+// The contact webhook comes through Zoho Flow, which drops deliveries (a whole
+// egress host went dark on 2026-10-22). Same cursor pattern as deals, so a missed
+// contact lands within CONTACT_POLL_MIN instead of never.
+async function reconcileContacts() {
+  if (running.contacts) return;
+  running.contacts = true;
+
+  const startedAt = new Date();
+
+  try {
+    const Contact = require('../../leads/models/Contact');
+    const {
+      fetchContactsModifiedSince,
+      fromBiginRecord,
+      upsertContact,
+    } = require('../../leads/services/contactStore');
+
+    const since = await sinceFor('contacts', seedFromNewestContact);
+    console.log(`[reconcile contacts] window ${fmtWindow(since)}`);
+
+    const rows = (await fetchContactsModifiedSince(since)).map(fromBiginRecord).filter(Boolean);
+    // Skip what the webhook already stored at this exact Bigin version, so the
+    // log counts real catches and the poll doesn't rewrite every row it re-reads.
+    const have = await Contact.find(
+      { zohoId: { $in: rows.map((c) => c.zohoId) } },
+      { zohoId: 1, modifiedTime: 1 }
+    ).lean();
+    const storedAt = new Map(have.map((c) => [c.zohoId, c.modifiedTime ? c.modifiedTime.getTime() : 0]));
+
+    let created = 0;
+    let updated = 0;
+    for (const c of rows) {
+      const prev = storedAt.get(c.zohoId);
+      const mt = c.modifiedTime ? c.modifiedTime.getTime() : 0;
+      if (prev !== undefined && prev >= mt) continue;
+      await upsertContact(c, 'poll');
+      if (prev === undefined) created += 1;
+      else updated += 1;
+    }
+
+    await commit('contacts', startedAt);
+
+    if (created || updated) {
+      require('../../leads/services/leadList').invalidateLeadListCache();
+      require('../../leads/services/funnel').invalidateFunnelCache();
+      console.log(
+        `[reconcile contacts] ${rows.length} seen — ${created} missed by the webhook, ${updated} refreshed`
+      );
+    }
+  } catch (err) {
+    console.warn('[reconcile contacts] failed:', err.message);
+  } finally {
+    running.contacts = false;
+  }
+}
+
 async function reconcileDeals() {
   if (running.deals) return;
   running.deals = true;
@@ -685,6 +752,7 @@ function start() {
 
   console.log(
     `Call jobs: calls/${CALL_POLL_MIN}m, bigin/${BIGIN_POLL_MIN}m, deals/${DEAL_POLL_MIN}m, ` +
+      `contacts/${CONTACT_POLL_MIN}m, ` +
       `transcribe/${TRANSCRIBE_EVERY_MIN}m, grade/${GRADE_EVERY_MIN}m, audit/${AUDIT_EVERY_MIN}m`
   );
 
@@ -698,6 +766,7 @@ function start() {
   setTimeout(reconcileOutgoingCalls, 35 * 1000);
   setTimeout(reconcileBiginCalls, 45 * 1000);
   setTimeout(reconcileDeals, 60 * 1000);
+  setTimeout(reconcileContacts, 65 * 1000);
   // Grade runs after transcribe in the stagger — a call must be transcribed before it
   // can be graded, so there's no point racing them on boot. Transcribe was missing from
   // this list, so anything left `pending` across a restart sat idle for a full
@@ -714,6 +783,7 @@ function start() {
   setInterval(reconcileOutgoingCalls, CALL_POLL_MIN * 60 * 1000);
   setInterval(reconcileBiginCalls, BIGIN_POLL_MIN * 60 * 1000);
   setInterval(reconcileDeals, DEAL_POLL_MIN * 60 * 1000);
+  setInterval(reconcileContacts, CONTACT_POLL_MIN * 60 * 1000);
   setInterval(transcribePending, TRANSCRIBE_EVERY_MIN * 60 * 1000);
   setInterval(gradePending, GRADE_EVERY_MIN * 60 * 1000);
   setInterval(auditPipeline, AUDIT_EVERY_MIN * 60 * 1000);
@@ -733,6 +803,7 @@ module.exports = {
   nightlyContactPrune,
   nightlyOpenDealResync,
   reconcileDeals,
+  reconcileContacts,
   transcribePending,
   gradePending,
   auditPipeline,

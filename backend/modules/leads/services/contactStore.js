@@ -1,9 +1,9 @@
 // Writing Bigin contacts into our Contact mirror.
 //
-// Two writers, one shape: the contact webhook (live) and the backfill script
-// (once). Both go through fromBiginRecord -> upsertContact, keyed on the Bigin
-// contact id, so a contact edited in Bigin overwrites itself rather than
-// becoming a second MQL.
+// Three writers, one shape: the contact webhook (live), the reconcile poll
+// (safety net for missed webhooks) and the backfill script (once). All go
+// through fromBiginRecord -> upsertContact, keyed on the Bigin contact id, so a
+// contact edited in Bigin overwrites itself rather than becoming a second MQL.
 
 const Contact = require('../models/Contact');
 const zoho = require('../../../services/zoho');
@@ -28,6 +28,23 @@ const metaId = (v) => {
   const s = text(v);
   return s && /^\d{6,25}$/.test(s) ? s : null;
 };
+
+// Every Bigin field fromBiginRecord reads — list endpoints return only what is asked for.
+const CONTACT_FIELDS = [
+  'Full_Name',
+  'First_Name',
+  'Last_Name',
+  'Phone',
+  'Mobile',
+  'Email',
+  'Lead_Source1',
+  'Owner',
+  'Created_Time',
+  'Modified_Time',
+  // Meta campaign / ad set ids LeadChain writes into reused address fields — see metaId.
+  'Mailing_Country',
+  'Description',
+].join(',');
 
 /** A Bigin Contacts record (REST shape) -> our Contact fields. */
 function fromBiginRecord(rec) {
@@ -125,4 +142,50 @@ async function syncContactFromWebhook(payloadRecord) {
   return upsertContact({ createdTime: null, ...fields }, 'webhook');
 }
 
-module.exports = { fromBiginRecord, normalizeContactPayload, upsertContact, syncContactFromWebhook };
+/**
+ * Contacts created or edited in Bigin since `since` (ms), newest first — the
+ * reconcile poll's read. Zoho Flow drops some webhook deliveries (one of its
+ * egress hosts stopped reaching us on 2026-10-22), so the poll is what makes a
+ * missed one arrive late instead of never.
+ */
+async function fetchContactsModifiedSince(since) {
+  const contacts = [];
+  let page = 1;
+  let pageToken = null;
+
+  // Bounded so a paging bug cannot spin forever against Zoho's rate limit.
+  for (let i = 0; i < 100; i += 1) {
+    const qs = pageToken ? `page_token=${encodeURIComponent(pageToken)}` : `page=${page}`;
+    const r = await zoho.apiGet(
+      `/Contacts?fields=${CONTACT_FIELDS}&per_page=200&sort_by=Modified_Time&sort_order=desc&${qs}`
+    );
+    if (!r.ok) throw new Error(r.error || 'Failed to fetch contacts');
+    const rows = (r.json && r.json.data) || [];
+    if (!rows.length) break;
+
+    let reachedOlder = false;
+    for (const c of rows) {
+      const mt = new Date(c.Modified_Time || c.Created_Time).getTime();
+      if (mt < since) {
+        reachedOlder = true;
+        break;
+      }
+      contacts.push(c);
+    }
+    const info = r.json.info || {};
+    if (reachedOlder || !info.more_records) break;
+    // Past 2,000 records Bigin v2 pages by token, as in the backfill.
+    pageToken = info.next_page_token || null;
+    page += 1;
+  }
+  return contacts;
+}
+
+module.exports = {
+  CONTACT_FIELDS,
+  fromBiginRecord,
+  normalizeContactPayload,
+  upsertContact,
+  syncContactFromWebhook,
+  fetchContactsModifiedSince,
+};
