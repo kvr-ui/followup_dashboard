@@ -26,6 +26,9 @@ const contactSchema = new mongoose.Schema(
     // Contacts.Lead_Source1, verbatim (free text in Bigin).
     leadSource: { type: String, default: null },
 
+    // Contacts.CA_Status, verbatim (free text in Bigin) — Foundation / Inter / Final etc.
+    caStatus: { type: String, default: null, index: true },
+
     // The Meta campaign / ad set behind the lead, as LeadChain stamped them
     // (see contactStore.fromBiginRecord for which Bigin field carries which).
     metaCampaignId: { type: String, default: null, index: true },

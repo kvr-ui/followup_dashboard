@@ -8,6 +8,7 @@ const { isAdmin } = require('../../../utils/owner');
 const { istDayKey } = require('../../../utils/dates');
 
 const { TELECMI_MIN_DURATION_SEC: MIN_DURATION } = require('../../../config/env');
+const { csvCell, watiRows, WATI_HEADER } = require('../../../services/csvExport');
 
 // A sales rep may only ever see their OWN calls/scores. This resolves the owner filter
 // for any list/analytics query: an admin may narrow by ?owner=<email> or see everyone;
@@ -718,22 +719,6 @@ async function pipelineHealth(req, res) {
 }
 
 
-// One CSV cell: quoted, inner quotes doubled, newlines flattened so a note typed
-// into Bigin can't split a row.
-function csvCell(v) {
-  if (v === null || v === undefined) return '""';
-  return `"${String(v).replace(/"/g, '""').replace(/\r?\n/g, ' ')}"`;
-}
-
-// Indian numbers arrive as "98xxxxxxxx", "+91 98…", "098…". WATI wants country
-// code + number, digits only.
-function watiPhone(raw) {
-  let p = String(raw || '').replace(/\D/g, '');
-  if (p.length === 10) p = `91${p}`;
-  else if (p.length === 11 && p[0] === '0') p = `91${p.slice(1)}`;
-  return /^\d{11,15}$/.test(p) ? p : null;
-}
-
 /**
  * GET /api/calls/export?kind=full|wati&reason=&owner= — lost leads as a CSV.
  *
@@ -755,18 +740,8 @@ async function exportLost(req, res) {
 
     let lines;
     if (kind === 'wati') {
-      // Matches WATI's contact-import template exactly: unquoted, CRLF, the
-      // number split into country code and the local part.
-      const seen = new Set();
-      lines = ['Name,CountryCode,Phone,AllowCampaign,AllowSMS'];
-      for (const d of deals) {
-        const phone = watiPhone(d.contactPhone);
-        if (!phone || seen.has(phone)) continue;
-        seen.add(phone);
-        // No commas or quotes in a name, so the row never needs quoting.
-        const name = (d.contactName || d.name || '').replace(/[",\r\n]+/g, ' ').trim();
-        lines.push([name, phone.slice(0, -10), phone.slice(-10), 'True', 'True'].join(','));
-      }
+      // WATI's contact-import template — see services/csvExport.
+      lines = [WATI_HEADER, ...watiRows(deals.map((d) => ({ name: d.contactName || d.name, phone: d.contactPhone })))];
     } else {
       // Call totals come from the journeys snapshot, keyed by deal id.
       const journeys = new Map((await getJourneys()).map((j) => [j._id, j]));

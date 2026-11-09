@@ -445,3 +445,16 @@ table.data-table td.src-divider {
     gap: 0;
   }
 }
+
+/* Campaign leads — the inline 500 / 1000 chooser beside the WATI button. */
+.cl-wati {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.cl-wati label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}

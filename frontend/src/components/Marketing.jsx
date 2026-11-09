@@ -7,6 +7,8 @@ import DataTable from './ui/DataTable';
 import StatCard, { StatGrid } from './ui/StatCard';
 import EmptyState from './ui/EmptyState';
 import Icon from './ui/Icon';
+import CampaignLeads from './CampaignLeads';
+import '../styles/views/deals.css';
 import {
   RESOLVED_BY,
   defaultRange,
@@ -289,6 +291,9 @@ export default function Marketing() {
               display. CTR, CPC and CPL are recomputed from the totals, never averaged.
             </p>
           </Section>
+
+          {/* ---------------- Campaign leads (Bigin) ---------------- */}
+          <CampaignLeads range={range} />
 
           {/* ---------------- UTM breakdown ---------------- */}
           <Section

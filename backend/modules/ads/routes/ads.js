@@ -48,6 +48,8 @@ const { NAME_FIELDS, EMAIL_FIELDS, fieldValue } = require('../services/metaField
 const { rateLimit } = require('../middleware/rateLimit');
 const { authenticate, requireAdmin } = require('../../../middleware/auth');
 const campaignAliasRoutes = require('./campaignAliases');
+const { loadCampaignLeads } = require('../services/campaignLeads');
+const { fullCsv, watiRows, watiCsv, chunk, zipStore } = require('../../../services/csvExport');
 
 const router = express.Router();
 
@@ -167,6 +169,97 @@ router.get('/summary', async (req, res) => {
 // ---------------------------------------------------------------------------
 // GET /api/ads/campaigns — per-campaign performance
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Campaign leads — every Bigin contact with campaign, CA status, lead source and
+// deal outcome. See services/campaignLeads.js.
+// ---------------------------------------------------------------------------
+
+const LEAD_FILTER_KEYS = ['campaign', 'caStatus', 'source', 'outcome', 'owner', 'q'];
+
+function leadFilters(query) {
+  const f = {};
+  for (const k of LEAD_FILTER_KEYS) if (query[k]) f[k] = String(query[k]);
+  return f;
+}
+
+/**
+ * GET /api/ads/campaign-leads?from=&to=&campaign=&caStatus=&source=&outcome=&owner=&q=&page=&limit=
+ * Rows (paged, newest first) plus dropdown options over the whole date range.
+ */
+router.get('/campaign-leads', async (req, res) => {
+  const range = parseRange(req.query);
+  if (range.error) return fail(res, 400, range.error);
+  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 500);
+  const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+  try {
+    const { rows, options, total } = await loadCampaignLeads({ ...range, ...leadFilters(req.query) });
+    res.json({
+      success: true,
+      data: rows.slice((page - 1) * limit, page * limit),
+      matched: rows.length,
+      total,
+      page,
+      limit,
+      options,
+    });
+  } catch (err) {
+    console.error('campaign-leads failed:', err);
+    fail(res, 500, 'Could not load campaign leads');
+  }
+});
+
+const OUTCOME_LABEL = {
+  won: 'Closed with Sale',
+  lost: 'Closed without Sale',
+  open: 'Open',
+  none: 'No deal',
+};
+
+/**
+ * GET /api/ads/campaign-leads/export?kind=full|wati&chunk=500|1000 (+ the list filters)
+ *   full  one CSV, every column
+ *   wati  a .zip of WATI import CSVs, `chunk` contacts per file
+ */
+router.get('/campaign-leads/export', async (req, res) => {
+  const range = parseRange(req.query);
+  if (range.error) return fail(res, 400, range.error);
+  const kind = req.query.kind === 'wati' ? 'wati' : 'full';
+  const size = Number(req.query.chunk);
+  if (kind === 'wati' && size !== 500 && size !== 1000) {
+    return fail(res, 400, "chunk must be 500 or 1000");
+  }
+  try {
+    const { rows } = await loadCampaignLeads({ ...range, ...leadFilters(req.query) });
+    const base = `campaign-leads-${range.from}-to-${range.to}`;
+
+    if (kind === 'full') {
+      const header = [
+        'Name', 'Phone', 'Email', 'Campaign', 'CA Status', 'Lead Source', 'Outcome',
+        'Deal Stage', 'Amount', 'Owner', 'Created',
+      ];
+      const body = rows.map((r) => [
+        r.name, r.phone, r.email, r.campaign, r.caStatus, r.leadSource, OUTCOME_LABEL[r.outcome],
+        r.dealStage, r.amount, r.owner, r.createdTime ? new Date(r.createdTime).toISOString() : '',
+      ]);
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="${base}.csv"`);
+      return res.send(fullCsv(header, body));
+    }
+
+    const parts = chunk(watiRows(rows), size);
+    if (!parts.length) return fail(res, 404, 'No usable phone numbers in this selection');
+    const zip = zipStore(
+      parts.map((p, i) => ({ name: `${base}-wati-part-${i + 1}.csv`, data: watiCsv(p) }))
+    );
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="${base}-wati-${size}.zip"`);
+    return res.send(zip);
+  } catch (err) {
+    console.error('campaign-leads export failed:', err);
+    fail(res, 500, 'Export failed');
+  }
+});
 
 /**
  * One row per campaign that spent anything in the range: spend, impressions,

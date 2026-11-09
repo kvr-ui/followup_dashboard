@@ -46,7 +46,10 @@ export async function download(path, fallbackName = 'export.csv') {
     setToken(null);
     throw new Error('Session expired. Please log in again.');
   }
-  if (!res.ok) throw new Error(`Download failed (${res.status})`);
+  if (!res.ok) {
+    const json = await res.json().catch(() => ({}));
+    throw new Error(json.message || `Download failed (${res.status})`);
+  }
   const name = /filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') || '')?.[1] || fallbackName;
   const url = URL.createObjectURL(await res.blob());
   const a = document.createElement('a');

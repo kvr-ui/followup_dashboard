@@ -29,3 +29,11 @@ export const TRANSCRIPT_STATUS = {
   pending: { cls: 'badge status-in-progress', label: 'pending' },
   failed: { cls: 'badge badge-high', label: 'failed' },
 };
+
+/** A Bigin contact's deal outcome (Campaign leads list). */
+export const OUTCOME = {
+  won: { label: 'Closed with Sale', cls: 'badge badge-low' },
+  lost: { label: 'Closed without Sale', cls: 'badge badge-high' },
+  open: { label: 'Open', cls: 'badge badge-normal' },
+  none: { label: 'No deal', cls: 'badge' },
+};
