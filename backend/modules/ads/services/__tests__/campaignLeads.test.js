@@ -54,3 +54,16 @@ test('filter options count every value including empty', () => {
   assert.deepEqual(o.campaigns.map((c) => [c.value, c.label, c.count]), [['111', 'Aug Promo', 2], ['222', '222', 1], [NONE, null, 1]]);
   assert.deepEqual(o.outcomes.map((x) => x.count), [1, 1, 1, 1]);
 });
+
+test('dropdown counts are faceted: each applies the other filters, not its own', () => {
+  const o = filterOptions(rows, { caStatus: 'Inter' });
+  // Outcome counts are within CA Status = Inter (c1 won, c4 open).
+  assert.deepEqual(o.outcomes.map((x) => [x.value, x.count]), [['won', 1], ['lost', 0], ['open', 1], ['none', 0]]);
+  // CA Status counts ignore their own filter, so other values stay pickable.
+  assert.deepEqual(o.caStatuses.map((c) => [c.value, c.count]), [['Inter', 2], ['Final', 1], [NONE, 1]]);
+});
+
+test('a selected value with no matches is still listed', () => {
+  const o = filterOptions(rows, { caStatus: 'Final', campaign: '111' });
+  assert.ok(o.caStatuses.some((c) => c.value === 'Final' && c.count === 0));
+});

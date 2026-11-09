@@ -458,3 +458,7 @@ table.data-table td.src-divider {
   align-items: center;
   gap: 4px;
 }
+/* Long CA status / campaign names must not stretch a select across the bar. */
+.cl-filters select {
+  max-width: 16rem;
+}

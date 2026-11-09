@@ -79,34 +79,52 @@ function applyFilters(rows, f = {}) {
   });
 }
 
-/** Distinct values for the filter dropdowns, with counts, most common first. */
-function filterOptions(rows) {
-  const tally = (key, label = key) => {
-    const m = new Map();
-    for (const r of rows) {
-      const k = r[key] || NONE;
-      const cur = m.get(k) || { value: k, label: r[key] ? r[label] : null, count: 0 };
-      cur.count += 1;
-      m.set(k, cur);
-    }
-    return [...m.values()].sort((a, b) => b.count - a.count);
-  };
-  const outcomes = OUTCOMES.map((o) => ({
+// Which row field each filter reads, for the dropdown counts.
+const FACETS = [
+  ['campaigns', 'campaign', 'campaignId', 'campaign'],
+  ['caStatuses', 'caStatus', 'caStatus', 'caStatus'],
+  ['sources', 'source', 'leadSource', 'leadSource'],
+  ['owners', 'owner', 'owner', 'owner'],
+];
+
+function tally(rows, key, label) {
+  const m = new Map();
+  for (const r of rows) {
+    const k = r[key] || NONE;
+    const cur = m.get(k) || { value: k, label: r[key] ? r[label] : null, count: 0 };
+    cur.count += 1;
+    m.set(k, cur);
+  }
+  return [...m.values()].sort((a, b) => b.count - a.count);
+}
+
+/**
+ * Values for the filter dropdowns, most common first. Faceted: each dropdown's
+ * counts apply every OTHER active filter, so "Closed without Sale (552)" under
+ * CA Status = Intermediate is the number you get by picking it. A value that is
+ * currently selected is kept even if its count drops to 0, so the select never
+ * loses its own value.
+ */
+function filterOptions(rows, filters = {}) {
+  const without = (key) => applyFilters(rows, { ...filters, [key]: '' });
+  const out = {};
+  for (const [name, filterKey, field, label] of FACETS) {
+    const list = tally(without(filterKey), field, label);
+    const sel = filters[filterKey];
+    if (sel && !list.some((o) => o.value === sel)) list.push({ value: sel, label: sel, count: 0 });
+    out[name] = list;
+  }
+  const forOutcome = without('outcome');
+  out.outcomes = OUTCOMES.map((o) => ({
     value: o,
-    count: rows.filter((r) => r.outcome === o).length,
+    count: forOutcome.filter((r) => r.outcome === o).length,
   }));
-  return {
-    campaigns: tally('campaignId', 'campaign'),
-    caStatuses: tally('caStatus'),
-    sources: tally('leadSource'),
-    owners: tally('owner'),
-    outcomes,
-  };
+  return out;
 }
 
 /**
  * Load and join every contact created in [from, to] (YYYY-MM-DD, IST days).
- * Returns { rows (filtered, newest first), options (over the whole range) }.
+ * Returns { rows (filtered, newest first), options (faceted dropdown counts), total }.
  */
 async function loadCampaignLeads({ from, to, ...filters }) {
   const created = {};
@@ -142,7 +160,7 @@ async function loadCampaignLeads({ from, to, ...filters }) {
 
   const names = new Map(campaigns.map((c) => [String(c._id), c.name]));
   const all = buildRows(contacts, deals, names);
-  return { rows: applyFilters(all, filters), options: filterOptions(all), total: all.length };
+  return { rows: applyFilters(all, filters), options: filterOptions(all, filters), total: all.length };
 }
 
 module.exports = { loadCampaignLeads, buildRows, applyFilters, filterOptions, OUTCOMES, NONE };

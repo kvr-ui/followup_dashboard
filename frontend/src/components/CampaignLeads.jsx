@@ -126,7 +126,7 @@ export default function CampaignLeads({ range }) {
         </>
       }
     >
-      <FilterBar>
+      <FilterBar className="cl-filters">
         <label>
           Campaign
           <select value={filters.campaign} onChange={set('campaign')}>
